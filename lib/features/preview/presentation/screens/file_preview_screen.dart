@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/crypto/crypto_engine.dart';
 import '../../../../core/crypto/hash_utils.dart';
+import '../../../../core/database/chunk_model.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
@@ -13,6 +14,12 @@ import '../../../../shared/components/filo_button.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
 import '../../../transfer/presentation/providers/transfer_provider.dart';
+import '../widgets/archive_inspector_widget.dart';
+import '../widgets/audio_player_widget.dart';
+import '../widgets/code_text_viewer_widget.dart';
+import '../widgets/csv_table_viewer_widget.dart';
+import '../widgets/pdf_viewer_widget.dart';
+import '../widgets/video_player_widget.dart';
 
 /// Previews decrypted media, text, documents, or shows a rich metadata fallback viewer.
 class FilePreviewScreen extends ConsumerStatefulWidget {
@@ -51,8 +58,10 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
       final channel = await storage.getOrCreateVaultChannel('');
 
       if (chunks.isNotEmpty) {
+        final sortedChunks = List<FileChunk>.from(chunks)
+          ..sort((a, b) => a.chunkIndex.compareTo(b.chunkIndex));
         final bytesBuilder = BytesBuilder();
-        for (final c in chunks) {
+        for (final c in sortedChunks) {
           final chunkCipher = await storage.downloadChunk(
             channelId: channel.channelId,
             remoteFileId: c.remoteFileId,
@@ -65,16 +74,32 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
         }
         _decryptedBytes = bytesBuilder.toBytes();
       } else {
-        _decryptedBytes = Uint8List.fromList(utf8.encode('Encrypted content for ${widget.node.name}'));
+        _decryptedBytes = Uint8List.fromList(
+          utf8.encode('Encrypted content for ${widget.node.name}'),
+        );
       }
 
+      final name = widget.node.name.toLowerCase();
       final mime = widget.node.mimeType?.toLowerCase() ?? '';
+
+      // Check if it's text, code, or spreadsheet
       if (mime.startsWith('text/') ||
-          mime.contains('json') ||
-          mime.contains('dart') ||
-          mime.contains('javascript') ||
-          mime.contains('xml') ||
-          mime.contains('yaml')) {
+          name.endsWith('.txt') ||
+          name.endsWith('.md') ||
+          name.endsWith('.csv') ||
+          name.endsWith('.tsv') ||
+          name.endsWith('.json') ||
+          name.endsWith('.dart') ||
+          name.endsWith('.js') ||
+          name.endsWith('.ts') ||
+          name.endsWith('.py') ||
+          name.endsWith('.yaml') ||
+          name.endsWith('.yml') ||
+          name.endsWith('.xml') ||
+          name.endsWith('.html') ||
+          name.endsWith('.css') ||
+          name.endsWith('.sql') ||
+          name.endsWith('.sh')) {
         _textContent = utf8.decode(_decryptedBytes!, allowMalformed: true);
       }
 
@@ -89,7 +114,7 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final name = widget.node.name.toLowerCase();
     final mime = widget.node.mimeType?.toLowerCase() ?? '';
 
     Widget content;
@@ -106,17 +131,32 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline_rounded, size: 48, color: FiloColors.destructive),
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 48,
+                color: FiloColors.destructive,
+              ),
               const SizedBox(height: FiloSpacing.md),
               Text('Decryption Failed', style: FiloTypography.title2),
               const SizedBox(height: FiloSpacing.xs),
-              Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13),
+              ),
             ],
           ),
         ),
       );
-    } else if (mime.startsWith('image/') && _decryptedBytes != null) {
-      // Interactive Zoomable Image Preview
+    } else if ((mime.startsWith('image/') ||
+            name.endsWith('.jpg') ||
+            name.endsWith('.jpeg') ||
+            name.endsWith('.png') ||
+            name.endsWith('.webp') ||
+            name.endsWith('.gif') ||
+            name.endsWith('.bmp')) &&
+        _decryptedBytes != null) {
+      // 1. Interactive Zoomable Image Preview
       content = InteractiveViewer(
         panEnabled: true,
         boundaryMargin: const EdgeInsets.all(20),
@@ -126,25 +166,68 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
           child: Image.memory(
             _decryptedBytes!,
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, size: 64),
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.broken_image_rounded,
+              size: 64,
+            ),
           ),
         ),
+      );
+    } else if ((mime == 'application/pdf' || name.endsWith('.pdf')) &&
+        _decryptedBytes != null) {
+      // 2. Native Multi-Page PDF Viewer
+      content = PdfViewerWidget(
+        bytes: _decryptedBytes!,
+        fileName: widget.node.name,
+      );
+    } else if ((mime.startsWith('video/') ||
+            name.endsWith('.mp4') ||
+            name.endsWith('.mkv') ||
+            name.endsWith('.mov') ||
+            name.endsWith('.avi') ||
+            name.endsWith('.webm')) &&
+        _decryptedBytes != null) {
+      // 3. Hardware-Accelerated Video Player
+      content = VideoPlayerWidget(
+        bytes: _decryptedBytes!,
+        fileName: widget.node.name,
+      );
+    } else if ((mime.startsWith('audio/') ||
+            name.endsWith('.mp3') ||
+            name.endsWith('.wav') ||
+            name.endsWith('.m4a') ||
+            name.endsWith('.aac') ||
+            name.endsWith('.flac') ||
+            name.endsWith('.ogg')) &&
+        _decryptedBytes != null) {
+      // 4. Apple iOS Music-Style Audio Player
+      content = AudioPlayerWidget(
+        bytes: _decryptedBytes!,
+        fileName: widget.node.name,
+        sizeBytes: widget.node.sizeBytes,
+      );
+    } else if ((name.endsWith('.csv') || name.endsWith('.tsv')) &&
+        _textContent != null) {
+      // 5. Interactive CSV / TSV Spreadsheet Viewer
+      content = CsvTableViewerWidget(
+        content: _textContent!,
+        fileName: widget.node.name,
+      );
+    } else if ((name.endsWith('.zip') || mime.contains('zip')) &&
+        _decryptedBytes != null) {
+      // 6. ZIP Archive Explorer & Inspector
+      content = ArchiveInspectorWidget(
+        bytes: _decryptedBytes!,
+        fileName: widget.node.name,
       );
     } else if (_textContent != null) {
-      // Text & Code Viewer
-      content = SingleChildScrollView(
-        padding: const EdgeInsets.all(FiloSpacing.lg),
-        child: SelectableText(
-          _textContent!,
-          style: FiloTypography.monospace.copyWith(
-            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-            fontSize: 13,
-            height: 1.5,
-          ),
-        ),
+      // 7. Interactive Code & Text Viewer (Line Numbers, Copy, Wrap)
+      content = CodeTextViewerWidget(
+        text: _textContent!,
+        fileName: widget.node.name,
       );
     } else {
-      // Rich Metadata Fallback Viewer
+      // 8. Rich Apple-Grade Metadata Fallback Viewer
       content = Center(
         child: Padding(
           padding: const EdgeInsets.all(FiloSpacing.xxl),
@@ -152,15 +235,15 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 72,
-                height: 72,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   color: FiloColors.primary.withValues(alpha: 0.1),
                   borderRadius: FiloRadius.roundedXl,
                 ),
                 child: const Icon(
                   Icons.insert_drive_file_rounded,
-                  size: 36,
+                  size: 40,
                   color: FiloColors.primary,
                 ),
               ),
@@ -168,13 +251,14 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
               Text(
                 widget.node.name,
                 textAlign: TextAlign.center,
-                style: FiloTypography.title2,
+                style: FiloTypography.title2.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: FiloSpacing.xs),
               Text(
-                '${HashUtils.formatBytes(widget.node.sizeBytes)} • ${widget.node.mimeType ?? 'Unknown Type'}',
-                style: TextStyle(
-                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                '${HashUtils.formatBytes(widget.node.sizeBytes)} • ${widget.node.mimeType ?? 'Binary Document'}',
+                style: const TextStyle(
+                  color: FiloColors.lightTextSecondary,
+                  fontSize: 13,
                 ),
               ),
               const SizedBox(height: FiloSpacing.xl),
@@ -182,7 +266,9 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
                 label: 'Share Decrypted Copy',
                 icon: const Icon(Icons.share_rounded, size: 18),
                 onPressed: () {
-                  ref.read(transferQueueProvider.notifier).shareDecryptedCopy(widget.node);
+                  ref
+                      .read(transferQueueProvider.notifier)
+                      .shareDecryptedCopy(widget.node);
                 },
               ),
             ],
@@ -192,16 +278,56 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
     }
 
     return Scaffold(
+      backgroundColor: FiloColors.lightBackground,
       appBar: AppBar(
-        title: Text(widget.node.name),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+            ),
+            child: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 14,
+              color: Colors.black,
+            ),
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          widget.node.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: FiloTypography.title3.copyWith(fontWeight: FontWeight.w700),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share_rounded),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+              ),
+              child: const Icon(
+                Icons.share_rounded,
+                size: 16,
+                color: Colors.black,
+              ),
+            ),
             tooltip: 'Share Decrypted Copy',
             onPressed: () {
-              ref.read(transferQueueProvider.notifier).shareDecryptedCopy(widget.node);
+              ref
+                  .read(transferQueueProvider.notifier)
+                  .shareDecryptedCopy(widget.node);
             },
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: content,
