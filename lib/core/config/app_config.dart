@@ -23,10 +23,12 @@ class AppConfig {
   static const int buildNumber = 1;
 
   /// Telegram API credentials.
-  /// In production, inject via `--dart-define=TG_API_ID=xxx --dart-define=TG_API_HASH=yyy`
-  static const int tgApiId = int.fromEnvironment('TG_API_ID', defaultValue: 0);
-  static const String tgApiHash =
-      String.fromEnvironment('TG_API_HASH', defaultValue: '');
+  /// In production, inject via `--dart-define-from-file=config.json`
+  /// or `--dart-define=TG_API_ID=xxx --dart-define=TG_API_HASH=yyy`
+  static const int tgApiId = int.fromEnvironment('TG_API_ID',
+      defaultValue: int.fromEnvironment('TELEGRAM_API_ID', defaultValue: 0));
+  static const String tgApiHash = String.fromEnvironment('TG_API_HASH',
+      defaultValue: String.fromEnvironment('TELEGRAM_API_HASH', defaultValue: ''));
 
   /// Chunk size definitions for multi-part file transfers.
   ///

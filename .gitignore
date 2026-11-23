@@ -44,5 +44,10 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Secret credentials
+config.json
+.env
+*.local.json
+
 # Widget Preview related
 .widget_preview/
