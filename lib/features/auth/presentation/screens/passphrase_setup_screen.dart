@@ -5,11 +5,11 @@ import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
-import '../../../../shared/components/filo_button.dart';
+import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../providers/auth_provider.dart';
 
-/// Passphrase setup screen enforcing zero-knowledge confirmation and strength verification.
+/// Passphrase setup screen with human, jargon-free copywriting and CRED/iOS 18 liquid glass aesthetics.
 class PassphraseSetupScreen extends ConsumerStatefulWidget {
   const PassphraseSetupScreen({super.key});
 
@@ -62,13 +62,13 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
   String _getStrengthLabel(int score) {
     switch (score) {
       case 1:
-        return 'Weak';
+        return 'weak';
       case 2:
-        return 'Fair';
+        return 'okay';
       case 3:
-        return 'Good';
+        return 'strong';
       case 4:
-        return 'Very Strong';
+        return 'bulletproof';
       default:
         return '';
     }
@@ -79,17 +79,17 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
     final confirm = _confirmController.text;
 
     if (pwd.length < 8) {
-      FiloToast.show(context, message: 'Passphrase must be at least 8 characters long', type: FiloToastType.error);
+      FiloToast.show(context, message: 'Your key must be at least 8 characters long', type: FiloToastType.error);
       return;
     }
 
     if (pwd != confirm) {
-      FiloToast.show(context, message: 'Passphrases do not match', type: FiloToastType.error);
+      FiloToast.show(context, message: 'Keys do not match', type: FiloToastType.error);
       return;
     }
 
     if (!_confirmedLossRisk) {
-      FiloToast.show(context, message: 'You must confirm that you understand the loss risk', type: FiloToastType.warning);
+      FiloToast.show(context, message: 'Please confirm you saved your key', type: FiloToastType.warning);
       return;
     }
 
@@ -97,9 +97,8 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
     try {
       final recoveryKey = await ref.read(authNotifierProvider.notifier).setupNewVault(pwd);
       setState(() => _isLoading = false);
-
       if (mounted) {
-        _showRecoveryKeyDialog(recoveryKey);
+        _showRecoveryKeySheet(recoveryKey);
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -107,55 +106,127 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
     }
   }
 
-  void _showRecoveryKeyDialog(String recoveryKey) {
+  void _showRecoveryKeySheet(String recoveryKey) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
+
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Save Your Recovery Key'),
-          content: Column(
+        return FiloGlass(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'If you forget your passphrase, this 256-bit emergency recovery key is the ONLY way to access your files.',
-                style: TextStyle(fontSize: 14),
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-              const SizedBox(height: FiloSpacing.md),
+              const SizedBox(height: 18),
+              Text(
+                'emergency recovery key.',
+                style: FiloTypography.editorial(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.8,
+                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'save this in a secure place. if you ever forget your vault key, this is the only way to recover your files.',
+                style: FiloTypography.body.copyWith(
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                ),
+              ),
+              const SizedBox(height: 18),
               Container(
-                padding: const EdgeInsets.all(FiloSpacing.md),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
-                  borderRadius: FiloRadius.roundedMd,
-                  border: Border.all(color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder),
+                  borderRadius: FiloRadius.roundedLg,
+                  border: Border.all(
+                    color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
+                    width: 0.8,
+                  ),
                 ),
                 child: SelectableText(
                   recoveryKey,
                   style: FiloTypography.monospace.copyWith(
                     color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                    fontSize: 13,
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: FiloRadius.roundedLg,
+                        ),
+                        side: BorderSide(
+                          color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: recoveryKey));
+                        HapticFeedback.lightImpact();
+                        FiloToast.show(context, message: 'Recovery key copied', type: FiloToastType.success);
+                      },
+                      child: Text(
+                        'copy key',
+                        style: FiloTypography.callout.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        Navigator.of(context).pop();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: FiloColors.brandGradient,
+                          ),
+                          borderRadius: FiloRadius.roundedLg,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'done',
+                            style: FiloTypography.callout.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: recoveryKey));
-                FiloToast.show(context, message: 'Recovery key copied to clipboard', type: FiloToastType.success);
-              },
-              child: const Text('Copy Key'),
-            ),
-            FiloButton(
-              label: 'I Have Saved It',
-              size: FiloButtonSize.small,
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
         );
       },
     );
@@ -168,146 +239,205 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
     final strength = _calculateStrength(pwd);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Master Passphrase'),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(FiloSpacing.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Zero-Knowledge Passphrase',
-                style: FiloTypography.title1.copyWith(
-                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                ),
-              ),
-              const SizedBox(height: FiloSpacing.xs),
-              Text(
-                'Your passphrase derives the master key (via Argon2id) used to encrypt every file on your device. We NEVER store this passphrase.',
-                style: FiloTypography.body.copyWith(
-                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: FiloSpacing.xl),
+      body: FiloAmbientBackground(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: FiloSpacing.xl,
+              vertical: FiloSpacing.lg,
+            ),
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: FiloSpacing.sm),
 
-              // Passphrase Field
-              TextField(
-                controller: _passphraseController,
-                obscureText: _obscurePassphrase,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: 'Passphrase',
-                  filled: true,
-                  fillColor: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
-                  border: OutlineInputBorder(
-                    borderRadius: FiloRadius.roundedMd,
-                    borderSide: BorderSide.none,
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassphrase ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                    onPressed: () => setState(() => _obscurePassphrase = !_obscurePassphrase),
+                Text(
+                  'create vault key.',
+                  style: FiloTypography.editorial(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -1.2,
+                    color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                   ),
                 ),
-              ),
-              const SizedBox(height: FiloSpacing.sm),
+                const SizedBox(height: 4),
+                Text(
+                  'choose a secret key only you know. it protects every file on your phone.',
+                  style: FiloTypography.body.copyWith(
+                    color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                  ),
+                ),
+                const SizedBox(height: FiloSpacing.xl),
 
-              // Live Strength Meter
-              if (pwd.isNotEmpty) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: strength / 4.0,
-                          backgroundColor: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
-                          valueColor: AlwaysStoppedAnimation<Color>(_getStrengthColor(strength)),
-                          minHeight: 6,
+                // Vault Key Input Field (Liquid Glass)
+                FiloGlass(
+                  borderRadius: FiloRadius.roundedXl,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: TextField(
+                    controller: _passphraseController,
+                    obscureText: _obscurePassphrase,
+                    onChanged: (_) => setState(() {}),
+                    style: FiloTypography.title3.copyWith(
+                      color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'choose your key (min 8 chars)',
+                      hintStyle: FiloTypography.body.copyWith(
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassphrase ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                         ),
+                        onPressed: () => setState(() => _obscurePassphrase = !_obscurePassphrase),
                       ),
                     ),
-                    const SizedBox(width: FiloSpacing.md),
-                    Text(
-                      _getStrengthLabel(strength),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _getStrengthColor(strength),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: FiloSpacing.lg),
-              ] else
-                const SizedBox(height: FiloSpacing.md),
-
-              // Confirm Field
-              TextField(
-                controller: _confirmController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Confirm Passphrase',
-                  filled: true,
-                  fillColor: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
-                  border: OutlineInputBorder(
-                    borderRadius: FiloRadius.roundedMd,
-                    borderSide: BorderSide.none,
                   ),
                 ),
-              ),
-              const SizedBox(height: FiloSpacing.xl),
 
-              // Explicit Confirmation Warning
-              Container(
-                padding: const EdgeInsets.all(FiloSpacing.md),
-                decoration: BoxDecoration(
-                  color: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.warningMuted,
-                  borderRadius: FiloRadius.roundedMd,
-                  border: Border.all(
-                    color: FiloColors.warning.withValues(alpha: 0.4),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Checkbox(
-                      value: _confirmedLossRisk,
-                      activeColor: FiloColors.primary,
-                      onChanged: (val) {
-                        setState(() => _confirmedLossRisk = val ?? false);
-                      },
-                    ),
-                    const SizedBox(width: FiloSpacing.xs),
-                    const Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          'I understand that if I lose my passphrase, my files CANNOT be recovered by anyone, including the app developers.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            height: 1.4,
+                if (pwd.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: strength / 4,
+                            backgroundColor: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
+                            valueColor: AlwaysStoppedAnimation<Color>(_getStrengthColor(strength)),
+                            minHeight: 4,
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: FiloSpacing.xxl),
+                      const SizedBox(width: 12),
+                      Text(
+                        _getStrengthLabel(strength),
+                        style: FiloTypography.caption.copyWith(
+                          color: _getStrengthColor(strength),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
 
-              // Create Vault Button
-              FiloButton(
-                label: 'Create Secure Vault',
-                isLoading: _isLoading,
-                onPressed: _confirmedLossRisk && pwd.isNotEmpty ? _handleSetupVault : null,
-                size: FiloButtonSize.large,
-                isFullWidth: true,
-              ),
-            ],
+                const SizedBox(height: FiloSpacing.md),
+
+                // Confirm Key Input Field (Liquid Glass)
+                FiloGlass(
+                  borderRadius: FiloRadius.roundedXl,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: TextField(
+                    controller: _confirmController,
+                    obscureText: _obscurePassphrase,
+                    style: FiloTypography.title3.copyWith(
+                      color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'confirm your key',
+                      hintStyle: FiloTypography.body.copyWith(
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: FiloSpacing.xl),
+
+                // Confirmation Switch
+                FiloGlass(
+                  borderRadius: FiloRadius.roundedLg,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    children: [
+                      Switch.adaptive(
+                        value: _confirmedLossRisk,
+                        activeColor: FiloColors.primary,
+                        onChanged: (val) {
+                          HapticFeedback.selectionClick();
+                          setState(() => _confirmedLossRisk = val);
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'i understand nobody can recover my files if i lose this key.',
+                          style: FiloTypography.caption.copyWith(
+                            color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: FiloSpacing.xxl),
+
+                // CTA Button
+                GestureDetector(
+                  onTapDown: (_) => HapticFeedback.lightImpact(),
+                  onTap: _isLoading ? null : _handleSetupVault,
+                  child: Container(
+                    height: 60,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: FiloColors.brandGradient,
+                      ),
+                      borderRadius: FiloRadius.roundedXl,
+                      boxShadow: [
+                        BoxShadow(
+                          color: FiloColors.brandIndigo.withValues(alpha: isDark ? 0.45 : 0.35),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'create vault',
+                                  style: FiloTypography.title3.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: FiloSpacing.lg),
+              ],
+            ),
           ),
         ),
       ),

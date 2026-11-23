@@ -108,7 +108,7 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
             children: [
               const Icon(Icons.error_outline_rounded, size: 48, color: FiloColors.destructive),
               const SizedBox(height: FiloSpacing.md),
-              const Text('Decryption Failed', style: FiloTypography.title2),
+              Text('Decryption Failed', style: FiloTypography.title2),
               const SizedBox(height: FiloSpacing.xs),
               Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
             ],

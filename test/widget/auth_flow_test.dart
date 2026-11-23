@@ -18,37 +18,37 @@ void main() {
   group('WelcomeScreen Widget Tests', () {
     testWidgets('Renders zero-knowledge commitment and connect button', (tester) async {
       await tester.pumpWidget(wrapWithScope(const WelcomeScreen()));
+      await tester.pumpAndSettle();
 
-      expect(find.text('Your Telegram.\nYour Private Cloud.'), findsOneWidget);
-      expect(find.text('Zero-Knowledge by Default'), findsOneWidget);
-      expect(find.text('No Developer Servers'), findsOneWidget);
-      expect(find.text('Connect with Telegram'), findsOneWidget);
+      expect(find.text('welcome to filo.'), findsOneWidget);
+      expect(find.text('your unlimited cloud.'), findsOneWidget);
+      expect(find.text('get started'), findsOneWidget);
     });
   });
 
   group('PassphraseSetupScreen Widget Tests', () {
     testWidgets('Passphrase input shows strength meter and enforces loss confirmation', (tester) async {
       await tester.pumpWidget(wrapWithScope(const PassphraseSetupScreen()));
+      await tester.pumpAndSettle();
 
-      expect(find.text('Zero-Knowledge Passphrase'), findsOneWidget);
+      expect(find.text('create vault key.'), findsOneWidget);
 
-      // Initially, Create button should be disabled because checkbox is unchecked
-      final submitButtonFinder = find.widgetWithText(GestureDetector, 'Create Secure Vault');
+      final submitButtonFinder = find.text('create vault');
       expect(submitButtonFinder, findsOneWidget);
 
       // Enter passphrase
       await tester.enterText(find.byType(TextField).first, 'MySecretPassword123!');
       await tester.pumpAndSettle();
 
-      // Strength meter should show "Very Strong" or "Good"
+      // Strength meter should show LinearProgressIndicator
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
 
-      // Toggle risk confirmation checkbox
-      await tester.tap(find.byType(Checkbox));
+      // Toggle risk confirmation switch
+      await tester.tap(find.byType(Switch));
       await tester.pumpAndSettle();
 
-      final checkbox = tester.widget<Checkbox>(find.byType(Checkbox));
-      expect(checkbox.value, true);
+      final switchWidget = tester.widget<Switch>(find.byType(Switch));
+      expect(switchWidget.value, true);
     });
   });
 }

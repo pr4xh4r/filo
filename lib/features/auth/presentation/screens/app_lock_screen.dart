@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
-import '../../../../shared/components/filo_button.dart';
+import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_logo_badge.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../providers/auth_provider.dart';
 
-/// App lock screen presented when the application is locked by timeout or on app open.
+/// App lock screen presented when the application is locked.
+///
+/// Features:
+/// - CRED obsidian aesthetic with soft liquid glass materials
+/// - Human, confident copywriting
+/// - Auto-prompt and one-tap biometric unlock (Face ID / Fingerprint)
 class AppLockScreen extends ConsumerStatefulWidget {
   const AppLockScreen({super.key});
 
@@ -26,7 +30,6 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-prompt biometrics if enabled
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _attemptBiometricUnlock(userInitiated: false);
     });
@@ -39,10 +42,11 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
   }
 
   Future<void> _attemptBiometricUnlock({bool userInitiated = false}) async {
-    final success = await ref.read(authNotifierProvider.notifier).unlockWithBiometrics();
+    final success =
+        await ref.read(authNotifierProvider.notifier).unlockWithBiometrics();
     if (success && mounted) {
       HapticFeedback.mediumImpact();
-      FiloToast.show(context, message: 'Vault Unlocked', type: FiloToastType.success);
+      FiloToast.show(context, message: 'vault unlocked', type: FiloToastType.success);
     } else if (!success && userInitiated && mounted) {
       HapticFeedback.heavyImpact();
       final err = ref.read(authNotifierProvider).errorMessage;
@@ -56,7 +60,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
     final pwd = _passphraseController.text;
     if (pwd.isEmpty) {
       HapticFeedback.selectionClick();
-      FiloToast.show(context, message: 'Please enter your passphrase', type: FiloToastType.error);
+      FiloToast.show(context, message: 'enter your vault key', type: FiloToastType.error);
       return;
     }
 
@@ -71,7 +75,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
       if (mounted) {
         HapticFeedback.heavyImpact();
         setState(() => _isLoading = false);
-        FiloToast.show(context, message: 'Incorrect passphrase', type: FiloToastType.error);
+        FiloToast.show(context, message: 'incorrect key', type: FiloToastType.error);
       }
     }
   }
@@ -82,84 +86,167 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
     final authState = ref.watch(authNotifierProvider);
 
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xl),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(flex: 1),
+      body: FiloAmbientBackground(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xl),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Spacer(flex: 2),
 
-              // Flagship Logo Badge with ambient glow
-              const Center(
-                child: FiloLogoBadge(
-                  size: 80,
-                  showGlow: true,
-                ),
-              ),
-              const SizedBox(height: FiloSpacing.xl),
-
-              Text(
-                '${AppConfig.appName} is Locked',
-                textAlign: TextAlign.center,
-                style: FiloTypography.title1.copyWith(
-                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                  letterSpacing: -0.6,
-                ),
-              ),
-              const SizedBox(height: FiloSpacing.xs),
-              Text(
-                'Enter your master passphrase to decrypt your local index.',
-                textAlign: TextAlign.center,
-                style: FiloTypography.body.copyWith(
-                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: FiloSpacing.xxl),
-
-              // Passphrase input
-              TextField(
-                controller: _passphraseController,
-                obscureText: true,
-                autofocus: !authState.isBiometricEnabled,
-                onSubmitted: (_) => _handleUnlockWithPassphrase(),
-                decoration: InputDecoration(
-                  labelText: 'Master Passphrase',
-                  filled: true,
-                  fillColor: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
-                  border: OutlineInputBorder(
-                    borderRadius: FiloRadius.roundedMd,
-                    borderSide: BorderSide.none,
+                // Flagship Logo Badge with ambient glow
+                const Center(
+                  child: FiloLogoBadge(
+                    size: 72,
+                    showGlow: true,
                   ),
                 ),
-              ),
-              const SizedBox(height: FiloSpacing.lg),
+                const SizedBox(height: FiloSpacing.xl),
 
-              // Unlock Button
-              FiloButton(
-                label: 'Unlock Vault',
-                isLoading: _isLoading,
-                onPressed: _handleUnlockWithPassphrase,
-                size: FiloButtonSize.large,
-                isFullWidth: true,
-              ),
-
-              // Biometric Unlock if enabled
-              if (authState.isBiometricEnabled) ...[
-                const SizedBox(height: FiloSpacing.md),
-                FiloButton(
-                  label: 'Unlock with Biometrics',
-                  variant: FiloButtonVariant.secondary,
-                  icon: const Icon(Icons.fingerprint_rounded, size: 22),
-                  onPressed: () => _attemptBiometricUnlock(userInitiated: true),
-                  size: FiloButtonSize.large,
-                  isFullWidth: true,
+                // Editorial Title
+                Text(
+                  'vault locked.',
+                  textAlign: TextAlign.center,
+                  style: FiloTypography.editorial(
+                    fontSize: 38,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -1.2,
+                    color: isDark
+                        ? FiloColors.darkTextPrimary
+                        : FiloColors.lightTextPrimary,
+                  ),
                 ),
-              ],
+                const SizedBox(height: 6),
+                Text(
+                  'enter your key to view your files.',
+                  textAlign: TextAlign.center,
+                  style: FiloTypography.body.copyWith(
+                    color: isDark
+                        ? FiloColors.darkTextSecondary
+                        : FiloColors.lightTextSecondary,
+                  ),
+                ),
 
-              const Spacer(flex: 2),
-            ],
+                const Spacer(flex: 1),
+
+                // Vault Key Input Field (Liquid Glass)
+                FiloGlass(
+                  borderRadius: FiloRadius.roundedXl,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                  child: TextField(
+                    controller: _passphraseController,
+                    obscureText: true,
+                    autofocus: false,
+                    style: FiloTypography.title3.copyWith(
+                      color: isDark
+                          ? FiloColors.darkTextPrimary
+                          : FiloColors.lightTextPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'enter your key',
+                      hintStyle: FiloTypography.body.copyWith(
+                        color: isDark
+                            ? FiloColors.darkTextTertiary
+                            : FiloColors.lightTextTertiary,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onSubmitted: (_) => _handleUnlockWithPassphrase(),
+                  ),
+                ),
+
+                const SizedBox(height: FiloSpacing.md),
+
+                // Primary Unlock CTA
+                GestureDetector(
+                  onTapDown: (_) => HapticFeedback.lightImpact(),
+                  onTap: _isLoading ? null : _handleUnlockWithPassphrase,
+                  child: Container(
+                    height: 58,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: FiloColors.brandGradient,
+                      ),
+                      borderRadius: FiloRadius.roundedXl,
+                      boxShadow: [
+                        BoxShadow(
+                          color: FiloColors.brandIndigo
+                              .withValues(alpha: isDark ? 0.45 : 0.35),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              'unlock',
+                              style: FiloTypography.title3.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+
+                // One-tap Biometrics Button
+                if (authState.isBiometricEnabled) ...[
+                  const SizedBox(height: FiloSpacing.lg),
+                  Center(
+                    child: GestureDetector(
+                      onTap: () =>
+                          _attemptBiometricUnlock(userInitiated: true),
+                      child: FiloGlass(
+                        borderRadius: BorderRadius.circular(100),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.fingerprint_rounded,
+                              size: 22,
+                              color: isDark
+                                  ? FiloColors.accentOrchid
+                                  : FiloColors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'use biometrics',
+                              style: FiloTypography.callout.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: isDark
+                                    ? FiloColors.darkTextPrimary
+                                    : FiloColors.lightTextPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                const Spacer(flex: 3),
+              ],
+            ),
           ),
         ),
       ),

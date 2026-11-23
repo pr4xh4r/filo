@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/filo_colors.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme/filo_radius.dart';
 import '../../core/theme/filo_spacing.dart';
+import 'filo_glass.dart';
 
-/// Clean card container component with adaptive borders and dark mode handling.
-class FiloCard extends StatelessWidget {
+/// Liquid Glass Card container component with specular highlights,
+/// adaptive blur, and spring press feedback.
+class FiloCard extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final Color? backgroundColor;
   final Color? borderColor;
+  final BorderRadius? borderRadius;
 
   const FiloCard({
     super.key,
@@ -20,46 +23,51 @@ class FiloCard extends StatelessWidget {
     this.onLongPress,
     this.backgroundColor,
     this.borderColor,
+    this.borderRadius,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = backgroundColor ??
-        (isDark ? FiloColors.darkSurface : FiloColors.lightSurface);
-    final border = borderColor ??
-        (isDark ? FiloColors.darkBorder : FiloColors.lightBorder);
+  State<FiloCard> createState() => _FiloCardState();
+}
 
-    if (onTap != null || onLongPress != null) {
-      return Material(
-        color: bg,
-        borderRadius: FiloRadius.roundedLg,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          borderRadius: FiloRadius.roundedLg,
-          splashColor: FiloColors.primary.withValues(alpha: 0.1),
-          highlightColor: FiloColors.primary.withValues(alpha: 0.05),
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(FiloSpacing.lg),
-            decoration: BoxDecoration(
-              borderRadius: FiloRadius.roundedLg,
-              border: Border.all(color: border, width: 1.0),
-            ),
-            child: child,
-          ),
+class _FiloCardState extends State<FiloCard> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.borderRadius ?? FiloRadius.roundedXl;
+
+    final cardBorder = widget.borderColor != null
+        ? Border.all(color: widget.borderColor!, width: 1.2)
+        : null;
+
+    Widget content = FiloGlass(
+      borderRadius: r,
+      color: widget.backgroundColor,
+      border: cardBorder,
+      padding: widget.padding ?? const EdgeInsets.all(FiloSpacing.md),
+      child: widget.child,
+    );
+
+    if (widget.onTap != null || widget.onLongPress != null) {
+      return GestureDetector(
+        onTapDown: (_) {
+          setState(() => _isPressed = true);
+          HapticFeedback.selectionClick();
+        },
+        onTapUp: (_) => setState(() => _isPressed = false),
+        onTapCancel: () => setState(() => _isPressed = false),
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        child: AnimatedScale(
+          scale: _isPressed ? 0.98 : 1.0,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          child: content,
         ),
       );
     }
 
-    return Container(
-      padding: padding ?? const EdgeInsets.all(FiloSpacing.lg),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: FiloRadius.roundedLg,
-        border: Border.all(color: border, width: 1.0),
-      ),
-      child: child,
-    );
+    return content;
   }
 }
