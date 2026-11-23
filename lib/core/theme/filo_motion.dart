@@ -39,4 +39,13 @@ class FiloMotion {
 
   /// Stagger item delay for cascading lists (30ms - 50ms per item)
   static const Duration staggerDelay = Duration(milliseconds: 35);
+
+  /// Respects system prefers-reduced-motion setting.
+  /// If animations are disabled, returns Duration.zero so vestibular motion is eliminated.
+  static Duration getDuration(BuildContext context, Duration normal) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      return Duration.zero;
+    }
+    return normal;
+  }
 }

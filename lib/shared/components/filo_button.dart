@@ -90,6 +90,7 @@ class _FiloButtonState extends State<FiloButton>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isEnabled = widget.onPressed != null && !widget.isLoading;
+    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
     Color backgroundColor;
     Color foregroundColor;
@@ -191,8 +192,9 @@ class _FiloButtonState extends State<FiloButton>
       child: AnimatedBuilder(
         animation: _scaleAnimation,
         builder: (context, child) {
+          final scale = disableAnimations ? 1.0 : _scaleAnimation.value;
           return Transform.scale(
-            scale: _scaleAnimation.value,
+            scale: scale,
             child: child,
           );
         },

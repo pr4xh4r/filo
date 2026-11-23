@@ -13,6 +13,7 @@ import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
 import '../../../../shared/components/filo_button.dart';
+import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
@@ -355,21 +356,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showAutoLockPicker() {
-    showModalBottomSheet<void>(
+    FiloSheet.show(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: AppConfig.autoLockTimeoutOptions.map((min) {
-            return ListTile(
-              title: Text(min == 0 ? 'Immediately' : '$min minutes'),
-              onTap: () {
-                ref.read(authNotifierProvider.notifier).setAutoLockTimeout(min);
-                Navigator.of(context).pop();
-              },
-            );
-          }).toList(),
-        ),
+      title: 'Auto-Lock Timeout',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: AppConfig.autoLockTimeoutOptions.map((min) {
+          return ListTile(
+            title: Text(min == 0 ? 'Immediately on exit' : '$min minutes'),
+            onTap: () {
+              ref.read(authNotifierProvider.notifier).setAutoLockTimeout(min);
+              Navigator.of(context).pop();
+            },
+          );
+        }).toList(),
       ),
     );
   }

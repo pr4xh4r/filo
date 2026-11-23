@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_empty_state.dart';
+import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../preview/presentation/screens/file_preview_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
@@ -271,46 +273,60 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                         actionLabel: state.isFavoritesOnly ? null : 'Upload File',
                         onAction: state.isFavoritesOnly ? null : _handleUploadFile,
                       )
-                    : state.isGridView
-                        ? GridView.builder(
-                            padding: const EdgeInsets.all(FiloSpacing.lg),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: FiloSpacing.md,
-                              crossAxisSpacing: FiloSpacing.md,
-                              childAspectRatio: 0.88,
-                            ),
-                            itemCount: state.items.length,
-                            itemBuilder: (context, index) {
-                              final item = state.items[index];
-                              return FileGridCard(
-                                node: item,
-                                isSelected: state.selectedIds.contains(item.id),
-                                isSelectionMode: state.isMultiSelect,
-                                onTap: () => _handleFileTap(item),
-                                onLongPress: () => notifier.toggleSelect(item.id),
-                                onMoreTap: () => _showFileActions(item),
-                              );
-                            },
-                          )
-                        : ListView.separated(
-                            itemCount: state.items.length,
-                            separatorBuilder: (context, index) => Divider(
-                              color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
-                              height: 1,
-                            ),
-                            itemBuilder: (context, index) {
-                              final item = state.items[index];
-                              return FileListRow(
-                                node: item,
-                                isSelected: state.selectedIds.contains(item.id),
-                                isSelectionMode: state.isMultiSelect,
-                                onTap: () => _handleFileTap(item),
-                                onLongPress: () => notifier.toggleSelect(item.id),
-                                onMoreTap: () => _showFileActions(item),
-                              );
-                            },
-                          ),
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          HapticFeedback.lightImpact();
+                          await notifier.loadCurrentFolder();
+                        },
+                        child: state.isGridView
+                            ? GridView.builder(
+                                padding: const EdgeInsets.all(FiloSpacing.lg),
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: FiloSpacing.md,
+                                  crossAxisSpacing: FiloSpacing.md,
+                                  childAspectRatio: 0.88,
+                                ),
+                                itemCount: state.items.length,
+                                itemBuilder: (context, index) {
+                                  final item = state.items[index];
+                                  return FileGridCard(
+                                    node: item,
+                                    isSelected: state.selectedIds.contains(item.id),
+                                    isSelectionMode: state.isMultiSelect,
+                                    onTap: () => _handleFileTap(item),
+                                    onLongPress: () {
+                                      HapticFeedback.mediumImpact();
+                                      notifier.toggleSelect(item.id);
+                                    },
+                                    onMoreTap: () => _showFileActions(item),
+                                  );
+                                },
+                              )
+                            : ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                itemCount: state.items.length,
+                                separatorBuilder: (context, index) => Divider(
+                                  color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
+                                  height: 1,
+                                ),
+                                itemBuilder: (context, index) {
+                                  final item = state.items[index];
+                                  return FileListRow(
+                                    node: item,
+                                    isSelected: state.selectedIds.contains(item.id),
+                                    isSelectionMode: state.isMultiSelect,
+                                    onTap: () => _handleFileTap(item),
+                                    onLongPress: () {
+                                      HapticFeedback.mediumImpact();
+                                      notifier.toggleSelect(item.id);
+                                    },
+                                    onMoreTap: () => _showFileActions(item),
+                                  );
+                                },
+                              ),
+                      ),
           ),
         ],
       ),
@@ -328,29 +344,29 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
   }
 
   void _showAddOptionsMenu() {
-    showModalBottomSheet(
+    FiloSheet.show(
       context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.upload_file_rounded, color: FiloColors.primary),
-              title: const Text('Upload File'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _handleUploadFile();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.create_new_folder_rounded, color: FiloColors.info),
-              title: const Text('Create New Folder'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _showNewFolderDialog();
-              },
-            ),
-          ],
-        ),
+      title: 'Add to Vault',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.upload_file_rounded, color: FiloColors.primary),
+            title: const Text('Upload File'),
+            onTap: () {
+              Navigator.of(context).pop();
+              _handleUploadFile();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.create_new_folder_rounded, color: FiloColors.info),
+            title: const Text('Create New Folder'),
+            onTap: () {
+              Navigator.of(context).pop();
+              _showNewFolderDialog();
+            },
+          ),
+        ],
       ),
     );
   }
