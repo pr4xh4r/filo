@@ -60,22 +60,13 @@ class FiloTheme {
         margin: EdgeInsets.zero,
       ),
       inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: FiloColors.lightSurfaceSecondary,
+        filled: false,
+        fillColor: Colors.transparent,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: FiloTypography.body.copyWith(color: FiloColors.lightTextTertiary),
-        border: OutlineInputBorder(
-          borderRadius: FiloRadius.roundedLg,
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: FiloRadius.roundedLg,
-          borderSide: const BorderSide(color: FiloColors.lightBorder, width: 0.8),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: FiloRadius.roundedLg,
-          borderSide: const BorderSide(color: FiloColors.primary, width: 1.5),
-        ),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
       ),
       dividerTheme: const DividerThemeData(
         color: FiloColors.lightBorder,
@@ -145,22 +136,13 @@ class FiloTheme {
         margin: EdgeInsets.zero,
       ),
       inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: FiloColors.darkSurfaceSecondary,
+        filled: false,
+        fillColor: Colors.transparent,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: FiloTypography.body.copyWith(color: FiloColors.darkTextTertiary),
-        border: OutlineInputBorder(
-          borderRadius: FiloRadius.roundedLg,
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: FiloRadius.roundedLg,
-          borderSide: const BorderSide(color: FiloColors.darkBorder, width: 0.8),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: FiloRadius.roundedLg,
-          borderSide: const BorderSide(color: FiloColors.primary, width: 1.5),
-        ),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
       ),
       dividerTheme: const DividerThemeData(
         color: FiloColors.darkBorder,

@@ -43,15 +43,25 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('New Folder'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        textCapitalization: TextCapitalization.sentences,
-        onSubmitted: (_) => _submit(),
-        decoration: InputDecoration(
-          hintText: 'Folder name',
-          border: OutlineInputBorder(
-            borderRadius: FiloRadius.roundedMd,
+      content: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F5F7),
+          borderRadius: FiloRadius.roundedMd,
+          border: Border.all(color: const Color(0xFFE5E5EA)),
+        ),
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          onSubmitted: (_) => _submit(),
+          decoration: const InputDecoration(
+            filled: false,
+            fillColor: Colors.transparent,
+            hintText: 'Folder name',
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
           ),
         ),
       ),

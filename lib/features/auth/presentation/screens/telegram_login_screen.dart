@@ -90,7 +90,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
     }
 
     final fullPhone = _getFullPhoneNumber();
-    _formattedFullPhone = '${_selectedCountry.flag} $fullPhone';
+    _formattedFullPhone = fullPhone;
 
     setState(() => _isLoading = true);
     try {
@@ -429,16 +429,11 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                // Country Code Button
+                // Country Code Button (No Flag Emojis)
                 GestureDetector(
                   onTap: _showCountryPicker,
                   child: Row(
                     children: [
-                      Text(
-                        _selectedCountry.flag,
-                        style: const TextStyle(fontSize: 24),
-                      ),
-                      const SizedBox(width: 8),
                       Text(
                         _selectedCountry.dialCode,
                         style: FiloTypography.title3.copyWith(
@@ -461,7 +456,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                   margin: const EdgeInsets.symmetric(horizontal: 12),
                   color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
                 ),
-                // Phone Number Text Field
+                // Phone Number Text Field (No Nested Inner Rectangles)
                 Expanded(
                   child: TextField(
                     controller: _phoneController,
@@ -473,6 +468,8 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                       color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                     ),
                     decoration: InputDecoration(
+                      filled: false,
+                      fillColor: Colors.transparent,
                       hintText: '98765 43210',
                       hintStyle: FiloTypography.title3.copyWith(
                         color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
@@ -794,6 +791,8 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
               color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
             ),
             decoration: InputDecoration(
+              filled: false,
+              fillColor: Colors.transparent,
               hintText: 'enter your password',
               hintStyle: FiloTypography.title3.copyWith(
                 color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
@@ -850,6 +849,8 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
               color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
             ),
             decoration: InputDecoration(
+              filled: false,
+              fillColor: Colors.transparent,
               hintText: 'bot token (e.g. 12345:ABC-DEF...)',
               hintStyle: FiloTypography.bodyMedium.copyWith(
                 color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
@@ -870,6 +871,8 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
               color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
             ),
             decoration: InputDecoration(
+              filled: false,
+              fillColor: Colors.transparent,
               hintText: 'channel or chat id',
               hintStyle: FiloTypography.bodyMedium.copyWith(
                 color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,

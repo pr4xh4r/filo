@@ -185,10 +185,26 @@ class _CountryPickerSheetState extends State<CountryPickerSheet> {
                           ),
                           child: Row(
                             children: [
-                              // Flag Emoji
-                              Text(
-                                country.flag,
-                                style: const TextStyle(fontSize: 26),
+                              // Country Code Pill (No Emojis)
+                              Container(
+                                width: 34,
+                                height: 26,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? FiloColors.primary.withValues(alpha: 0.12)
+                                      : Colors.black.withValues(alpha: 0.04),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  country.code,
+                                  style: FiloTypography.caption.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                    letterSpacing: 0.4,
+                                    color: isSelected ? FiloColors.primary : FiloColors.lightTextPrimary,
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: FiloSpacing.md),
 

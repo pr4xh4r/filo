@@ -282,6 +282,8 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                       color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                     ),
                     decoration: InputDecoration(
+                      filled: false,
+                      fillColor: Colors.transparent,
                       hintText: 'choose your key (min 8 chars)',
                       hintStyle: FiloTypography.body.copyWith(
                         color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
@@ -340,6 +342,8 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                       color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                     ),
                     decoration: InputDecoration(
+                      filled: false,
+                      fillColor: Colors.transparent,
                       hintText: 'confirm your key',
                       hintStyle: FiloTypography.body.copyWith(
                         color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,

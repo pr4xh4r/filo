@@ -14,20 +14,18 @@ import '../../../../core/database/filo_database.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
-import '../../../../core/theme/theme_provider.dart';
-import '../../../../shared/components/diamond_pattern_painter.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
 
-/// Application Settings & Account Details.
+/// Application Settings & Account Details (Pure Light Theme).
 ///
-/// Designed to match Screen 3 of the reference design:
-/// - `< Settings` with action dots `⋮`
-/// - Available storage balance with `+100% ↗ 2.4%` pill
-/// - 3 card pattern carousel with Dark / Light / System selector dots
-/// - Squircle preference action tiles
+/// Designed with Apple-level precision:
+/// - `< settings` handwritten header
+/// - Available storage balance with status indicator pill
+/// - Zero-knowledge cloud vault info card
+/// - Tactile squircle preference action tiles
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -64,25 +62,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('Change Master Passphrase'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
               'Your master key will be safely re-wrapped. Existing files in Telegram will NOT require re-encryption.',
-              style: TextStyle(fontSize: 13),
+              style: TextStyle(fontSize: 13, color: FiloColors.lightTextSecondary),
             ),
             const SizedBox(height: FiloSpacing.md),
-            TextField(
-              controller: oldController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current Passphrase'),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F7),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE5E5EA)),
+              ),
+              child: TextField(
+                controller: oldController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  hintText: 'Current Passphrase',
+                  filled: false,
+                  fillColor: Colors.transparent,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                ),
+              ),
             ),
             const SizedBox(height: FiloSpacing.sm),
-            TextField(
-              controller: newController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New Passphrase (min 8 chars)'),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F7),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE5E5EA)),
+              ),
+              child: TextField(
+                controller: newController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  hintText: 'New Passphrase (min 8 chars)',
+                  filled: false,
+                  fillColor: Colors.transparent,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                ),
+              ),
             ),
           ],
         ),
@@ -98,7 +128,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               final oldPwd = oldController.text;
               final newPwd = newController.text;
               if (newPwd.length < 8) {
-                FiloToast.show(context, message: 'New passphrase must be at least 8 characters', type: FiloToastType.error);
+                FiloToast.show(
+                  context,
+                  message: 'New passphrase must be at least 8 characters',
+                  type: FiloToastType.error,
+                );
                 return;
               }
 
@@ -107,11 +141,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 await repo.changePassphrase(currentPassphrase: oldPwd, newPassphrase: newPwd);
                 if (context.mounted) {
                   Navigator.of(context).pop();
-                  FiloToast.show(context, message: 'Passphrase successfully updated', type: FiloToastType.success);
+                  FiloToast.show(
+                    context,
+                    message: 'Passphrase successfully updated',
+                    type: FiloToastType.success,
+                  );
                 }
               } catch (e) {
                 if (context.mounted) {
-                  FiloToast.show(context, message: 'Failed to verify current passphrase', type: FiloToastType.error);
+                  FiloToast.show(
+                    context,
+                    message: 'Failed to verify current passphrase',
+                    type: FiloToastType.error,
+                  );
                 }
               }
             },
@@ -125,11 +167,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final authState = ref.read(authNotifierProvider);
     final masterKey = authState.masterKey;
     if (masterKey == null) {
-      FiloToast.show(context, message: 'Vault is locked. Unlock before exporting.', type: FiloToastType.error);
+      FiloToast.show(
+        context,
+        message: 'Vault is locked. Unlock before exporting.',
+        type: FiloToastType.error,
+      );
       return;
     }
 
-    FiloToast.show(context, message: 'Decrypting files & generating ZIP archive...', type: FiloToastType.info);
+    FiloToast.show(
+      context,
+      message: 'Decrypting files & generating ZIP archive...',
+      type: FiloToastType.info,
+    );
     try {
       final tempDir = await getTemporaryDirectory();
       final archive = Archive();
@@ -142,7 +192,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       if (fileNodes.isEmpty) {
         if (mounted) {
-          FiloToast.show(context, message: 'No files to export in vault', type: FiloToastType.warning);
+          FiloToast.show(
+            context,
+            message: 'No files to export in vault',
+            type: FiloToastType.warning,
+          );
         }
         return;
       }
@@ -190,7 +244,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       final zipData = ZipEncoder().encode(archive);
       if (zipData != null && zipData.isNotEmpty) {
-        final zipFile = File('${tempDir.path}/filo_backup_export_${DateTime.now().millisecondsSinceEpoch}.zip');
+        final zipFile = File(
+          '${tempDir.path}/filo_backup_export_${DateTime.now().millisecondsSinceEpoch}.zip',
+        );
         await zipFile.writeAsBytes(zipData, flush: true);
 
         await Share.shareXFiles(
@@ -199,7 +255,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
 
         if (mounted) {
-          FiloToast.show(context, message: 'Exported $exportedCount files to ZIP', type: FiloToastType.success);
+          FiloToast.show(
+            context,
+            message: 'Exported $exportedCount files to ZIP',
+            type: FiloToastType.success,
+          );
         }
       } else {
         throw Exception('ZIP compression failed');
@@ -215,6 +275,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('Delete ALL Remote & Local Data?'),
         content: const Text(
           'DANGER: This will permanently delete all encrypted files from your Telegram Vault channel, wipe your local database, and clear all keys. THIS CANNOT BE UNDONE.',
@@ -249,8 +311,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) => SafeArea(
         child: Padding(
@@ -258,6 +321,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const Text(
                 'Auto-Lock Timeout',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -266,7 +338,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ...options.map(
                 (mins) => ListTile(
                   title: Text(mins == 0 ? 'Immediately on exit' : '$mins minutes'),
-                  trailing: mins == currentTimeout ? const Icon(Icons.check, color: FiloColors.primary) : null,
+                  trailing: mins == currentTimeout
+                      ? const Icon(Icons.check, color: FiloColors.primary)
+                      : null,
                   onTap: () {
                     ref.read(authNotifierProvider.notifier).setAutoLockTimeout(mins);
                     Navigator.of(context).pop();
@@ -282,51 +356,53 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = ref.watch(isDarkProvider);
-    final currentThemeMode = ref.watch(themeModeProvider);
     final authState = ref.watch(authNotifierProvider);
 
     return Scaffold(
-      backgroundColor: isDark ? FiloColors.darkBackground : FiloColors.lightBackground,
+      backgroundColor: FiloColors.lightBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            size: 20,
-            color: isDark ? Colors.white : Colors.black,
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+            ),
+            child: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 14,
+              color: Colors.black,
+            ),
           ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Account Details',
-          style: FiloTypography.title2.copyWith(
+          'settings',
+          style: FiloTypography.handwriting(
+            fontSize: 34,
             fontWeight: FontWeight.w700,
-            fontSize: 20,
-            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+            color: FiloColors.lightTextPrimary,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.more_vert_rounded,
-              color: isDark ? Colors.white : Colors.black,
-            ),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xl, vertical: FiloSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: FiloSpacing.xl,
+          vertical: FiloSpacing.sm,
+        ),
         physics: const BouncingScrollPhysics(),
         children: [
-          // 1. Available Storage Hero (Screen 3 style)
+          // 1. Available Storage Hero
           Text(
-            'Available Storage',
+            'vault storage',
             style: FiloTypography.caption.copyWith(
-              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+              color: FiloColors.lightTextTertiary,
               fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 4),
@@ -344,7 +420,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   fontSize: 34,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.0,
-                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                  color: FiloColors.lightTextPrimary,
                 ),
               ),
               const SizedBox(width: 10),
@@ -369,64 +445,73 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const SizedBox(height: FiloSpacing.md),
 
-          // 2. Card Pattern Carousel (Screen 3: 3 Visual Pattern Cards)
-          SizedBox(
-            height: 80,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
+          // 2. Zero-Knowledge Cloud Info Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
               children: [
-                _buildPatternCard(
-                  label: 'Dark Mode',
-                  mode: ThemeMode.dark,
-                  currentMode: currentThemeMode,
-                  gradient: FiloColors.heroGradientDark,
-                  isDark: isDark,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: FiloColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.cloud_done_outlined,
+                    color: FiloColors.primary,
+                    size: 22,
+                  ),
                 ),
-                const SizedBox(width: 12),
-                _buildPatternCard(
-                  label: 'Light Mode',
-                  mode: ThemeMode.light,
-                  currentMode: currentThemeMode,
-                  gradient: FiloColors.heroGradient,
-                  isDark: isDark,
-                  hasDiamondPattern: true,
-                ),
-                const SizedBox(width: 12),
-                _buildPatternCard(
-                  label: 'System',
-                  mode: ThemeMode.system,
-                  currentMode: currentThemeMode,
-                  color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
-                  isDark: isDark,
-                  hasDottedBorder: true,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Zero-Knowledge Vault',
+                        style: FiloTypography.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: FiloColors.lightTextPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Files are encrypted client-side with AES-256-GCM before Telegram storage.',
+                        style: FiloTypography.caption.copyWith(
+                          color: FiloColors.lightTextTertiary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
 
-          // Dots Selector
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildThemeDot(label: 'Dark', mode: ThemeMode.dark, currentMode: currentThemeMode),
-              const SizedBox(width: 16),
-              _buildThemeDot(label: 'Light', mode: ThemeMode.light, currentMode: currentThemeMode),
-              const SizedBox(width: 16),
-              _buildThemeDot(label: 'System', mode: ThemeMode.system, currentMode: currentThemeMode),
-            ],
-          ),
-
           const SizedBox(height: FiloSpacing.lg),
 
-          // 3. Preferences Section (Screen 3 style transactions list)
+          // 3. Security & Vault Preferences
           Text(
             'Security & Vault Preferences',
             style: FiloTypography.title3.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 18,
-              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+              color: FiloColors.lightTextPrimary,
             ),
           ),
           const SizedBox(height: FiloSpacing.sm),
@@ -440,7 +525,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               value: authState.isBiometricEnabled,
               activeColor: FiloColors.primary,
               onChanged: (val) async {
-                final success = await ref.read(authNotifierProvider.notifier).setBiometrics(val);
+                final success = await ref
+                    .read(authNotifierProvider.notifier)
+                    .setBiometrics(val);
                 if (!success && mounted) {
                   final err = ref.read(authNotifierProvider).errorMessage;
                   if (err != null) {
@@ -455,7 +542,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 }
               },
             ),
-            isDark: isDark,
           ),
 
           _buildSettingsTile(
@@ -467,7 +553,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 : '${authState.autoLockTimeoutMinutes} minutes',
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _showAutoLockPicker,
-            isDark: isDark,
           ),
 
           _buildSettingsTile(
@@ -477,7 +562,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: 'Re-wrap key without re-encrypting files',
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _showChangePassphraseDialog,
-            isDark: isDark,
           ),
 
           _buildSettingsTile(
@@ -491,17 +575,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ref.read(authNotifierProvider.notifier).lockVault();
               Navigator.of(context).pop();
             },
-            isDark: isDark,
           ),
 
           const SizedBox(height: FiloSpacing.md),
 
+          // 4. Data & Storage Controls
           Text(
             'Data & Storage Controls',
             style: FiloTypography.title3.copyWith(
               fontWeight: FontWeight.w700,
               fontSize: 18,
-              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+              color: FiloColors.lightTextPrimary,
             ),
           ),
           const SizedBox(height: FiloSpacing.sm),
@@ -513,7 +597,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: 'Download decrypted ZIP archive of all files',
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _handleExportEverything,
-            isDark: isDark,
           ),
 
           _buildSettingsTile(
@@ -523,20 +606,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: 'Purge remote vault and wipe local database',
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _handleDeleteAllData,
-            isDark: isDark,
             isDestructive: true,
           ),
 
           const SizedBox(height: FiloSpacing.lg),
 
-          // Bottom Account Details Pill
+          // 5. Bottom Account Details Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+                color: Colors.black.withValues(alpha: 0.06),
               ),
             ),
             child: Row(
@@ -546,149 +628,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Filo Vault Account Details',
+                      'Filo Vault Account',
                       style: FiloTypography.bodyMedium.copyWith(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
-                        color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                        color: FiloColors.lightTextPrimary,
                       ),
                     ),
                     Text(
                       'Zero-Knowledge Client',
                       style: FiloTypography.caption.copyWith(
-                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                        color: FiloColors.lightTextTertiary,
                       ),
                     ),
                   ],
                 ),
                 Text(
-                  'v${AppConfig.appVersion} ⌵',
+                  'v${AppConfig.appVersion}',
                   style: FiloTypography.caption.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: isDark ? FiloColors.accentOrchid : FiloColors.primary,
+                    color: FiloColors.primary,
                   ),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: FiloSpacing.xl),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPatternCard({
-    required String label,
-    required ThemeMode mode,
-    required ThemeMode currentMode,
-    List<Color>? gradient,
-    Color? color,
-    bool hasDiamondPattern = false,
-    bool hasDottedBorder = false,
-    required bool isDark,
-  }) {
-    final isSelected = currentMode == mode;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        ref.read(themeModeProvider.notifier).setThemeMode(mode);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 120,
-        decoration: BoxDecoration(
-          gradient: gradient != null
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: gradient,
-                )
-              : null,
-          color: color,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? FiloColors.accentOrchid
-                : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08)),
-            width: isSelected ? 2.0 : 1.0,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: FiloColors.accentOrchid.withValues(alpha: 0.35),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: hasDiamondPattern
-            ? DiamondPatternOverlay(
-                borderRadius: BorderRadius.circular(16),
-                opacity: 0.18,
-                spacing: 16.0,
-                diamondSize: 6.0,
-                child: Center(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      fontFamily: FiloTypography.fontFamily,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              )
-            : Center(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: FiloTypography.fontFamily,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: gradient != null ? Colors.white : (isDark ? Colors.white : Colors.black),
-                  ),
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildThemeDot({
-    required String label,
-    required ThemeMode mode,
-    required ThemeMode currentMode,
-  }) {
-    final isSelected = currentMode == mode;
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        ref.read(themeModeProvider.notifier).setThemeMode(mode);
-      },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              color: isSelected ? FiloColors.accentOrchid : Colors.grey.withValues(alpha: 0.4),
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: FiloTypography.fontFamily,
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? FiloColors.accentOrchid : Colors.grey,
-            ),
-          ),
+          const SizedBox(height: FiloSpacing.xxl),
         ],
       ),
     );
@@ -701,17 +667,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required String subtitle,
     Widget? trailing,
     VoidCallback? onTap,
-    required bool isDark,
     bool isDestructive = false,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: 0.05),
           ),
         ),
         child: ListTile(
@@ -737,17 +702,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               fontFamily: FiloTypography.fontFamily,
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: isDestructive
-                  ? FiloColors.destructive
-                  : (isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary),
+              color: isDestructive ? FiloColors.destructive : FiloColors.lightTextPrimary,
             ),
           ),
           subtitle: Text(
             subtitle,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: FiloTypography.fontFamily,
               fontSize: 12,
-              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+              color: FiloColors.lightTextTertiary,
             ),
           ),
           trailing: trailing,

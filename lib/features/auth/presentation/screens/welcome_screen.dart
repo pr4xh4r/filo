@@ -267,54 +267,25 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         Text(
                           'built around you.',
                           style: FiloTypography.title1.copyWith(
-                            fontSize: 26,
+                            fontSize: 32,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: -0.6,
-                            color: isDark
-                                ? FiloColors.darkTextPrimary
-                                : FiloColors.lightTextPrimary,
+                            letterSpacing: -0.8,
+                            color: FiloColors.lightTextPrimary,
                           ),
                         ),
 
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 12),
 
                         Text(
                           'all your photos, videos, and files stored securely in your telegram. no servers. no bills. just sit back.',
                           style: FiloTypography.body.copyWith(
-                            color: isDark
-                                ? FiloColors.darkTextSecondary
-                                : FiloColors.lightTextSecondary,
-                            height: 1.45,
-                            fontSize: 14,
+                            color: FiloColors.lightTextSecondary,
+                            height: 1.55,
+                            fontSize: 16,
                           ),
                         ),
 
-                        const Spacer(),
-
-                        // 3 Quick Benefit Chips
-                        Row(
-                          children: [
-                            _buildMiniChip(
-                              icon: Icons.all_inclusive_rounded,
-                              label: 'unlimited',
-                              isDark: isDark,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildMiniChip(
-                              icon: Icons.shield_outlined,
-                              label: 'zero-knowledge',
-                              isDark: isDark,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildMiniChip(
-                              icon: Icons.bolt_rounded,
-                              label: 'blazing fast',
-                              isDark: isDark,
-                            ),
-                          ],
-                        ),
-
-                        const Spacer(flex: 2),
+                        const Spacer(flex: 3),
 
                         // Bottom Action Row (Screen 1 style: "Get Started" + Dark Circle Button)
                         GestureDetector(
@@ -398,50 +369,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMiniChip({
-    required IconData icon,
-    required String label,
-    required bool isDark,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.05)
-              : Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.05),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isDark ? FiloColors.accentOrchid : FiloColors.primary,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: FiloTypography.caption.copyWith(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
         ),
       ),
     );

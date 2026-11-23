@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/database/transfer_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
-import '../../../../shared/components/diamond_pattern_painter.dart';
 import '../../../../shared/components/filo_button.dart';
-import '../../../../shared/components/filo_empty_state.dart';
 import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../preview/presentation/screens/file_preview_screen.dart';
@@ -26,13 +23,12 @@ import 'trash_screen.dart';
 
 /// Primary file manager interface.
 ///
-/// Designed to match Screen 2 of the reference design:
-/// - "Hello Alex / It's Thursday, 04 June" header with notification bell & scanner icons
-/// - Radiant sunset/violet hero card with diamond pattern & eye toggle
-/// - 4 Quick action squircles: [ Upload ] [ Download ] [ Sync ] [ + Folder ]
-/// - Vault categories horizontal carousel
-/// - "Recent files / Today" transaction-style list
-/// - Floating liquid glass bottom capsule navigation bar with active squircle badge
+/// Features:
+/// - Handwritten cursive "cloud" with cloud outline icon in top header
+/// - Horizontal Categories bar with clean iOS outline icons (no emojis)
+/// - Artistic minimal "quiet space" empty state (no upload button block)
+/// - Full transparent liquid glass bottom navbar with black filled active icons
+/// - Pure, lightweight 120fps light theme
 class FileBrowserScreen extends ConsumerStatefulWidget {
   const FileBrowserScreen({super.key});
 
@@ -42,7 +38,6 @@ class FileBrowserScreen extends ConsumerStatefulWidget {
 
 class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
   bool _isSearchActive = false;
-  bool _showStats = true;
   final _searchController = TextEditingController();
 
   @override
@@ -176,18 +171,14 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final state = ref.watch(fileBrowserProvider);
     final notifier = ref.read(fileBrowserProvider.notifier);
 
     final tasks = ref.watch(transferQueueProvider);
     final activeTasksCount = tasks.where((t) => t.status == TransferStatus.running).length;
 
-    final now = DateTime.now();
-    final dateString = "It's ${DateFormat('EEEE, dd MMMM').format(now)}";
-
     return Scaffold(
-      backgroundColor: isDark ? FiloColors.darkBackground : FiloColors.lightBackground,
+      backgroundColor: FiloColors.lightBackground,
       body: SafeArea(
         bottom: false,
         child: Stack(
@@ -195,7 +186,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                // 1. Top Header Bar (Screen 2: Hello Alex + Date + Actions)
+                // 1. Top Header: Handwritten "cloud" with Cloud Outline Icon
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
@@ -206,7 +197,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         if (state.currentFolderId != null)
                           IconButton(
@@ -214,28 +205,22 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             onPressed: _navigateUp,
                           )
                         else
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'Hello Member',
-                                style: FiloTypography.title2.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 24,
-                                  color: isDark
-                                      ? FiloColors.darkTextPrimary
-                                      : FiloColors.lightTextPrimary,
+                                'cloud',
+                                style: FiloTypography.handwriting(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.w700,
+                                  color: FiloColors.lightTextPrimary,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                dateString,
-                                style: FiloTypography.subheadline.copyWith(
-                                  color: isDark
-                                      ? FiloColors.darkTextTertiary
-                                      : FiloColors.lightTextTertiary,
-                                  fontSize: 13,
-                                ),
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.cloud_outlined,
+                                size: 24,
+                                color: FiloColors.primary,
                               ),
                             ],
                           ),
@@ -252,13 +237,11 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                   }
                                 });
                               },
-                              isDark: isDark,
                             ),
                             const SizedBox(width: 8),
                             _buildHeaderIconButton(
                               icon: Icons.notifications_none_rounded,
                               onTap: () => TransferQueueSheet.show(context),
-                              isDark: isDark,
                               badgeCount: activeTasksCount > 0 ? activeTasksCount : null,
                             ),
                             const SizedBox(width: 8),
@@ -269,7 +252,6 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                   MaterialPageRoute(builder: (context) => const TrashScreen()),
                                 );
                               },
-                              isDark: isDark,
                             ),
                           ],
                         ),
@@ -286,24 +268,24 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                         decoration: BoxDecoration(
-                          color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(100),
                           border: Border.all(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : Colors.black.withValues(alpha: 0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                           ),
                         ),
                         child: TextField(
                           controller: _searchController,
                           autofocus: true,
                           style: FiloTypography.bodyMedium.copyWith(
-                            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                            color: FiloColors.lightTextPrimary,
                           ),
                           decoration: InputDecoration(
+                            filled: false,
+                            fillColor: Colors.transparent,
                             hintText: 'search your vault...',
                             hintStyle: FiloTypography.body.copyWith(
-                              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                              color: FiloColors.lightTextTertiary,
                             ),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
@@ -316,19 +298,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     ),
                   ),
 
-                // 2. Hero Card: Available Storage & 4 Quick Action Squircles
-                if (state.currentFolderId == null && !_isSearchActive)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: FiloSpacing.xl,
-                        vertical: FiloSpacing.sm,
-                      ),
-                      child: _buildHeroCard(state, isDark),
-                    ),
-                  ),
-
-                // 3. Vault Categories Carousel (Screen 2: My Accounts Balance)
+                // 2. Categories Option (Directly in place of card, with iOS outline icons, NO emojis)
                 if (state.currentFolderId == null && !_isSearchActive)
                   SliverToBoxAdapter(
                     child: Padding(
@@ -342,11 +312,11 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Vault Categories',
+                            'Categories',
                             style: FiloTypography.title3.copyWith(
                               fontWeight: FontWeight.w700,
                               fontSize: 18,
-                              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                              color: FiloColors.lightTextPrimary,
                             ),
                           ),
                           GestureDetector(
@@ -355,7 +325,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                               'Add Folder',
                               style: FiloTypography.caption.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: isDark ? FiloColors.accentOrchid : FiloColors.primary,
+                                color: FiloColors.primary,
                               ),
                             ),
                           ),
@@ -373,13 +343,35 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xl, vertical: 8),
                         physics: const BouncingScrollPhysics(),
                         children: [
-                          _buildCategoryCard('Photos', '📸', '${state.items.where((i) => i.name.toLowerCase().endsWith('.jpg') || i.name.toLowerCase().endsWith('.png')).length} files', isDark),
+                          _buildCategoryCard(
+                            title: 'Photos',
+                            icon: Icons.photo_outlined,
+                            count: '${state.items.where((i) => i.name.toLowerCase().endsWith('.jpg') || i.name.toLowerCase().endsWith('.png')).length} files',
+                          ),
                           const SizedBox(width: 12),
-                          _buildCategoryCard('Videos', '🎬', '${state.items.where((i) => i.name.toLowerCase().endsWith('.mp4')).length} files', isDark),
+                          _buildCategoryCard(
+                            title: 'Videos',
+                            icon: Icons.videocam_outlined,
+                            count: '${state.items.where((i) => i.name.toLowerCase().endsWith('.mp4')).length} files',
+                          ),
                           const SizedBox(width: 12),
-                          _buildCategoryCard('Docs', '📄', '${state.items.where((i) => i.name.toLowerCase().endsWith('.pdf') || i.name.toLowerCase().endsWith('.txt')).length} files', isDark),
+                          _buildCategoryCard(
+                            title: 'Docs',
+                            icon: Icons.description_outlined,
+                            count: '${state.items.where((i) => i.name.toLowerCase().endsWith('.pdf') || i.name.toLowerCase().endsWith('.txt')).length} files',
+                          ),
                           const SizedBox(width: 12),
-                          _buildCategoryCard('Encrypted', '🔒', 'Telegram Cloud', isDark),
+                          _buildCategoryCard(
+                            title: 'Audio',
+                            icon: Icons.headphones_outlined,
+                            count: '${state.items.where((i) => i.name.toLowerCase().endsWith('.mp3')).length} files',
+                          ),
+                          const SizedBox(width: 12),
+                          _buildCategoryCard(
+                            title: 'Folders',
+                            icon: Icons.folder_outlined,
+                            count: '${state.items.where((i) => i.isFolder).length} folders',
+                          ),
                         ],
                       ),
                     ),
@@ -394,7 +386,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     ),
                   ),
 
-                // 4. Recent Files Section Header (Screen 2: Transactions / Today)
+                // 3. Recent Files Section Header
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
@@ -411,7 +403,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                           style: FiloTypography.title3.copyWith(
                             fontWeight: FontWeight.w700,
                             fontSize: 18,
-                            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                            color: FiloColors.lightTextPrimary,
                           ),
                         ),
                         IconButton(
@@ -423,7 +415,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                   ),
                 ),
 
-                // 5. Files List / Grid / Empty State
+                // 4. Files List / Grid / Unique Artistic Empty Space (No button block)
                 if (state.isLoading)
                   const SliverFillRemaining(
                     child: Center(
@@ -437,19 +429,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     hasScrollBody: false,
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 120),
-                      child: FiloEmptyState(
-                        icon: state.isFavoritesOnly
-                            ? Icons.star_border_rounded
-                            : Icons.cloud_queue_rounded,
-                        title: state.isFavoritesOnly
-                            ? 'No Starred Files'
-                            : 'vault is empty',
-                        description: state.isFavoritesOnly
-                            ? 'Star your important files to access them quickly.'
-                            : 'save documents, photos, or videos to your encrypted telegram vault.',
-                        actionLabel: 'upload file',
-                        onAction: _handleUploadFile,
-                      ),
+                      child: _buildUniqueEmptySpace(state.isFavoritesOnly),
                     ),
                   )
                 else if (state.isGridView)
@@ -514,12 +494,12 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               ],
             ),
 
-            // 6. Floating Liquid Glass Bottom Capsule Bar (Screen 2 / Image 5 style)
+            // 5. Full Transparent Liquid Glass Bottom Navbar (Exact 5 Options, Black Filled Icons)
             Positioned(
               left: 20,
               right: 20,
               bottom: 24,
-              child: _buildFloatingNavbar(isDark, activeTasksCount),
+              child: _buildTransparentNavbar(state.isFavoritesOnly, activeTasksCount),
             ),
           ],
         ),
@@ -527,198 +507,51 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
-  // HERO CARD: Available Storage + 4 Quick Actions (Screen 2 style)
-  Widget _buildHeroCard(FileBrowserState state, bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.06),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Top Gradient Section
-          Container(
-            padding: const EdgeInsets.all(FiloSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDark ? FiloColors.heroGradientDark : FiloColors.heroGradient,
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(28),
-                topRight: Radius.circular(28),
-              ),
-            ),
-            child: DiamondPatternOverlay(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(28),
-                topRight: Radius.circular(28),
-              ),
-              opacity: isDark ? 0.12 : 0.18,
-              spacing: 20.0,
-              diamondSize: 8.0,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Available Storage',
-                        style: TextStyle(
-                          fontFamily: FiloTypography.fontFamily,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => setState(() => _showStats = !_showStats),
-                        child: Icon(
-                          _showStats ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        _showStats ? 'Unlimited' : '••••••••',
-                        style: const TextStyle(
-                          fontFamily: FiloTypography.fontFamily,
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.8,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '+100% ↗',
-                              style: TextStyle(
-                                fontFamily: FiloTypography.fontFamily,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF34D399),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // 4 Quick Actions Row: [ Upload ] [ Download ] [ Sync ] [ + Folder ]
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: FiloSpacing.md, horizontal: FiloSpacing.md),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildQuickActionItem(
-                  icon: Icons.file_upload_outlined,
-                  label: 'Upload',
-                  onTap: _handleUploadFile,
-                  isDark: isDark,
-                ),
-                _buildQuickActionItem(
-                  icon: Icons.file_download_outlined,
-                  label: 'Download',
-                  onTap: () => TransferQueueSheet.show(context),
-                  isDark: isDark,
-                ),
-                _buildQuickActionItem(
-                  icon: Icons.sync_alt_rounded,
-                  label: 'Sync',
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
-                    FiloToast.show(context, message: 'Vault synced with Telegram', type: FiloToastType.success);
-                  },
-                  isDark: isDark,
-                ),
-                _buildQuickActionItem(
-                  icon: Icons.create_new_folder_outlined,
-                  label: 'Folder',
-                  onTap: _showNewFolderDialog,
-                  isDark: isDark,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        onTap();
-      },
+  // Unique Artistic Empty State (Clean space/cloud theme, NO button block)
+  Widget _buildUniqueEmptySpace(bool isFavoritesOnly) {
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 88,
+            height: 88,
             decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.06)
-                  : Colors.black.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(16),
+              shape: BoxShape.circle,
+              color: FiloColors.primary.withValues(alpha: 0.06),
               border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+                color: FiloColors.primary.withValues(alpha: 0.15),
+                width: 1.5,
               ),
             ),
             child: Icon(
-              icon,
-              size: 20,
-              color: isDark ? Colors.white : Colors.black,
+              isFavoritesOnly ? Icons.star_border_rounded : Icons.cloud_queue_rounded,
+              size: 38,
+              color: FiloColors.primary,
+            ),
+          ),
+          const SizedBox(height: FiloSpacing.md),
+          Text(
+            isFavoritesOnly ? 'no starred files' : 'empty space',
+            style: FiloTypography.title2.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
+              color: FiloColors.lightTextPrimary,
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: FiloTypography.fontFamily,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              isFavoritesOnly
+                  ? 'star your favorite files to view them here.'
+                  : 'your encrypted telegram vault is quiet and ready.\ntap + below to store files.',
+              textAlign: TextAlign.center,
+              style: FiloTypography.body.copyWith(
+                color: FiloColors.lightTextSecondary,
+                fontSize: 13,
+                height: 1.45,
+              ),
             ),
           ),
         ],
@@ -726,16 +559,28 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
-  Widget _buildCategoryCard(String title, String emoji, String count, bool isDark) {
+  // Category Squircle Card (Clean iOS Outline Icons, NO emojis)
+  Widget _buildCategoryCard({
+    required String title,
+    required IconData icon,
+    required String count,
+  }) {
     return Container(
-      width: 130,
+      width: 125,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+          color: Colors.black.withValues(alpha: 0.06),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -743,26 +588,26 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
         children: [
           Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 16)),
-              const SizedBox(width: 6),
+              Icon(icon, size: 18, color: FiloColors.primary),
+              const SizedBox(width: 8),
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: FiloTypography.fontFamily,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                  color: FiloColors.lightTextPrimary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             count,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: FiloTypography.fontFamily,
               fontSize: 12,
-              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+              color: FiloColors.lightTextTertiary,
             ),
           ),
         ],
@@ -773,7 +618,6 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
   Widget _buildHeaderIconButton({
     required IconData icon,
     required VoidCallback onTap,
-    required bool isDark,
     int? badgeCount,
   }) {
     return GestureDetector(
@@ -788,18 +632,23 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.06)
-                  : Colors.black.withValues(alpha: 0.04),
+              color: Colors.white,
               shape: BoxShape.circle,
               border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withValues(alpha: 0.06),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Icon(
               icon,
               size: 19,
-              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+              color: FiloColors.lightTextPrimary,
             ),
           ),
           if (badgeCount != null)
@@ -827,45 +676,50 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
-  // 6. Floating Liquid Glass Bottom Capsule Navigation Bar
-  Widget _buildFloatingNavbar(bool isDark, int activeTasksCount) {
+  // 5. Full Transparent Liquid Glass Navbar (5 Options, Black Filled Active Icons)
+  Widget _buildTransparentNavbar(bool isFavoritesOnly, int activeTasksCount) {
     return FiloGlass(
       borderRadius: BorderRadius.circular(40),
-      blur: 28.0,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      blur: 32.0,
+      color: Colors.white.withValues(alpha: 0.72),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       border: Border.all(
-        color: isDark ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.8),
-        width: 1.2,
+        color: Colors.white.withValues(alpha: 0.9),
+        width: 1.5,
       ),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.1),
-          blurRadius: 30,
+          color: Colors.black.withValues(alpha: 0.08),
+          blurRadius: 28,
           offset: const Offset(0, 10),
         ),
       ],
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          // 1. Vault / Home (Active Solid Squircle)
-          _buildNavPill(
-            icon: Icons.home_filled,
-            isActive: true,
-            onTap: () {},
-            isDark: isDark,
+          // 1. Home (Black filled when active)
+          _buildNavIcon(
+            activeIcon: Icons.home_filled,
+            inactiveIcon: Icons.home_outlined,
+            isActive: !isFavoritesOnly,
+            onTap: () {
+              if (isFavoritesOnly) {
+                ref.read(fileBrowserProvider.notifier).toggleFavoritesFilter();
+              }
+            },
           ),
 
-          // 2. Starred / Favorites
-          _buildNavPill(
-            icon: Icons.bookmark_border_rounded,
-            isActive: false,
+          // 2. Starred (Black filled when active)
+          _buildNavIcon(
+            activeIcon: Icons.star_rounded,
+            inactiveIcon: Icons.star_border_rounded,
+            isActive: isFavoritesOnly,
             onTap: () {
               ref.read(fileBrowserProvider.notifier).toggleFavoritesFilter();
             },
-            isDark: isDark,
           ),
 
-          // 3. Center Glowing Plus Button
+          // 3. Upload (Center Action)
           GestureDetector(
             onTap: () {
               HapticFeedback.mediumImpact();
@@ -874,16 +728,14 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             child: Container(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark ? FiloColors.heroGradientDark : FiloColors.heroGradient,
-                ),
+              decoration: const BoxDecoration(
+                color: Colors.black,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: FiloColors.accentOrchid.withValues(alpha: 0.4),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
@@ -895,36 +747,36 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             ),
           ),
 
-          // 4. Transfers / Activity
-          _buildNavPill(
-            icon: Icons.swap_vert_rounded,
-            isActive: false,
+          // 4. Transfers
+          _buildNavIcon(
+            activeIcon: Icons.swap_vert_rounded,
+            inactiveIcon: Icons.swap_vert_rounded,
+            isActive: activeTasksCount > 0,
             badgeCount: activeTasksCount > 0 ? activeTasksCount : null,
             onTap: () => TransferQueueSheet.show(context),
-            isDark: isDark,
           ),
 
-          // 5. Settings / Menu
-          _buildNavPill(
-            icon: Icons.tune_rounded,
+          // 5. Settings
+          _buildNavIcon(
+            activeIcon: Icons.settings_rounded,
+            inactiveIcon: Icons.settings_outlined,
             isActive: false,
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
             },
-            isDark: isDark,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNavPill({
-    required IconData icon,
+  Widget _buildNavIcon({
+    required IconData activeIcon,
+    required IconData inactiveIcon,
     required bool isActive,
     required VoidCallback onTap,
-    required bool isDark,
     int? badgeCount,
   }) {
     return GestureDetector(
@@ -934,30 +786,20 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
       },
       child: Stack(
         clipBehavior: Clip.none,
+        alignment: Alignment.center,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: isActive
-                  ? (isDark ? Colors.white : Colors.black)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-            ),
+          Container(
+            padding: const EdgeInsets.all(8),
             child: Icon(
-              icon,
-              size: 20,
-              color: isActive
-                  ? (isDark ? Colors.black : Colors.white)
-                  : (isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary),
+              isActive ? activeIcon : inactiveIcon,
+              size: 24,
+              color: isActive ? Colors.black : Colors.black.withValues(alpha: 0.38),
             ),
           ),
           if (badgeCount != null)
             Positioned(
-              top: 2,
-              right: 2,
+              top: 4,
+              right: 4,
               child: Container(
                 width: 8,
                 height: 8,

@@ -146,6 +146,8 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                           : FiloColors.lightTextPrimary,
                     ),
                     decoration: InputDecoration(
+                      filled: false,
+                      fillColor: Colors.transparent,
                       hintText: 'enter your key',
                       hintStyle: FiloTypography.body.copyWith(
                         color: isDark

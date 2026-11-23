@@ -48,10 +48,6 @@ class _FiloGlassState extends State<FiloGlass> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final r = widget.borderRadius ?? FiloRadius.roundedXl;
 
-    final defaultBg = isDark
-        ? const Color(0xCC0F0B26)
-        : const Color(0xE6FFFFFF);
-
     final defaultBorder = widget.border ??
         Border.all(
           color: isDark
@@ -85,22 +81,24 @@ class _FiloGlassState extends State<FiloGlass> {
             child: Container(
               padding: widget.padding,
               decoration: BoxDecoration(
-                color: widget.color ?? defaultBg,
                 borderRadius: r,
                 border: defaultBorder,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          Colors.white.withValues(alpha: 0.08),
-                          Colors.white.withValues(alpha: 0.02),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.85),
-                          Colors.white.withValues(alpha: 0.45),
-                        ],
-                ),
+                color: widget.color,
+                gradient: widget.color == null
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isDark
+                            ? [
+                                Colors.white.withValues(alpha: 0.08),
+                                Colors.white.withValues(alpha: 0.02),
+                              ]
+                            : [
+                                Colors.white.withValues(alpha: 0.95),
+                                Colors.white.withValues(alpha: 0.70),
+                              ],
+                      )
+                    : null,
               ),
               child: widget.child,
             ),
