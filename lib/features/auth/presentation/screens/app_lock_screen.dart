@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
 import '../../../../shared/components/filo_button.dart';
+import '../../../../shared/components/filo_logo_badge.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../providers/auth_provider.dart';
 
@@ -25,7 +28,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
     super.initState();
     // Auto-prompt biometrics if enabled
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _attemptBiometricUnlock();
+      _attemptBiometricUnlock(userInitiated: false);
     });
   }
 
@@ -35,16 +38,24 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
     super.dispose();
   }
 
-  Future<void> _attemptBiometricUnlock() async {
+  Future<void> _attemptBiometricUnlock({bool userInitiated = false}) async {
     final success = await ref.read(authNotifierProvider.notifier).unlockWithBiometrics();
     if (success && mounted) {
+      HapticFeedback.mediumImpact();
       FiloToast.show(context, message: 'Vault Unlocked', type: FiloToastType.success);
+    } else if (!success && userInitiated && mounted) {
+      HapticFeedback.heavyImpact();
+      final err = ref.read(authNotifierProvider).errorMessage;
+      if (err != null) {
+        FiloToast.show(context, message: err, type: FiloToastType.error);
+      }
     }
   }
 
   Future<void> _handleUnlockWithPassphrase() async {
     final pwd = _passphraseController.text;
     if (pwd.isEmpty) {
+      HapticFeedback.selectionClick();
       FiloToast.show(context, message: 'Please enter your passphrase', type: FiloToastType.error);
       return;
     }
@@ -52,9 +63,13 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
     setState(() => _isLoading = true);
     try {
       await ref.read(authNotifierProvider.notifier).unlockWithPassphrase(pwd);
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        HapticFeedback.mediumImpact();
+        setState(() => _isLoading = false);
+      }
     } catch (_) {
       if (mounted) {
+        HapticFeedback.heavyImpact();
         setState(() => _isLoading = false);
         FiloToast.show(context, message: 'Incorrect passphrase', type: FiloToastType.error);
       }
@@ -76,33 +91,21 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
             children: [
               const Spacer(flex: 1),
 
-              // Lock Icon Badge
-              Center(
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: FiloColors.primary.withValues(alpha: 0.1),
-                    borderRadius: FiloRadius.roundedXl,
-                    border: Border.all(
-                      color: FiloColors.primary.withValues(alpha: 0.3),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.lock_rounded,
-                    color: FiloColors.primary,
-                    size: 40,
-                  ),
+              // Flagship Logo Badge with ambient glow
+              const Center(
+                child: FiloLogoBadge(
+                  size: 80,
+                  showGlow: true,
                 ),
               ),
               const SizedBox(height: FiloSpacing.xl),
 
               Text(
-                'Vault Locked',
+                '${AppConfig.appName} is Locked',
                 textAlign: TextAlign.center,
                 style: FiloTypography.title1.copyWith(
                   color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                  letterSpacing: -0.6,
                 ),
               ),
               const SizedBox(height: FiloSpacing.xs),
@@ -148,8 +151,8 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                 FiloButton(
                   label: 'Unlock with Biometrics',
                   variant: FiloButtonVariant.secondary,
-                  icon: const Icon(Icons.fingerprint_rounded, size: 20),
-                  onPressed: _attemptBiometricUnlock,
+                  icon: const Icon(Icons.fingerprint_rounded, size: 22),
+                  onPressed: () => _attemptBiometricUnlock(userInitiated: true),
                   size: FiloButtonSize.large,
                   isFullWidth: true,
                 ),

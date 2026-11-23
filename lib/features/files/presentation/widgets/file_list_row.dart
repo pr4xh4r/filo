@@ -4,12 +4,15 @@ import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
+import '../../../../shared/components/filo_progress_ring.dart';
 
 /// List row presentation for files and folders.
 class FileListRow extends StatelessWidget {
   final FileNode node;
   final bool isSelected;
   final bool isSelectionMode;
+  final bool isTransferring;
+  final double? transferProgress;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final VoidCallback onMoreTap;
@@ -19,6 +22,8 @@ class FileListRow extends StatelessWidget {
     required this.node,
     this.isSelected = false,
     this.isSelectionMode = false,
+    this.isTransferring = false,
+    this.transferProgress,
     required this.onTap,
     required this.onLongPress,
     required this.onMoreTap,
@@ -73,14 +78,27 @@ class FileListRow extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: _getIconColor().withValues(alpha: 0.12),
+                color: isTransferring
+                    ? FiloColors.primary.withValues(alpha: 0.15)
+                    : _getIconColor().withValues(alpha: 0.12),
                 borderRadius: FiloRadius.roundedMd,
               ),
-              child: Icon(
-                _getIconForNode(),
-                size: 24,
-                color: _getIconColor(),
-              ),
+              child: isTransferring
+                  ? Center(
+                      child: FiloProgressRing(
+                        value: (transferProgress != null && transferProgress! > 0)
+                            ? transferProgress
+                            : null,
+                        size: 24,
+                        strokeWidth: 2.5,
+                        color: FiloColors.primary,
+                      ),
+                    )
+                  : Icon(
+                      _getIconForNode(),
+                      size: 24,
+                      color: _getIconColor(),
+                    ),
             ),
             const SizedBox(width: FiloSpacing.md),
 
@@ -116,10 +134,15 @@ class FileListRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    node.isFolder ? 'Folder' : HashUtils.formatBytes(node.sizeBytes),
+                    isTransferring
+                        ? 'Transferring ${(transferProgress != null ? (transferProgress! * 100).toInt() : 0)}% • ${HashUtils.formatBytes(node.sizeBytes)}'
+                        : (node.isFolder ? 'Folder' : HashUtils.formatBytes(node.sizeBytes)),
                     style: TextStyle(
                       fontSize: 13,
-                      color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                      fontWeight: isTransferring ? FontWeight.w600 : FontWeight.normal,
+                      color: isTransferring
+                          ? FiloColors.primary
+                          : (isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
                     ),
                   ),
                 ],

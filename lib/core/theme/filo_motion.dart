@@ -15,12 +15,16 @@ class FiloMotion {
   static const Duration durationPress = Duration(milliseconds: 140);
   static const Duration durationFast = Duration(milliseconds: 180);
   static const Duration durationNormal = Duration(milliseconds: 240);
+  static const Duration durationMedium = Duration(milliseconds: 260);
   static const Duration durationSheet = Duration(milliseconds: 320);
   static const Duration durationModal = Duration(milliseconds: 280);
 
   // Emil Kowalski & Apple Custom Curves
   /// Strong ease-out for UI entrances, popovers, and immediate touch feedback
   static const Curve easeOut = Cubic(0.23, 1.0, 0.32, 1.0);
+
+  /// iOS spring overshoot curve for dynamic capsules and badges
+  static const Curve easeSpring = Cubic(0.34, 1.56, 0.64, 1.0);
 
   /// iOS-like drawer / bottom sheet curve
   static const Curve easeDrawer = Cubic(0.32, 0.72, 0.0, 1.0);

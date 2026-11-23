@@ -34,6 +34,9 @@ class FiloSheet extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.45),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
       transitionAnimationController: AnimationController(
         vsync: Navigator.of(context),
         duration: FiloMotion.durationSheet,
@@ -117,9 +120,16 @@ class FiloSheet extends StatelessWidget {
                   color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
                 ),
               ],
-              Padding(
-                padding: const EdgeInsets.all(FiloSpacing.lg),
-                child: child,
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    FiloSpacing.lg,
+                    FiloSpacing.xs,
+                    FiloSpacing.lg,
+                    FiloSpacing.lg,
+                  ),
+                  child: child,
+                ),
               ),
             ],
           ),

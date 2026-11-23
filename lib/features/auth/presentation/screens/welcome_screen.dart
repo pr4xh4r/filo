@@ -5,6 +5,7 @@ import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
 import '../../../../shared/components/filo_button.dart';
+import '../../../../shared/components/filo_logo_badge.dart';
 import 'telegram_login_screen.dart';
 
 /// Welcomes users with an uncompromising zero-knowledge privacy commitment.
@@ -17,76 +18,71 @@ class WelcomeScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xl),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: FiloSpacing.xl,
+            vertical: FiloSpacing.lg,
+          ),
+          physics: const BouncingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Spacer(flex: 1),
+              const SizedBox(height: FiloSpacing.md),
 
-              // App Icon / Logo Shield
-              Center(
-                child: Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    color: FiloColors.primary.withValues(alpha: 0.1),
-                    borderRadius: FiloRadius.roundedXl,
-                    border: Border.all(
-                      color: FiloColors.primary.withValues(alpha: 0.25),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.shield_outlined,
-                    color: FiloColors.primary,
-                    size: 44,
-                  ),
+              // Unique Flagship App Logo Badge
+              const Center(
+                child: FiloLogoBadge(
+                  size: 88,
+                  showGlow: true,
                 ),
               ),
-              const SizedBox(height: FiloSpacing.xl),
+              const SizedBox(height: FiloSpacing.lg),
 
-              // Title & Subtitle
+              // Title & Subtitle with iOS SF Typography
               Text(
                 'Your Telegram.\nYour Private Cloud.',
                 textAlign: TextAlign.center,
                 style: FiloTypography.largeTitle.copyWith(
                   color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                  letterSpacing: -0.8,
+                  height: 1.15,
                 ),
               ),
-              const SizedBox(height: FiloSpacing.md),
+              const SizedBox(height: FiloSpacing.sm),
               Text(
-                '${AppConfig.appName} transforms your Telegram account into an encrypted personal cloud drive. Zero servers, zero telemetry.',
+                '${AppConfig.appName} transforms your Telegram storage into an encrypted personal vault. Zero servers, zero telemetry.',
                 textAlign: TextAlign.center,
                 style: FiloTypography.body.copyWith(
                   color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                  letterSpacing: -0.2,
+                  height: 1.35,
                 ),
               ),
-              const SizedBox(height: FiloSpacing.xxl),
+              const SizedBox(height: FiloSpacing.xl),
 
-              // Pillars of Trust
-              _buildFeatureRow(
+              // Apple Squircle Pillars of Trust
+              _buildFeatureCard(
                 icon: Icons.lock_person_rounded,
                 title: 'Zero-Knowledge by Default',
                 description: 'Files are encrypted on your phone before uploading. Even Telegram cannot read your data.',
                 isDark: isDark,
               ),
-              const SizedBox(height: FiloSpacing.lg),
-              _buildFeatureRow(
+              const SizedBox(height: FiloSpacing.sm),
+              _buildFeatureCard(
                 icon: Icons.cloud_off_rounded,
                 title: 'No Developer Servers',
-                description: 'We run no servers and store zero credentials. You maintain 100% data ownership.',
+                description: 'We run zero servers and store zero keys. You maintain 100% cryptographic sovereignty.',
                 isDark: isDark,
               ),
-              const SizedBox(height: FiloSpacing.lg),
-              _buildFeatureRow(
+              const SizedBox(height: FiloSpacing.sm),
+              _buildFeatureCard(
                 icon: Icons.key_rounded,
                 title: 'Argon2id & AES-256-GCM',
-                description: 'State-of-the-art authenticated cryptography protects every chunk.',
+                description: 'Military-grade authenticated encryption protects every byte and chunk.',
                 isDark: isDark,
               ),
 
-              const Spacer(flex: 2),
+              const SizedBox(height: FiloSpacing.xl),
 
               // Call to Action Button
               FiloButton(
@@ -102,16 +98,6 @@ class WelcomeScreen extends StatelessWidget {
                 isFullWidth: true,
               ),
               const SizedBox(height: FiloSpacing.md),
-
-              // Legal / Independence Disclaimer
-              Text(
-                'Not affiliated with or endorsed by Telegram FZ-LLC.',
-                textAlign: TextAlign.center,
-                style: FiloTypography.caption.copyWith(
-                  color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-                ),
-              ),
-              const SizedBox(height: FiloSpacing.md),
             ],
           ),
         ),
@@ -119,50 +105,65 @@ class WelcomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFeatureRow({
+  Widget _buildFeatureCard({
     required IconData icon,
     required String title,
     required String description,
     required bool isDark,
   }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(FiloSpacing.sm),
-          decoration: BoxDecoration(
-            color: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
-            borderRadius: FiloRadius.roundedMd,
-          ),
-          child: Icon(icon, color: FiloColors.primary, size: 22),
+    return Container(
+      padding: const EdgeInsets.all(FiloSpacing.md),
+      decoration: BoxDecoration(
+        color: isDark
+            ? FiloColors.darkSurface.withValues(alpha: 0.7)
+            : FiloColors.lightSurface.withValues(alpha: 0.85),
+        borderRadius: FiloRadius.roundedXl,
+        border: Border.all(
+          color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
+          width: 0.8,
         ),
-        const SizedBox(width: FiloSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.2,
-                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                description,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.35,
-                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                ),
-              ),
-            ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: FiloColors.primary.withValues(alpha: 0.12),
+              borderRadius: FiloRadius.roundedLg,
+            ),
+            child: Icon(
+              icon,
+              color: FiloColors.primary,
+              size: 20,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: FiloSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: FiloTypography.title3.copyWith(
+                    color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: FiloTypography.subheadline.copyWith(
+                    color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,17 +1,22 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
+import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
+import '../../../../core/theme/theme_provider.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_empty_state.dart';
 import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../preview/presentation/screens/file_preview_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
+import '../../../../core/database/transfer_model.dart';
 import '../../../transfer/presentation/providers/transfer_provider.dart';
 import '../../../transfer/presentation/screens/transfer_queue_sheet.dart';
+import '../../../transfer/presentation/widgets/floating_transfer_capsule.dart';
 import '../providers/file_browser_provider.dart';
 import '../widgets/breadcrumb_bar.dart';
 import '../widgets/create_folder_dialog.dart';
@@ -42,8 +47,18 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     final transferNotifier = ref.read(transferQueueProvider.notifier);
     final browserState = ref.read(fileBrowserProvider);
 
-    await transferNotifier.pickAndUploadFile(parentId: browserState.currentFolderId);
-    ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+    await transferNotifier.pickAndUploadFile(
+      parentId: browserState.currentFolderId,
+      onTaskCreated: (node) {
+        // Immediately reload current folder so the item appears with real-time transfer progress!
+        if (mounted) {
+          ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+        }
+      },
+    );
+    if (mounted) {
+      ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+    }
   }
 
   void _showNewFolderDialog() {
@@ -83,11 +98,26 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
       onRename: () => _showRenameDialog(node),
       onMove: () => _showMoveDialog(node),
       onShare: () => _handleShareFile(node),
+      onDownload: () => _handleDownloadFile(node),
       onDelete: () {
         notifier.moveToTrash(node.id);
         FiloToast.show(context, message: '${node.name} moved to Trash', type: FiloToastType.info);
       },
     );
+  }
+
+  void _handleDownloadFile(FileNode node) async {
+    FiloToast.show(context, message: 'Downloading ${node.name}...', type: FiloToastType.info);
+    try {
+      await ref.read(transferQueueProvider.notifier).downloadFileToDevice(node);
+      if (mounted) {
+        FiloToast.show(context, message: 'Saved ${node.name} to device Downloads', type: FiloToastType.success);
+      }
+    } catch (e) {
+      if (mounted) {
+        FiloToast.show(context, message: 'Download failed: $e', type: FiloToastType.error);
+      }
+    }
   }
 
   void _showRenameDialog(FileNode node) {
@@ -133,13 +163,44 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(fileBrowserProvider);
     final notifier = ref.read(fileBrowserProvider.notifier);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = ref.watch(isDarkProvider);
     final currentFolderName = state.breadcrumbs.isNotEmpty
         ? state.breadcrumbs.last.name
         : 'Vault';
 
+    // Auto-refresh folder list in real time whenever any transfer starts, progresses, or finishes
+    ref.listen<List<TransferTask>>(transferQueueProvider, (prev, next) {
+      final prevRunning = prev?.where((t) => t.status == TransferStatus.running).length ?? 0;
+      final nextRunning = next.where((t) => t.status == TransferStatus.running).length;
+      final prevCompleted = prev?.where((t) => t.status == TransferStatus.completed).length ?? 0;
+      final nextCompleted = next.where((t) => t.status == TransferStatus.completed).length;
+
+      if (nextCompleted > prevCompleted || (prevRunning > 0 && nextRunning == 0) || ((prev?.length ?? 0) != next.length)) {
+        ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+      }
+    });
+
+    final tasks = ref.watch(transferQueueProvider);
+    final activeTaskMap = <String, TransferTask>{};
+    for (final t in tasks) {
+      if (t.status == TransferStatus.running) {
+        activeTaskMap[t.nodeId] = t;
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: isDark
+            ? FiloColors.darkBackground.withValues(alpha: 0.82)
+            : FiloColors.lightBackground.withValues(alpha: 0.85),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         title: _isSearchActive
             ? TextField(
                 controller: _searchController,
@@ -242,8 +303,10 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
           ],
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
+          Column(
+            children: [
           // Breadcrumbs Bar
           if (!state.isMultiSelect)
             BreadcrumbBar(
@@ -291,10 +354,13 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                 itemCount: state.items.length,
                                 itemBuilder: (context, index) {
                                   final item = state.items[index];
+                                  final activeTask = activeTaskMap[item.id];
                                   return FileGridCard(
                                     node: item,
                                     isSelected: state.selectedIds.contains(item.id),
                                     isSelectionMode: state.isMultiSelect,
+                                    isTransferring: activeTask != null,
+                                    transferProgress: activeTask?.progress,
                                     onTap: () => _handleFileTap(item),
                                     onLongPress: () {
                                       HapticFeedback.mediumImpact();
@@ -313,10 +379,13 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                 ),
                                 itemBuilder: (context, index) {
                                   final item = state.items[index];
+                                  final activeTask = activeTaskMap[item.id];
                                   return FileListRow(
                                     node: item,
                                     isSelected: state.selectedIds.contains(item.id),
                                     isSelectionMode: state.isMultiSelect,
+                                    isTransferring: activeTask != null,
+                                    transferProgress: activeTask?.progress,
                                     onTap: () => _handleFileTap(item),
                                     onLongPress: () {
                                       HapticFeedback.mediumImpact();
@@ -330,15 +399,42 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
           ),
         ],
       ),
-      floatingActionButton: state.isMultiSelect
+      const Positioned(
+        left: FiloSpacing.md,
+        right: FiloSpacing.md,
+        bottom: FiloSpacing.lg,
+        child: FloatingTransferCapsule(),
+      ),
+    ],
+  ),
+  floatingActionButton: state.isMultiSelect
           ? null
-          : FloatingActionButton(
-              backgroundColor: FiloColors.primary,
-              foregroundColor: Colors.white,
-              onPressed: () {
-                _showAddOptionsMenu();
-              },
-              child: const Icon(Icons.add_rounded, size: 28),
+          : Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(100),
+                boxShadow: [
+                  BoxShadow(
+                    color: FiloColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton.extended(
+                backgroundColor: FiloColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                highlightElevation: 0,
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _showAddOptionsMenu();
+                },
+                icon: const Icon(Icons.add_rounded, size: 24),
+                label: const Text(
+                  'Add',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, letterSpacing: -0.2),
+                ),
+              ),
             ),
     );
   }
@@ -351,17 +447,40 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.upload_file_rounded, color: FiloColors.primary),
-            title: const Text('Upload File'),
+            contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xs, vertical: 2),
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: FiloColors.primary.withValues(alpha: 0.12),
+                borderRadius: FiloRadius.roundedMd,
+              ),
+              child: const Icon(Icons.upload_file_rounded, color: FiloColors.primary, size: 22),
+            ),
+            title: const Text('Upload File', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+            subtitle: const Text('Encrypt and upload any document or media', style: TextStyle(fontSize: 13)),
             onTap: () {
+              HapticFeedback.selectionClick();
               Navigator.of(context).pop();
               _handleUploadFile();
             },
           ),
+          const SizedBox(height: FiloSpacing.xs),
           ListTile(
-            leading: const Icon(Icons.create_new_folder_rounded, color: FiloColors.info),
-            title: const Text('Create New Folder'),
+            contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xs, vertical: 2),
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: FiloColors.info.withValues(alpha: 0.12),
+                borderRadius: FiloRadius.roundedMd,
+              ),
+              child: const Icon(Icons.create_new_folder_rounded, color: FiloColors.info, size: 22),
+            ),
+            title: const Text('Create New Folder', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+            subtitle: const Text('Organize your files into virtual folders', style: TextStyle(fontSize: 13)),
             onTap: () {
+              HapticFeedback.selectionClick();
               Navigator.of(context).pop();
               _showNewFolderDialog();
             },

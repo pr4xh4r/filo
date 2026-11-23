@@ -37,12 +37,21 @@ class ChunkingEngine {
     int bytesProcessed = 0;
     int chunkIndex = 0;
 
+    // Adaptive chunk sizing for responsive, real-time transfers
+    final effectiveChunkSize = (chunkSize != AppConfig.mtprotoChunkSize)
+        ? chunkSize
+        : (fileSize <= 4 * 1024 * 1024
+            ? 512 * 1024 // 512 KB
+            : (fileSize <= 32 * 1024 * 1024
+                ? 2 * 1024 * 1024 // 2 MB
+                : 8 * 1024 * 1024)); // 8 MB
+
     final randomAccessFile = await file.open(mode: FileMode.read);
 
     try {
       while (bytesProcessed < fileSize) {
         final remaining = fileSize - bytesProcessed;
-        final currentChunkSize = remaining < chunkSize ? remaining : chunkSize;
+        final currentChunkSize = remaining < effectiveChunkSize ? remaining : effectiveChunkSize;
 
         // 1. Read chunk directly into buffer
         final buffer = Uint8List(currentChunkSize);
@@ -60,11 +69,21 @@ class ChunkingEngine {
         final chunkHash = HashUtils.sha256Hex(combinedBytes);
         final partFileName = '${nodeId}_part$chunkIndex.enc';
 
-        // 3. Upload encrypted chunk to Telegram channel
+        // 3. Upload encrypted chunk to Telegram channel with streaming progress
         final remoteChunk = await _storageBackend.uploadChunk(
           channelId: channelId,
           chunkData: combinedBytes,
           partFileName: partFileName,
+          onProgress: (chunkBytes, chunkTotal) {
+            if (onProgress != null && chunkTotal > 0) {
+              final subChunk = bytesProcessed + (chunkBytes * currentChunkSize ~/ chunkTotal);
+              onProgress(
+                subChunk.clamp(0, fileSize),
+                fileSize,
+                (subChunk / fileSize).clamp(0.0, 1.0),
+              );
+            }
+          },
         );
 
         // 4. Record chunk metadata

@@ -30,7 +30,29 @@ class FiloCard extends StatelessWidget {
     final border = borderColor ??
         (isDark ? FiloColors.darkBorder : FiloColors.lightBorder);
 
-    Widget content = Container(
+    if (onTap != null || onLongPress != null) {
+      return Material(
+        color: bg,
+        borderRadius: FiloRadius.roundedLg,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: FiloRadius.roundedLg,
+          splashColor: FiloColors.primary.withValues(alpha: 0.1),
+          highlightColor: FiloColors.primary.withValues(alpha: 0.05),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(FiloSpacing.lg),
+            decoration: BoxDecoration(
+              borderRadius: FiloRadius.roundedLg,
+              border: Border.all(color: border, width: 1.0),
+            ),
+            child: child,
+          ),
+        ),
+      );
+    }
+
+    return Container(
       padding: padding ?? const EdgeInsets.all(FiloSpacing.lg),
       decoration: BoxDecoration(
         color: bg,
@@ -39,16 +61,5 @@ class FiloCard extends StatelessWidget {
       ),
       child: child,
     );
-
-    if (onTap != null || onLongPress != null) {
-      return InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        borderRadius: FiloRadius.roundedLg,
-        child: content,
-      );
-    }
-
-    return content;
   }
 }

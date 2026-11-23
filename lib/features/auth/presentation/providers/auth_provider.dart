@@ -147,6 +147,10 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       // Create storage channel in Telegram
       await _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
 
+      if (state.isBiometricEnabled) {
+        await _repository.storeBiometricMasterKey(masterKey);
+      }
+
       state = state.copyWith(
         vaultStatus: VaultSetupStatus.ready,
         lockStatus: AppLockStatus.unlocked,
@@ -165,6 +169,9 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final masterKey = await _repository.unlockWithPassphrase(passphrase);
+      if (state.isBiometricEnabled) {
+        await _repository.storeBiometricMasterKey(masterKey);
+      }
       state = state.copyWith(
         vaultStatus: VaultSetupStatus.ready,
         lockStatus: AppLockStatus.unlocked,
@@ -183,23 +190,43 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
   Future<bool> unlockWithBiometrics() async {
     if (!state.isBiometricEnabled) return false;
     try {
+      final hasKey = await _repository.hasBiometricMasterKey();
+      if (!hasKey) {
+        state = state.copyWith(
+          errorMessage: 'Biometric key not enrolled. Please unlock with passphrase.',
+        );
+        return false;
+      }
+
       final authenticated = await _localAuth.authenticate(
-        localizedReason: 'Authenticate to access your private vault',
+        localizedReason: 'Scan fingerprint or face to unlock Filo vault',
         options: const AuthenticationOptions(
-          biometricOnly: true,
+          biometricOnly: false,
           stickyAuth: true,
+          useErrorDialogs: true,
         ),
       );
 
       if (authenticated) {
-        // Vault is unlocked
-        state = state.copyWith(
-          lockStatus: AppLockStatus.unlocked,
-        );
-        return true;
+        final masterKey = await _repository.getBiometricMasterKey();
+        if (masterKey != null) {
+          state = state.copyWith(
+            vaultStatus: VaultSetupStatus.ready,
+            lockStatus: AppLockStatus.unlocked,
+            masterKey: masterKey,
+            errorMessage: null,
+          );
+          return true;
+        } else {
+          state = state.copyWith(
+            errorMessage: 'Biometric credential expired. Please enter master passphrase.',
+          );
+          return false;
+        }
       }
       return false;
-    } catch (_) {
+    } catch (e) {
+      state = state.copyWith(errorMessage: 'Biometric authentication error: $e');
       return false;
     }
   }
@@ -212,9 +239,48 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     );
   }
 
-  Future<void> setBiometrics(bool enabled) async {
-    await _repository.setBiometricEnabled(enabled);
-    state = state.copyWith(isBiometricEnabled: enabled);
+  Future<bool> setBiometrics(bool enabled) async {
+    state = state.copyWith(errorMessage: null);
+    if (enabled) {
+      try {
+        final canCheck = await _localAuth.canCheckBiometrics;
+        final isSupported = await _localAuth.isDeviceSupported();
+        if (!canCheck && !isSupported) {
+          state = state.copyWith(
+            errorMessage: 'Biometric authentication is not supported or enrolled on this device.',
+          );
+          return false;
+        }
+
+        final authenticated = await _localAuth.authenticate(
+          localizedReason: 'Authenticate to enable biometric unlock for Filo',
+          options: const AuthenticationOptions(
+            biometricOnly: false,
+            stickyAuth: true,
+            useErrorDialogs: true,
+          ),
+        );
+
+        if (!authenticated) {
+          return false;
+        }
+
+        if (state.masterKey != null) {
+          await _repository.storeBiometricMasterKey(state.masterKey!);
+        }
+        await _repository.setBiometricEnabled(true);
+        state = state.copyWith(isBiometricEnabled: true);
+        return true;
+      } catch (e) {
+        state = state.copyWith(errorMessage: 'Could not enable biometrics: $e');
+        return false;
+      }
+    } else {
+      await _repository.deleteBiometricMasterKey();
+      await _repository.setBiometricEnabled(false);
+      state = state.copyWith(isBiometricEnabled: false);
+      return true;
+    }
   }
 
   Future<void> setAutoLockTimeout(int minutes) async {

@@ -15,6 +15,7 @@ class AuthRepository {
 
   static const _keyWrappedBundle = 'filo_wrapped_master_key';
   static const _keyBiometricEnabled = 'filo_biometric_enabled';
+  static const _keyBiometricMasterKey = 'filo_biometric_master_key';
   static const _keyAutoLockTimeout = 'filo_auto_lock_timeout';
   static const _keyRecoveryKeyHash = 'filo_recovery_key_hash';
 
@@ -147,6 +148,33 @@ class AuthRepository {
       key: _keyBiometricEnabled,
       value: enabled.toString(),
     );
+  }
+
+  /// Securely stores the derived Master Key in hardware-backed keystore
+  /// for quick biometric unlock.
+  Future<void> storeBiometricMasterKey(Uint8List masterKey) async {
+    await _secureStorage.write(
+      key: _keyBiometricMasterKey,
+      value: base64Encode(masterKey),
+    );
+  }
+
+  /// Retrieves the Master Key stored for biometric unlock.
+  Future<Uint8List?> getBiometricMasterKey() async {
+    final b64 = await _secureStorage.read(key: _keyBiometricMasterKey);
+    if (b64 == null || b64.isEmpty) return null;
+    return Uint8List.fromList(base64Decode(b64));
+  }
+
+  /// Deletes the biometric Master Key upon logout, wipe, or biometric toggle off.
+  Future<void> deleteBiometricMasterKey() async {
+    await _secureStorage.delete(key: _keyBiometricMasterKey);
+  }
+
+  /// Checks if a biometric Master Key is currently enrolled in secure storage.
+  Future<bool> hasBiometricMasterKey() async {
+    final b64 = await _secureStorage.read(key: _keyBiometricMasterKey);
+    return b64 != null && b64.isNotEmpty;
   }
 
   /// Auto-lock timeout helpers

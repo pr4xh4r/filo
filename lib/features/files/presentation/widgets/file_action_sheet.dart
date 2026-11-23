@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
+import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../shared/components/filo_sheet.dart';
 
@@ -11,6 +13,7 @@ class FileActionSheet extends StatelessWidget {
   final VoidCallback onRename;
   final VoidCallback onMove;
   final VoidCallback onShare;
+  final VoidCallback? onDownload;
   final VoidCallback onDelete;
 
   const FileActionSheet({
@@ -20,6 +23,7 @@ class FileActionSheet extends StatelessWidget {
     required this.onRename,
     required this.onMove,
     required this.onShare,
+    this.onDownload,
     required this.onDelete,
   });
 
@@ -30,6 +34,7 @@ class FileActionSheet extends StatelessWidget {
     required VoidCallback onRename,
     required VoidCallback onMove,
     required VoidCallback onShare,
+    VoidCallback? onDownload,
     required VoidCallback onDelete,
   }) {
     return FiloSheet.show(
@@ -41,6 +46,7 @@ class FileActionSheet extends StatelessWidget {
         onRename: onRename,
         onMove: onMove,
         onShare: onShare,
+        onDownload: onDownload,
         onDelete: onDelete,
       ),
     );
@@ -102,6 +108,19 @@ class FileActionSheet extends StatelessWidget {
             isDark: isDark,
           ),
 
+        // Download to Device (Files only)
+        if (node.isFile && onDownload != null)
+          _buildActionTile(
+            icon: Icons.download_rounded,
+            iconColor: FiloColors.info,
+            title: 'Download to Device',
+            onTap: () {
+              Navigator.of(context).pop();
+              onDownload!();
+            },
+            isDark: isDark,
+          ),
+
         // Delete to Trash
         _buildActionTile(
           icon: Icons.delete_outline_rounded,
@@ -127,7 +146,15 @@ class FileActionSheet extends StatelessWidget {
     bool isDestructive = false,
   }) {
     return ListTile(
-      leading: Icon(icon, color: iconColor),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.12),
+          borderRadius: FiloRadius.roundedMd,
+        ),
+        child: Icon(icon, color: iconColor, size: 20),
+      ),
       title: Text(
         title,
         style: TextStyle(
@@ -138,8 +165,15 @@ class FileActionSheet extends StatelessWidget {
               : (isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary),
         ),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.sm),
-      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xs, vertical: 2),
+      onTap: () {
+        if (isDestructive) {
+          HapticFeedback.mediumImpact();
+        } else {
+          HapticFeedback.selectionClick();
+        }
+        onTap();
+      },
     );
   }
 }

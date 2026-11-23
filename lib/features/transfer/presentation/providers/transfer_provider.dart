@@ -30,7 +30,10 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     });
   }
 
-  Future<FileNode?> pickAndUploadFile({String? parentId}) async {
+  Future<FileNode?> pickAndUploadFile({
+    String? parentId,
+    void Function(FileNode node)? onTaskCreated,
+  }) async {
     final authState = _ref.read(authNotifierProvider);
     if (authState.masterKey == null) {
       throw Exception('Vault is locked. Unlock vault before uploading.');
@@ -39,6 +42,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     return _manager.pickAndUploadFile(
       masterKey: authState.masterKey!,
       parentId: parentId,
+      onTaskCreated: onTaskCreated,
     );
   }
 
@@ -50,10 +54,25 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
 
     return _manager.shareDecryptedCopy(node, authState.masterKey!);
   }
+
+  Future<void> downloadFileToDevice(FileNode node) async {
+    final authState = _ref.read(authNotifierProvider);
+    if (authState.masterKey == null) {
+      throw Exception('Vault is locked. Unlock vault before downloading.');
+    }
+
+    await _manager.downloadFileToDevice(node, authState.masterKey!);
+  }
 }
 
 final transferQueueProvider =
     StateNotifierProvider<TransferQueueNotifier, List<TransferTask>>((ref) {
   final manager = ref.watch(transferManagerProvider);
   return TransferQueueNotifier(manager: manager, ref: ref);
+});
+
+/// Returns currently active/running transfers for badges and dynamic island animations.
+final activeTransfersProvider = Provider<List<TransferTask>>((ref) {
+  final tasks = ref.watch(transferQueueProvider);
+  return tasks.where((t) => t.status == TransferStatus.running).toList();
 });

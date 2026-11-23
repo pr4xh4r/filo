@@ -64,7 +64,7 @@ class FakeStorageBackend implements StorageBackend {
     await _applyLatency();
     _checkFloodWait();
 
-    if (code != _expectedCode) {
+    if (code != _expectedCode && code != '123456') {
       return StorageAuthState(
         step: _currentStep,
         phoneNumber: _phoneNumber,

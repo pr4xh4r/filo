@@ -1,10 +1,81 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
+import 'package:sqlite3/open.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'node_model.dart';
 import 'chunk_model.dart';
 import 'transfer_model.dart';
+
+bool _sqliteInitialized = false;
+
+/// Ensures the sqlite3 dynamic library is reliably resolved across all Android
+/// architectures (arm64-v8a, armeabi-v7a, x86_64), Android 16/15 16k page alignment,
+/// and modern Android isolated ClassLoader namespaces.
+void ensureSqliteInitialized() {
+  if (_sqliteInitialized) return;
+  _sqliteInitialized = true;
+
+  if (Platform.isAndroid) {
+    open.overrideFor(OperatingSystem.android, () {
+      // 1. Try default dlopen by soname
+      try {
+        return DynamicLibrary.open('libsqlite3.so');
+      } catch (_) {}
+
+      // 2. Try process global namespace (available when preloaded by MainActivity via System.loadLibrary)
+      try {
+        final proc = DynamicLibrary.process();
+        try {
+          proc.lookup('sqlite3_open_v2');
+          return proc;
+        } catch (_) {}
+      } catch (_) {}
+
+      // 3. Inspect /proc/self/maps to discover the exact path where Android loaded libsqlite3.so
+      try {
+        final mapsFile = File('/proc/self/maps');
+        if (mapsFile.existsSync()) {
+          final lines = mapsFile.readAsLinesSync();
+          for (final line in lines) {
+            if (line.contains('libsqlite3.so')) {
+              final tokens = line.split(RegExp(r'\s+'));
+              for (final token in tokens.reversed) {
+                if (token.endsWith('libsqlite3.so') && File(token).existsSync()) {
+                  return DynamicLibrary.open(token);
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 4. Scan package cmdline and search app-specific library directories
+      try {
+        final cmdline = File('/proc/self/cmdline');
+        if (cmdline.existsSync()) {
+          final bytes = cmdline.readAsBytesSync();
+          final end = bytes.indexOf(0);
+          final pkg = String.fromCharCodes(bytes.sublist(0, end > 0 ? end : bytes.length));
+          final candidateDirs = [
+            '/data/data/$pkg/lib',
+            '/data/user/0/$pkg/lib',
+          ];
+          for (final dir in candidateDirs) {
+            final f = File('$dir/libsqlite3.so');
+            if (f.existsSync()) {
+              return DynamicLibrary.open(f.path);
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 5. Final fallback to soname
+      return DynamicLibrary.open('libsqlite3.so');
+    });
+  }
+}
 
 /// Storage category breakdown for settings & usage analytics.
 class StorageUsageStats {
@@ -48,6 +119,7 @@ class FiloDatabase {
 
   /// Opens or creates a file-backed SQLite database.
   static Future<FiloDatabase> openFile(String path) async {
+    ensureSqliteInitialized();
     final file = File(path);
     if (!file.parent.existsSync()) {
       file.parent.createSync(recursive: true);
@@ -58,6 +130,7 @@ class FiloDatabase {
 
   /// Opens an in-memory database for unit tests and hermetic execution.
   static FiloDatabase openInMemory() {
+    ensureSqliteInitialized();
     final db = sqlite3.openInMemory();
     return FiloDatabase._(db);
   }

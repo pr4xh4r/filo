@@ -108,6 +108,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
   }
 
   void _showRecoveryKeyDialog(String recoveryKey) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -126,13 +127,15 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
               Container(
                 padding: const EdgeInsets.all(FiloSpacing.md),
                 decoration: BoxDecoration(
-                  color: FiloColors.lightSurfaceSecondary,
+                  color: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
                   borderRadius: FiloRadius.roundedMd,
-                  border: Border.all(color: FiloColors.lightBorder),
+                  border: Border.all(color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder),
                 ),
                 child: SelectableText(
                   recoveryKey,
-                  style: FiloTypography.monospace.copyWith(color: FiloColors.lightTextPrimary),
+                  style: FiloTypography.monospace.copyWith(
+                    color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                  ),
                 ),
               ),
             ],

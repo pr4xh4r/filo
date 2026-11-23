@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
 import 'core/config/app_config.dart';
+import 'core/database/filo_database.dart';
+import 'core/theme/filo_colors.dart';
 import 'core/theme/filo_theme.dart';
+import 'core/theme/theme_provider.dart';
 import 'features/auth/presentation/screens/auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Multi-tier sqlite3 dynamic library initialization
+  ensureSqliteInitialized();
+  try {
+    await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
+  } catch (_) {
+    // Non-fatal if platform channel is unavailable during startup
+  }
 
   // Edge-to-edge transparent system navigation
   SystemChrome.setSystemUIOverlayStyle(
@@ -58,12 +70,26 @@ class _FiloAppState extends ConsumerState<FiloApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
+    final isDark = ref.watch(isDarkProvider);
+
+    // Dynamically adjust edge-to-edge system navigation & status bar
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: isDark ? FiloColors.darkBackground : FiloColors.lightBackground,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      ),
+    );
+
     return MaterialApp(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
       theme: FiloTheme.lightTheme,
       darkTheme: FiloTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       builder: (context, child) {
         // Obfuscate screen in OS task switcher for privacy
         if (_isBackgrounded) {
@@ -78,7 +104,12 @@ class _FiloAppState extends ConsumerState<FiloApp> with WidgetsBindingObserver {
             ),
           );
         }
-        return child!;
+        return AnimatedTheme(
+          data: isDark ? FiloTheme.darkTheme : FiloTheme.lightTheme,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          child: child!,
+        );
       },
       home: const AuthGate(),
     );

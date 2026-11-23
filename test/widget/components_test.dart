@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:filo/core/theme/filo_theme.dart';
+import 'package:filo/features/auth/domain/country_code.dart';
+import 'package:filo/features/auth/presentation/widgets/country_picker_sheet.dart';
+import 'package:filo/features/auth/presentation/widgets/ios_verification_code_input.dart';
 import 'package:filo/shared/components/filo_button.dart';
 import 'package:filo/shared/components/filo_card.dart';
 import 'package:filo/shared/components/filo_empty_state.dart';
+import 'package:filo/shared/components/filo_logo_badge.dart';
 import 'package:filo/shared/components/filo_progress_ring.dart';
 
 void main() {
@@ -108,6 +112,103 @@ void main() {
         find.byType(CircularProgressIndicator),
       );
       expect(progressIndicator.value, 0.65);
+    });
+  });
+
+  group('FiloLogoBadge Widget Tests', () {
+    testWidgets('Renders emblem with specified size', (tester) async {
+      await tester.pumpWidget(
+        wrapWithTheme(
+          const FiloLogoBadge(size: 96),
+        ),
+      );
+
+      expect(find.byType(FiloLogoBadge), findsOneWidget);
+      expect(find.byType(CustomPaint), findsWidgets);
+    });
+  });
+
+  group('IosVerificationCodeInput Widget Tests', () {
+    testWidgets('Renders 5 squircle boxes and triggers onCompleted', (tester) async {
+      final controller = TextEditingController();
+      String completedCode = '';
+
+      await tester.pumpWidget(
+        wrapWithTheme(
+          IosVerificationCodeInput(
+            length: 5,
+            controller: controller,
+            onCompleted: (val) => completedCode = val,
+          ),
+        ),
+      );
+
+      expect(find.byType(IosVerificationCodeInput), findsOneWidget);
+
+      // Enter 5 digits
+      controller.text = '12345';
+      await tester.pumpAndSettle();
+
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
+      expect(completedCode, '12345');
+    });
+
+    testWidgets('Renders 6 squircle boxes and triggers onCompleted for 6 digits', (tester) async {
+      final controller = TextEditingController();
+      String completedCode = '';
+
+      await tester.pumpWidget(
+        wrapWithTheme(
+          IosVerificationCodeInput(
+            length: 6,
+            controller: controller,
+            onCompleted: (val) => completedCode = val,
+          ),
+        ),
+      );
+
+      expect(find.byType(IosVerificationCodeInput), findsOneWidget);
+
+      controller.text = '123456';
+      await tester.pumpAndSettle();
+
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('6'), findsOneWidget);
+      expect(completedCode, '123456');
+    });
+  });
+
+  group('CountryPickerSheet Widget Tests', () {
+    testWidgets('Renders countries and filters by search query', (tester) async {
+      CountryCode? selected;
+
+      await tester.pumpWidget(
+        wrapWithTheme(
+          CountryPickerSheet(
+            selectedCountry: CountryCode.defaultCountry,
+            onSelect: (c) => selected = c,
+          ),
+        ),
+      );
+
+      expect(find.text('India'), findsOneWidget);
+      expect(find.text('United States'), findsOneWidget);
+
+      // Search for Germany
+      await tester.enterText(find.byType(TextField), 'Germany');
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(InkWell, 'Germany'), findsOneWidget);
+      expect(find.text('India'), findsNothing);
+
+      // Tap Germany
+      await tester.tap(find.widgetWithText(InkWell, 'Germany'));
+      expect(selected?.code, 'DE');
+      expect(selected?.dialCode, '+49');
     });
   });
 }

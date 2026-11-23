@@ -1,16 +1,29 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'filo_colors.dart';
 import 'filo_radius.dart';
+import 'filo_typography.dart';
 
-/// Complete theme definitions (Light & Dark) for Filo.
+/// Complete theme definitions (Light & Dark) for Filo with native iOS aesthetics.
 class FiloTheme {
   FiloTheme._();
+
+  static const _cupertinoTransitions = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+    },
+  );
 
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      pageTransitionsTheme: _cupertinoTransitions,
       primaryColor: FiloColors.primary,
       scaffoldBackgroundColor: FiloColors.lightBackground,
       colorScheme: const ColorScheme.light(
@@ -34,17 +47,35 @@ class FiloTheme {
           color: FiloColors.lightTextPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w600,
-          letterSpacing: -0.3,
+          letterSpacing: -0.4,
         ),
       ),
       cardTheme: CardThemeData(
         color: FiloColors.lightSurface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: FiloRadius.roundedLg,
-          side: const BorderSide(color: FiloColors.lightBorder, width: 1),
+          borderRadius: FiloRadius.roundedXl,
+          side: const BorderSide(color: FiloColors.lightBorder, width: 0.8),
         ),
         margin: EdgeInsets.zero,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: FiloColors.lightSurfaceSecondary,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        hintStyle: FiloTypography.body.copyWith(color: FiloColors.lightTextTertiary),
+        border: OutlineInputBorder(
+          borderRadius: FiloRadius.roundedLg,
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: FiloRadius.roundedLg,
+          borderSide: const BorderSide(color: FiloColors.lightBorder, width: 0.8),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: FiloRadius.roundedLg,
+          borderSide: const BorderSide(color: FiloColors.primary, width: 1.5),
+        ),
       ),
       dividerTheme: const DividerThemeData(
         color: FiloColors.lightBorder,
@@ -57,6 +88,19 @@ class FiloTheme {
         shape: RoundedRectangleBorder(borderRadius: FiloRadius.roundedMd),
         behavior: SnackBarBehavior.floating,
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: FiloColors.lightSurface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: FiloRadius.roundedXl,
+          side: const BorderSide(color: FiloColors.lightBorder, width: 0.8),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+        textColor: FiloColors.lightTextPrimary,
+        iconColor: FiloColors.lightTextSecondary,
+      ),
     );
   }
 
@@ -64,6 +108,7 @@ class FiloTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      pageTransitionsTheme: _cupertinoTransitions,
       primaryColor: FiloColors.primary,
       scaffoldBackgroundColor: FiloColors.darkBackground,
       colorScheme: const ColorScheme.dark(
@@ -87,17 +132,35 @@ class FiloTheme {
           color: FiloColors.darkTextPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w600,
-          letterSpacing: -0.3,
+          letterSpacing: -0.4,
         ),
       ),
       cardTheme: CardThemeData(
         color: FiloColors.darkSurface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: FiloRadius.roundedLg,
-          side: const BorderSide(color: FiloColors.darkBorder, width: 1),
+          borderRadius: FiloRadius.roundedXl,
+          side: const BorderSide(color: FiloColors.darkBorder, width: 0.8),
         ),
         margin: EdgeInsets.zero,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: FiloColors.darkSurfaceSecondary,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        hintStyle: FiloTypography.body.copyWith(color: FiloColors.darkTextTertiary),
+        border: OutlineInputBorder(
+          borderRadius: FiloRadius.roundedLg,
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: FiloRadius.roundedLg,
+          borderSide: const BorderSide(color: FiloColors.darkBorder, width: 0.8),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: FiloRadius.roundedLg,
+          borderSide: const BorderSide(color: FiloColors.primary, width: 1.5),
+        ),
       ),
       dividerTheme: const DividerThemeData(
         color: FiloColors.darkBorder,
@@ -109,6 +172,19 @@ class FiloTheme {
         contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
         shape: RoundedRectangleBorder(borderRadius: FiloRadius.roundedMd),
         behavior: SnackBarBehavior.floating,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: FiloColors.darkSurface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: FiloRadius.roundedXl,
+          side: const BorderSide(color: FiloColors.darkBorder, width: 0.8),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+        textColor: FiloColors.darkTextPrimary,
+        iconColor: FiloColors.darkTextSecondary,
       ),
     );
   }
