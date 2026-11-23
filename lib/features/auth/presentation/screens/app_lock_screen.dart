@@ -52,10 +52,12 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
     setState(() => _isLoading = true);
     try {
       await ref.read(authNotifierProvider.notifier).unlockWithPassphrase(pwd);
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     } catch (_) {
-      setState(() => _isLoading = false);
-      FiloToast.show(context, message: 'Incorrect passphrase', type: FiloToastType.error);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        FiloToast.show(context, message: 'Incorrect passphrase', type: FiloToastType.error);
+      }
     }
   }
 
