@@ -13,6 +13,7 @@ class FiloTypography {
   static const String fontFamily = 'Manrope';
   static const String editorialFontFamily = 'Newsreader';
   static const String monospaceFontFamily = 'JetBrainsMono';
+  static const String handwritingFontFamily = 'Caveat';
 
   // Base font style generator
   static TextStyle font({
@@ -24,6 +25,24 @@ class FiloTypography {
   }) {
     return TextStyle(
       fontFamily: fontFamily,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      letterSpacing: letterSpacing,
+      height: height,
+      color: color,
+    );
+  }
+
+  // Handwritten cursive for captivating hero welcomes
+  static TextStyle handwriting({
+    double fontSize = 42.0,
+    FontWeight fontWeight = FontWeight.w600,
+    double letterSpacing = 0.5,
+    double height = 1.2,
+    Color? color,
+  }) {
+    return TextStyle(
+      fontFamily: handwritingFontFamily,
       fontSize: fontSize,
       fontWeight: fontWeight,
       letterSpacing: letterSpacing,

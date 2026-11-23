@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/database/transfer_model.dart';
 import '../../../../core/theme/filo_colors.dart';
-import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../shared/components/diamond_pattern_painter.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_empty_state.dart';
 import '../../../../shared/components/filo_glass.dart';
-import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../preview/presentation/screens/file_preview_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
 import '../../../transfer/presentation/providers/transfer_provider.dart';
 import '../../../transfer/presentation/screens/transfer_queue_sheet.dart';
-import '../../../transfer/presentation/widgets/floating_transfer_capsule.dart';
 import '../providers/file_browser_provider.dart';
 import '../widgets/breadcrumb_bar.dart';
 import '../widgets/create_folder_dialog.dart';
@@ -27,7 +26,13 @@ import 'trash_screen.dart';
 
 /// Primary file manager interface.
 ///
-/// Designed with CRED luxury obsidian typography and iOS 18 liquid glass materials.
+/// Designed to match Screen 2 of the reference design:
+/// - "Hello Alex / It's Thursday, 04 June" header with notification bell & scanner icons
+/// - Radiant sunset/violet hero card with diamond pattern & eye toggle
+/// - 4 Quick action squircles: [ Upload ] [ Download ] [ Sync ] [ + Folder ]
+/// - Vault categories horizontal carousel
+/// - "Recent files / Today" transaction-style list
+/// - Floating liquid glass bottom capsule navigation bar with active squircle badge
 class FileBrowserScreen extends ConsumerStatefulWidget {
   const FileBrowserScreen({super.key});
 
@@ -37,6 +42,7 @@ class FileBrowserScreen extends ConsumerStatefulWidget {
 
 class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
   bool _isSearchActive = false;
+  bool _showStats = true;
   final _searchController = TextEditingController();
 
   @override
@@ -174,35 +180,33 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     final state = ref.watch(fileBrowserProvider);
     final notifier = ref.read(fileBrowserProvider.notifier);
 
-    final currentFolderName = state.breadcrumbs.isNotEmpty
-        ? state.breadcrumbs.last.name
-        : 'vault';
-
     final tasks = ref.watch(transferQueueProvider);
-    final activeTaskMap = <String, TransferTask>{};
-    for (final t in tasks) {
-      if (t.status == TransferStatus.running) {
-        activeTaskMap[t.nodeId] = t;
-      }
-    }
+    final activeTasksCount = tasks.where((t) => t.status == TransferStatus.running).length;
+
+    final now = DateTime.now();
+    final dateString = "It's ${DateFormat('EEEE, dd MMMM').format(now)}";
 
     return Scaffold(
-      body: FiloAmbientBackground(
-        child: SafeArea(
-          bottom: false,
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Minimalist Header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: FiloSpacing.lg,
-                      vertical: FiloSpacing.xs,
+      backgroundColor: isDark ? FiloColors.darkBackground : FiloColors.lightBackground,
+      body: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // 1. Top Header Bar (Screen 2: Hello Alex + Date + Actions)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      FiloSpacing.xl,
+                      FiloSpacing.sm,
+                      FiloSpacing.xl,
+                      FiloSpacing.xs,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (state.currentFolderId != null)
                           IconButton(
@@ -210,20 +214,36 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             onPressed: _navigateUp,
                           )
                         else
-                          Text(
-                            currentFolderName,
-                            style: FiloTypography.editorial(
-                              fontSize: 34,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -1.0,
-                              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Hello Member',
+                                style: FiloTypography.title2.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 24,
+                                  color: isDark
+                                      ? FiloColors.darkTextPrimary
+                                      : FiloColors.lightTextPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                dateString,
+                                style: FiloTypography.subheadline.copyWith(
+                                  color: isDark
+                                      ? FiloColors.darkTextTertiary
+                                      : FiloColors.lightTextTertiary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ),
                         Row(
                           children: [
-                            IconButton(
-                              icon: Icon(_isSearchActive ? Icons.close_rounded : Icons.search_rounded),
-                              onPressed: () {
+                            _buildHeaderIconButton(
+                              icon: _isSearchActive ? Icons.close_rounded : Icons.search_rounded,
+                              onTap: () {
                                 setState(() {
                                   _isSearchActive = !_isSearchActive;
                                   if (!_isSearchActive) {
@@ -232,39 +252,48 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                   }
                                 });
                               },
+                              isDark: isDark,
                             ),
-                            IconButton(
-                              icon: Icon(
-                                state.isFavoritesOnly ? Icons.star_rounded : Icons.star_border_rounded,
-                                color: state.isFavoritesOnly ? FiloColors.warning : null,
-                              ),
-                              onPressed: () => notifier.toggleFavoritesFilter(),
+                            const SizedBox(width: 8),
+                            _buildHeaderIconButton(
+                              icon: Icons.notifications_none_rounded,
+                              onTap: () => TransferQueueSheet.show(context),
+                              isDark: isDark,
+                              badgeCount: activeTasksCount > 0 ? activeTasksCount : null,
                             ),
-                            IconButton(
-                              icon: Icon(state.isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded),
-                              onPressed: () => notifier.toggleViewMode(),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded),
-                              onPressed: () {
+                            const SizedBox(width: 8),
+                            _buildHeaderIconButton(
+                              icon: Icons.delete_outline_rounded,
+                              onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(builder: (context) => const TrashScreen()),
                                 );
                               },
+                              isDark: isDark,
                             ),
                           ],
                         ),
                       ],
                     ),
                   ),
+                ),
 
-                  // Search Bar if Active
-                  if (_isSearchActive)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.lg, vertical: 4),
-                      child: FiloGlass(
-                        borderRadius: BorderRadius.circular(100),
+                // Search Bar if Active
+                if (_isSearchActive)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xl, vertical: 6),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : Colors.black.withValues(alpha: 0.08),
+                          ),
+                        ),
                         child: TextField(
                           controller: _searchController,
                           autofocus: true,
@@ -285,259 +314,374 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                         ),
                       ),
                     ),
+                  ),
 
-                  // 3 Frosted Quick Stats Pills (Image 5 style) when at root & not searching
-                  if (state.currentFolderId == null && !_isSearchActive)
-                    Padding(
+                // 2. Hero Card: Available Storage & 4 Quick Action Squircles
+                if (state.currentFolderId == null && !_isSearchActive)
+                  SliverToBoxAdapter(
+                    child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: FiloSpacing.lg,
-                        vertical: FiloSpacing.xs,
+                        horizontal: FiloSpacing.xl,
+                        vertical: FiloSpacing.sm,
+                      ),
+                      child: _buildHeroCard(state, isDark),
+                    ),
+                  ),
+
+                // 3. Vault Categories Carousel (Screen 2: My Accounts Balance)
+                if (state.currentFolderId == null && !_isSearchActive)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        FiloSpacing.xl,
+                        FiloSpacing.md,
+                        FiloSpacing.xl,
+                        FiloSpacing.xs,
                       ),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: _buildStatsPill(
-                              label: 'total files',
-                              value: '${state.items.length}',
-                              isDark: isDark,
+                          Text(
+                            'Vault Categories',
+                            style: FiloTypography.title3.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildStatsPill(
-                              label: 'starred',
-                              value: '${state.items.where((i) => i.isFavorite).length}',
-                              isDark: isDark,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildStatsPill(
-                              label: 'cloud',
-                              value: 'telegram',
-                              isDark: isDark,
+                          GestureDetector(
+                            onTap: _showNewFolderDialog,
+                            child: Text(
+                              'Add Folder',
+                              style: FiloTypography.caption.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? FiloColors.accentOrchid : FiloColors.primary,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                  ),
 
-                  // Breadcrumbs Bar
-                  if (!state.isMultiSelect && state.breadcrumbs.isNotEmpty)
-                    BreadcrumbBar(
+                if (state.currentFolderId == null && !_isSearchActive)
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 110,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xl, vertical: 8),
+                        physics: const BouncingScrollPhysics(),
+                        children: [
+                          _buildCategoryCard('Photos', '📸', '${state.items.where((i) => i.name.toLowerCase().endsWith('.jpg') || i.name.toLowerCase().endsWith('.png')).length} files', isDark),
+                          const SizedBox(width: 12),
+                          _buildCategoryCard('Videos', '🎬', '${state.items.where((i) => i.name.toLowerCase().endsWith('.mp4')).length} files', isDark),
+                          const SizedBox(width: 12),
+                          _buildCategoryCard('Docs', '📄', '${state.items.where((i) => i.name.toLowerCase().endsWith('.pdf') || i.name.toLowerCase().endsWith('.txt')).length} files', isDark),
+                          const SizedBox(width: 12),
+                          _buildCategoryCard('Encrypted', '🔒', 'Telegram Cloud', isDark),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Breadcrumbs if inside a subfolder
+                if (!state.isMultiSelect && state.breadcrumbs.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: BreadcrumbBar(
                       breadcrumbs: state.breadcrumbs,
                       onNavigate: (folderId) => notifier.navigateToFolder(folderId),
                     ),
-
-                  // Content Area
-                  Expanded(
-                    child: state.isLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(FiloColors.primary),
-                            ),
-                          )
-                        : state.items.isEmpty
-                            ? FiloEmptyState(
-                                icon: state.isFavoritesOnly
-                                    ? Icons.star_border_rounded
-                                    : Icons.cloud_queue_rounded,
-                                title: state.isFavoritesOnly
-                                    ? 'No Starred Files'
-                                    : 'vault is empty',
-                                description: state.isFavoritesOnly
-                                    ? 'Star your important files to access them quickly.'
-                                    : 'save documents, photos, or videos to your encrypted telegram vault.',
-                                actionLabel: state.isFavoritesOnly ? null : 'upload file',
-                                onAction: state.isFavoritesOnly ? null : _handleUploadFile,
-                              )
-                            : RefreshIndicator(
-                                onRefresh: () async {
-                                  HapticFeedback.lightImpact();
-                                  await notifier.loadCurrentFolder();
-                                },
-                                child: state.isGridView
-                                    ? GridView.builder(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          FiloSpacing.lg,
-                                          FiloSpacing.sm,
-                                          FiloSpacing.lg,
-                                          100, // space for bottom capsule
-                                        ),
-                                        physics: const BouncingScrollPhysics(
-                                          parent: AlwaysScrollableScrollPhysics(),
-                                        ),
-                                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 2,
-                                          mainAxisSpacing: FiloSpacing.md,
-                                          crossAxisSpacing: FiloSpacing.md,
-                                          childAspectRatio: 0.88,
-                                        ),
-                                        itemCount: state.items.length,
-                                        itemBuilder: (context, index) {
-                                          final item = state.items[index];
-                                          final activeTask = activeTaskMap[item.id];
-                                          return FileGridCard(
-                                            node: item,
-                                            isSelected: state.selectedIds.contains(item.id),
-                                            isSelectionMode: state.isMultiSelect,
-                                            isTransferring: activeTask != null,
-                                            transferProgress: activeTask?.progress,
-                                            onTap: () => _handleFileTap(item),
-                                            onLongPress: () {
-                                              HapticFeedback.mediumImpact();
-                                              notifier.toggleSelect(item.id);
-                                            },
-                                            onMoreTap: () => _showFileActions(item),
-                                          );
-                                        },
-                                      )
-                                    : ListView.separated(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          FiloSpacing.lg,
-                                          FiloSpacing.sm,
-                                          FiloSpacing.lg,
-                                          100,
-                                        ),
-                                        physics: const BouncingScrollPhysics(
-                                          parent: AlwaysScrollableScrollPhysics(),
-                                        ),
-                                        itemCount: state.items.length,
-                                        separatorBuilder: (context, index) => const SizedBox(height: 8),
-                                        itemBuilder: (context, index) {
-                                          final item = state.items[index];
-                                          final activeTask = activeTaskMap[item.id];
-                                          return FileListRow(
-                                            node: item,
-                                            isSelected: state.selectedIds.contains(item.id),
-                                            isSelectionMode: state.isMultiSelect,
-                                            isTransferring: activeTask != null,
-                                            transferProgress: activeTask?.progress,
-                                            onTap: () => _handleFileTap(item),
-                                            onLongPress: () {
-                                              HapticFeedback.mediumImpact();
-                                              notifier.toggleSelect(item.id);
-                                            },
-                                            onMoreTap: () => _showFileActions(item),
-                                          );
-                                        },
-                                      ),
-                              ),
                   ),
-                ],
-              ),
 
-              // Floating Transfer Capsule
-              const Positioned(
-                left: FiloSpacing.md,
-                right: FiloSpacing.md,
-                bottom: 84,
-                child: FloatingTransferCapsule(),
-              ),
-
-              // Floating Frosted Glass Bottom Navigation Capsule (Image 5 style!)
-              Positioned(
-                left: FiloSpacing.xl,
-                right: FiloSpacing.xl,
-                bottom: 18,
-                child: Center(
-                  child: FiloGlass(
-                    borderRadius: BorderRadius.circular(100),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                // 4. Recent Files Section Header (Screen 2: Transactions / Today)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      FiloSpacing.xl,
+                      FiloSpacing.md,
+                      FiloSpacing.xl,
+                      FiloSpacing.xs,
+                    ),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Files/Root Home
-                        _buildNavIcon(
-                          icon: Icons.folder_rounded,
-                          isActive: state.currentFolderId == null && !state.isFavoritesOnly,
-                          onTap: () {
-                            if (state.currentFolderId != null) {
-                              notifier.navigateToFolder(null);
-                            }
-                            if (state.isFavoritesOnly) {
-                              notifier.toggleFavoritesFilter();
-                            }
-                          },
-                          isDark: isDark,
-                        ),
-                        const SizedBox(width: 14),
-
-                        // Favorites
-                        _buildNavIcon(
-                          icon: Icons.star_rounded,
-                          isActive: state.isFavoritesOnly,
-                          onTap: () => notifier.toggleFavoritesFilter(),
-                          isDark: isDark,
-                        ),
-                        const SizedBox(width: 14),
-
-                        // Center Glowing Add Button (Emil Kowalski press)
-                        GestureDetector(
-                          onTap: () {
-                            HapticFeedback.mediumImpact();
-                            _showAddOptionsMenu();
-                          },
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: FiloColors.brandGradient,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: FiloColors.brandIndigo.withValues(alpha: 0.4),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.add_rounded,
-                              color: Colors.white,
-                              size: 26,
-                            ),
+                        Text(
+                          state.currentFolderId == null ? 'Recent Files' : 'Files',
+                          style: FiloTypography.title3.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                           ),
                         ),
-                        const SizedBox(width: 14),
-
-                        // Transfers
-                        _buildNavIcon(
-                          icon: Icons.swap_vert_rounded,
-                          isActive: tasks.any((t) => t.status == TransferStatus.running),
-                          onTap: () => TransferQueueSheet.show(context),
-                          isDark: isDark,
-                        ),
-                        const SizedBox(width: 14),
-
-                        // Settings
-                        _buildNavIcon(
-                          icon: Icons.settings_rounded,
-                          isActive: false,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                            );
-                          },
-                          isDark: isDark,
+                        IconButton(
+                          icon: Icon(state.isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded, size: 20),
+                          onPressed: () => notifier.toggleViewMode(),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
+
+                // 5. Files List / Grid / Empty State
+                if (state.isLoading)
+                  const SliverFillRemaining(
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(FiloColors.primary),
+                      ),
+                    ),
+                  )
+                else if (state.items.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 120),
+                      child: FiloEmptyState(
+                        icon: state.isFavoritesOnly
+                            ? Icons.star_border_rounded
+                            : Icons.cloud_queue_rounded,
+                        title: state.isFavoritesOnly
+                            ? 'No Starred Files'
+                            : 'vault is empty',
+                        description: state.isFavoritesOnly
+                            ? 'Star your important files to access them quickly.'
+                            : 'save documents, photos, or videos to your encrypted telegram vault.',
+                        actionLabel: 'upload file',
+                        onAction: _handleUploadFile,
+                      ),
+                    ),
+                  )
+                else if (state.isGridView)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      FiloSpacing.xl,
+                      FiloSpacing.xs,
+                      FiloSpacing.xl,
+                      120,
+                    ),
+                    sliver: SliverGrid(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: FiloSpacing.md,
+                        mainAxisSpacing: FiloSpacing.md,
+                        childAspectRatio: 0.85,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final node = state.items[index];
+                          return FileGridCard(
+                            node: node,
+                            isSelected: state.selectedIds.contains(node.id),
+                            isSelectionMode: state.isMultiSelect,
+                            onTap: () => _handleFileTap(node),
+                            onLongPress: () => _showFileActions(node),
+                            onMoreTap: () => _showFileActions(node),
+                          );
+                        },
+                        childCount: state.items.length,
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      FiloSpacing.xl,
+                      FiloSpacing.xs,
+                      FiloSpacing.xl,
+                      120,
+                    ),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final node = state.items[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: FileListRow(
+                              node: node,
+                              isSelected: state.selectedIds.contains(node.id),
+                              isSelectionMode: state.isMultiSelect,
+                              onTap: () => _handleFileTap(node),
+                              onLongPress: () => _showFileActions(node),
+                              onMoreTap: () => _showFileActions(node),
+                            ),
+                          );
+                        },
+                        childCount: state.items.length,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            // 6. Floating Liquid Glass Bottom Capsule Bar (Screen 2 / Image 5 style)
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 24,
+              child: _buildFloatingNavbar(isDark, activeTasksCount),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildNavIcon({
+  // HERO CARD: Available Storage + 4 Quick Actions (Screen 2 style)
+  Widget _buildHeroCard(FileBrowserState state, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.06),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Top Gradient Section
+          Container(
+            padding: const EdgeInsets.all(FiloSpacing.lg),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark ? FiloColors.heroGradientDark : FiloColors.heroGradient,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(28),
+                topRight: Radius.circular(28),
+              ),
+            ),
+            child: DiamondPatternOverlay(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(28),
+                topRight: Radius.circular(28),
+              ),
+              opacity: isDark ? 0.12 : 0.18,
+              spacing: 20.0,
+              diamondSize: 8.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Available Storage',
+                        style: TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => setState(() => _showStats = !_showStats),
+                        child: Icon(
+                          _showStats ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        _showStats ? 'Unlimited' : '••••••••',
+                        style: const TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.8,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '+100% ↗',
+                              style: TextStyle(
+                                fontFamily: FiloTypography.fontFamily,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF34D399),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 4 Quick Actions Row: [ Upload ] [ Download ] [ Sync ] [ + Folder ]
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: FiloSpacing.md, horizontal: FiloSpacing.md),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildQuickActionItem(
+                  icon: Icons.file_upload_outlined,
+                  label: 'Upload',
+                  onTap: _handleUploadFile,
+                  isDark: isDark,
+                ),
+                _buildQuickActionItem(
+                  icon: Icons.file_download_outlined,
+                  label: 'Download',
+                  onTap: () => TransferQueueSheet.show(context),
+                  isDark: isDark,
+                ),
+                _buildQuickActionItem(
+                  icon: Icons.sync_alt_rounded,
+                  label: 'Sync',
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+                    FiloToast.show(context, message: 'Vault synced with Telegram', type: FiloToastType.success);
+                  },
+                  isDark: isDark,
+                ),
+                _buildQuickActionItem(
+                  icon: Icons.create_new_folder_outlined,
+                  label: 'Folder',
+                  onTap: _showNewFolderDialog,
+                  isDark: isDark,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionItem({
     required IconData icon,
-    required bool isActive,
+    required String label,
     required VoidCallback onTap,
     required bool isDark,
   }) {
@@ -546,51 +690,78 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
         HapticFeedback.selectionClick();
         onTap();
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: isActive
-              ? (isDark ? FiloColors.darkSurfaceSecondary : FiloColors.primary.withValues(alpha: 0.12))
-              : Colors.transparent,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          icon,
-          size: 22,
-          color: isActive
-              ? (isDark ? FiloColors.accentOrchid : FiloColors.primary)
-              : (isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary),
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: isDark ? Colors.white : Colors.black,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: FiloTypography.fontFamily,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildStatsPill({
-    required String label,
-    required String value,
-    required bool isDark,
-  }) {
-    return FiloGlass(
-      borderRadius: FiloRadius.roundedLg,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+  Widget _buildCategoryCard(String title, String emoji, String count, bool isDark) {
+    return Container(
+      width: 130,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            value,
-            style: FiloTypography.title3.copyWith(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-            ),
+          Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: FiloTypography.fontFamily,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
           Text(
-            label,
-            style: FiloTypography.caption.copyWith(
-              fontSize: 10,
+            count,
+            style: TextStyle(
+              fontFamily: FiloTypography.fontFamily,
+              fontSize: 12,
               color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
             ),
           ),
@@ -599,57 +770,203 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
-  void _showAddOptionsMenu() {
-    FiloSheet.show(
-      context: context,
-      title: 'add to vault',
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  Widget _buildHeaderIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isDark,
+    int? badgeCount,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xs, vertical: 4),
-            leading: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    FiloColors.brandOrchid.withValues(alpha: 0.18),
-                    FiloColors.brandIndigo.withValues(alpha: 0.18),
-                  ],
-                ),
-                borderRadius: FiloRadius.roundedMd,
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.04),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
               ),
-              child: const Icon(Icons.upload_file_rounded, color: FiloColors.primary, size: 22),
             ),
-            title: Text('upload file', style: FiloTypography.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
-            subtitle: Text('encrypt and save any photo, video, or file', style: FiloTypography.caption),
+            child: Icon(
+              icon,
+              size: 19,
+              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+            ),
+          ),
+          if (badgeCount != null)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: FiloColors.accentOrchid,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // 6. Floating Liquid Glass Bottom Capsule Navigation Bar
+  Widget _buildFloatingNavbar(bool isDark, int activeTasksCount) {
+    return FiloGlass(
+      borderRadius: BorderRadius.circular(40),
+      blur: 28.0,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      border: Border.all(
+        color: isDark ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.8),
+        width: 1.2,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.1),
+          blurRadius: 30,
+          offset: const Offset(0, 10),
+        ),
+      ],
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // 1. Vault / Home (Active Solid Squircle)
+          _buildNavPill(
+            icon: Icons.home_filled,
+            isActive: true,
+            onTap: () {},
+            isDark: isDark,
+          ),
+
+          // 2. Starred / Favorites
+          _buildNavPill(
+            icon: Icons.bookmark_border_rounded,
+            isActive: false,
             onTap: () {
-              HapticFeedback.selectionClick();
-              Navigator.of(context).pop();
+              ref.read(fileBrowserProvider.notifier).toggleFavoritesFilter();
+            },
+            isDark: isDark,
+          ),
+
+          // 3. Center Glowing Plus Button
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.mediumImpact();
               _handleUploadFile();
             },
-          ),
-          const SizedBox(height: FiloSpacing.xs),
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xs, vertical: 4),
-            leading: Container(
-              width: 42,
-              height: 42,
+            child: Container(
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: FiloColors.info.withValues(alpha: 0.14),
-                borderRadius: FiloRadius.roundedMd,
+                gradient: LinearGradient(
+                  colors: isDark ? FiloColors.heroGradientDark : FiloColors.heroGradient,
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: FiloColors.accentOrchid.withValues(alpha: 0.4),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              child: const Icon(Icons.create_new_folder_rounded, color: FiloColors.info, size: 22),
+              child: const Icon(
+                Icons.add_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
             ),
-            title: Text('new folder', style: FiloTypography.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
-            subtitle: Text('create a folder to organize your vault', style: FiloTypography.caption),
-            onTap: () {
-              HapticFeedback.selectionClick();
-              Navigator.of(context).pop();
-              _showNewFolderDialog();
-            },
           ),
+
+          // 4. Transfers / Activity
+          _buildNavPill(
+            icon: Icons.swap_vert_rounded,
+            isActive: false,
+            badgeCount: activeTasksCount > 0 ? activeTasksCount : null,
+            onTap: () => TransferQueueSheet.show(context),
+            isDark: isDark,
+          ),
+
+          // 5. Settings / Menu
+          _buildNavPill(
+            icon: Icons.tune_rounded,
+            isActive: false,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavPill({
+    required IconData icon,
+    required bool isActive,
+    required VoidCallback onTap,
+    required bool isDark,
+    int? badgeCount,
+  }) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: isActive
+                  ? (isDark ? Colors.white : Colors.black)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: isActive
+                  ? (isDark ? Colors.black : Colors.white)
+                  : (isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary),
+            ),
+          ),
+          if (badgeCount != null)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: FiloColors.accentOrchid,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
         ],
       ),
     );

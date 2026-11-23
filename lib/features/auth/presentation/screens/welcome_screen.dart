@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/filo_colors.dart';
-import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
-import '../../../../shared/components/filo_glass.dart';
+import '../../../../shared/components/diamond_pattern_painter.dart';
 import '../../../../shared/components/filo_logo_badge.dart';
+import '../../../../shared/components/handwriting_text.dart';
 import 'telegram_login_screen.dart';
 
 /// Flagship First-Run Welcome Screen.
 ///
-/// Designed with CRED luxury obsidian typography and iOS 18 liquid glass materials.
-/// Plain, human copywriting with zero technical jargon.
+/// Designed to match Screen 1 of the reference design:
+/// - Top 52%: Radiant sunset/violet gradient with diamond geometric lattice overlay
+/// - Animated cursive handwriting welcome: "welcome to filo."
+/// - Bottom 48%: High-contrast typography ("your unlimited cloud. built around you.")
+/// - Bottom action row: "get started" + circular dark button with arrow `→`
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
 
@@ -91,181 +94,308 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: FiloAmbientBackground(
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: FiloSpacing.xl,
-                  vertical: FiloSpacing.md,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: FiloSpacing.sm),
-
-                    // Top App Logo & Subtle Pill Badge
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const FiloLogoBadge(size: 48, showGlow: true),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.06)
-                                : Colors.black.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(100),
-                            border: Border.all(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.12)
-                                  : Colors.black.withValues(alpha: 0.08),
-                              width: 0.8,
-                            ),
-                          ),
-                          child: Text(
-                            '✦ private vault',
-                            style: FiloTypography.caption.copyWith(
-                              letterSpacing: 0.5,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? FiloColors.accentOrchid
-                                  : FiloColors.primary,
-                            ),
-                          ),
+      backgroundColor: isDark ? FiloColors.darkBackground : FiloColors.lightBackground,
+      body: SafeArea(
+        top: false,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: Column(
+              children: [
+                // TOP 52%: Radiant Hero Gradient with Diamond Pattern & Handwriting
+                Expanded(
+                  flex: 52,
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isDark
+                            ? FiloColors.heroGradientDark
+                            : FiloColors.heroGradient,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(36),
+                        bottomRight: Radius.circular(36),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isDark ? Colors.black : FiloColors.primary)
+                              .withValues(alpha: isDark ? 0.4 : 0.25),
+                          blurRadius: 30,
+                          offset: const Offset(0, 12),
                         ),
                       ],
                     ),
-
-                    const Spacer(flex: 2),
-
-                    // Editorial Headlines (CRED aesthetic: lowercase elegance)
-                    Text(
-                      'welcome to filo.',
-                      style: FiloTypography.editorial(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -1.4,
-                        color: isDark
-                            ? FiloColors.darkTextPrimary
-                            : FiloColors.lightTextPrimary,
+                    child: DiamondPatternOverlay(
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(36),
+                        bottomRight: Radius.circular(36),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'your unlimited cloud.',
-                      style: FiloTypography.largeTitle.copyWith(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -1.0,
-                        color: isDark
-                            ? FiloColors.darkTextSecondary
-                            : FiloColors.lightTextSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: FiloSpacing.md),
-                    Text(
-                      'all your photos, videos, and files stored securely in your telegram. no servers. no bills. just sit back.',
-                      style: FiloTypography.body.copyWith(
-                        fontSize: 16,
-                        height: 1.45,
-                        color: isDark
-                            ? FiloColors.darkTextSecondary.withValues(alpha: 0.8)
-                            : FiloColors.lightTextSecondary,
-                      ),
-                    ),
-
-                    const Spacer(flex: 3),
-
-                    // 3 Liquid Frosted Glass Benefit Highlights (Image 5 aesthetic)
-                    _buildFrostedBenefit(
-                      icon: Icons.all_inclusive_rounded,
-                      title: 'unlimited storage',
-                      subtitle: 'powered by your telegram cloud',
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: FiloSpacing.sm),
-                    _buildFrostedBenefit(
-                      icon: Icons.shield_outlined,
-                      title: 'locked on your device',
-                      subtitle: 'only you hold the key to your files',
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: FiloSpacing.sm),
-                    _buildFrostedBenefit(
-                      icon: Icons.bolt_rounded,
-                      title: 'fast & lightweight',
-                      subtitle: 'instant access from all your devices',
-                      isDark: isDark,
-                    ),
-
-                    const Spacer(flex: 3),
-
-                    // Primary Interactive CTA Button (Emil Kowalski press scale)
-                    GestureDetector(
-                      onTapDown: (_) {
-                        setState(() => _isButtonPressed = true);
-                        HapticFeedback.lightImpact();
-                      },
-                      onTapUp: (_) => setState(() => _isButtonPressed = false),
-                      onTapCancel: () =>
-                          setState(() => _isButtonPressed = false),
-                      onTap: _onGetStarted,
-                      child: AnimatedScale(
-                        scale: _isButtonPressed ? 0.97 : 1.0,
-                        duration: const Duration(milliseconds: 140),
-                        curve: Curves.easeOutCubic,
-                        child: Container(
-                          height: 60,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: FiloColors.brandGradient,
-                            ),
-                            borderRadius: FiloRadius.roundedXl,
-                            boxShadow: [
-                              BoxShadow(
-                                color: FiloColors.brandIndigo
-                                    .withValues(alpha: isDark ? 0.45 : 0.35),
-                                blurRadius: 24,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
+                      opacity: isDark ? 0.12 : 0.18,
+                      spacing: 24.0,
+                      diamondSize: 9.0,
+                      child: SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: FiloSpacing.xl,
+                            vertical: FiloSpacing.md,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // Top Bar: Logo & Private Vault Pill
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const FiloLogoBadge(size: 44, showGlow: true),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(100),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.35),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.lock_outline_rounded, size: 13, color: Colors.white),
+                                        SizedBox(width: 5),
+                                        Text(
+                                          'private vault',
+                                          style: TextStyle(
+                                            fontFamily: FiloTypography.fontFamily,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.3,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const Spacer(),
+
+                              // Captivating Animated Handwriting Text
+                              const HandwritingText(
+                                text: 'welcome to filo.',
+                                duration: Duration(milliseconds: 1400),
+                              ),
+
+                              const SizedBox(height: 6),
+
                               Text(
-                                'get started',
-                                style: FiloTypography.title3.copyWith(
+                                'your unlimited cloud.',
+                                style: FiloTypography.editorial(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.8,
                                   color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.3,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.arrow_forward_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
+
+                              const SizedBox(height: FiloSpacing.md),
                             ],
                           ),
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: FiloSpacing.lg),
-                  ],
+                  ),
                 ),
-              ),
+
+                // BOTTOM 48%: High-Contrast Typography & Action Row
+                Expanded(
+                  flex: 48,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: FiloSpacing.xl,
+                      vertical: FiloSpacing.md,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: FiloSpacing.sm),
+
+                        // Subtle Category Pill
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Colors.black.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(100),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'personal storage',
+                                    style: FiloTypography.caption.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.3,
+                                      color: isDark
+                                          ? FiloColors.darkTextPrimary
+                                          : FiloColors.lightTextPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.cloud_done_rounded, size: 14, color: FiloColors.success),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: FiloSpacing.sm),
+
+                        Text(
+                          'built around you.',
+                          style: FiloTypography.title1.copyWith(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                            color: isDark
+                                ? FiloColors.darkTextPrimary
+                                : FiloColors.lightTextPrimary,
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        Text(
+                          'all your photos, videos, and files stored securely in your telegram. no servers. no bills. just sit back.',
+                          style: FiloTypography.body.copyWith(
+                            color: isDark
+                                ? FiloColors.darkTextSecondary
+                                : FiloColors.lightTextSecondary,
+                            height: 1.45,
+                            fontSize: 14,
+                          ),
+                        ),
+
+                        const Spacer(),
+
+                        // 3 Quick Benefit Chips
+                        Row(
+                          children: [
+                            _buildMiniChip(
+                              icon: Icons.all_inclusive_rounded,
+                              label: 'unlimited',
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildMiniChip(
+                              icon: Icons.shield_outlined,
+                              label: 'zero-knowledge',
+                              isDark: isDark,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildMiniChip(
+                              icon: Icons.bolt_rounded,
+                              label: 'blazing fast',
+                              isDark: isDark,
+                            ),
+                          ],
+                        ),
+
+                        const Spacer(flex: 2),
+
+                        // Bottom Action Row (Screen 1 style: "Get Started" + Dark Circle Button)
+                        GestureDetector(
+                          onTapDown: (_) => setState(() => _isButtonPressed = true),
+                          onTapUp: (_) => setState(() => _isButtonPressed = false),
+                          onTapCancel: () => setState(() => _isButtonPressed = false),
+                          onTap: _onGetStarted,
+                          child: AnimatedScale(
+                            scale: _isButtonPressed ? 0.98 : 1.0,
+                            duration: const Duration(milliseconds: 140),
+                            curve: Curves.easeOutCubic,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: FiloSpacing.lg,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? FiloColors.darkSurfaceSecondary
+                                    : FiloColors.lightSurface,
+                                borderRadius: BorderRadius.circular(100),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.12)
+                                      : Colors.black.withValues(alpha: 0.08),
+                                  width: 1.0,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'get started',
+                                    style: FiloTypography.bodyMedium.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                      color: isDark
+                                          ? FiloColors.darkTextPrimary
+                                          : FiloColors.lightTextPrimary,
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: isDark ? Colors.white : Colors.black,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: (isDark ? Colors.white : Colors.black)
+                                              .withValues(alpha: 0.25),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      Icons.arrow_forward_rounded,
+                                      color: isDark ? Colors.black : Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: FiloSpacing.sm),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -273,63 +403,46 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     );
   }
 
-  Widget _buildFrostedBenefit({
+  Widget _buildMiniChip({
     required IconData icon,
-    required String title,
-    required String subtitle,
+    required String label,
     required bool isDark,
   }) {
-    return FiloGlass(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      borderRadius: FiloRadius.roundedLg,
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  FiloColors.brandOrchid.withValues(alpha: 0.18),
-                  FiloColors.brandIndigo.withValues(alpha: 0.18),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.05),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
               icon,
-              size: 20,
+              size: 16,
               color: isDark ? FiloColors.accentOrchid : FiloColors.primary,
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: FiloTypography.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.2,
-                    color: isDark
-                        ? FiloColors.darkTextPrimary
-                        : FiloColors.lightTextPrimary,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: FiloTypography.caption.copyWith(
-                    color: isDark
-                        ? FiloColors.darkTextSecondary
-                        : FiloColors.lightTextSecondary,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: FiloTypography.caption.copyWith(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

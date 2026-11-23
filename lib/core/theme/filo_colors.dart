@@ -66,6 +66,21 @@ class FiloColors {
     Color(0xFF5E6CE7),
   ];
 
+  // Radiant Sunset / Violet Mesh Gradient (from latest reference design)
+  static const List<Color> heroGradient = [
+    Color(0xFF38BDF8), // Electric Sky Blue
+    Color(0xFF818CF8), // Royal Periwinkle
+    Color(0xFFA855F7), // Neon Violet
+    Color(0xFFEC4899), // Radiant Fuchsia
+  ];
+
+  static const List<Color> heroGradientDark = [
+    Color(0xFF1E1B4B), // Deep Indigo
+    Color(0xFF3B0764), // Deep Purple
+    Color(0xFF581C87), // Rich Violet
+    Color(0xFF701A75), // Deep Magenta
+  ];
+
   static const List<Color> darkMeshGradient = [
     Color(0xFF070414),
     Color(0xFF0D0425),

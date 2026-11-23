@@ -12,18 +12,22 @@ import '../../../../core/crypto/hash_utils.dart';
 import '../../../../core/database/chunk_model.dart';
 import '../../../../core/database/filo_database.dart';
 import '../../../../core/theme/filo_colors.dart';
-import '../../../../core/theme/filo_motion.dart';
-import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
 import '../../../../core/theme/theme_provider.dart';
+import '../../../../shared/components/diamond_pattern_painter.dart';
 import '../../../../shared/components/filo_button.dart';
-import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
 
-/// Full application settings, appearance management, security, storage analytics, and GDPR data control.
+/// Application Settings & Account Details.
+///
+/// Designed to match Screen 3 of the reference design:
+/// - `< Settings` with action dots `⋮`
+/// - Available storage balance with `+100% ↗ 2.4%` pill
+/// - 3 card pattern carousel with Dark / Light / System selector dots
+/// - Squircle preference action tiles
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -60,7 +64,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Change Passphrase'),
+        title: const Text('Change Master Passphrase'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -239,371 +243,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = ref.watch(isDarkProvider);
-    final currentThemeMode = ref.watch(themeModeProvider);
-    final authState = ref.watch(authNotifierProvider);
+  void _showAutoLockPicker() {
+    final currentTimeout = ref.read(authNotifierProvider).autoLockTimeoutMinutes;
+    final options = [0, 1, 5, 15, 30];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: FiloSpacing.md),
-        children: [
-          // 1. Appearance Section
-          _buildSectionHeader('APPEARANCE', isDark),
-          _buildAppearanceSelector(currentThemeMode, isDark),
-          const SizedBox(height: FiloSpacing.lg),
-
-          // 2. Security Section
-          _buildSectionHeader('SECURITY & VAULT LOCK', isDark),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.lg),
-            child: _buildGroupedCard(
-              isDark: isDark,
-              children: [
-                SwitchListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.md),
-                  secondary: Container(
-                    padding: const EdgeInsets.all(FiloSpacing.xs + 2),
-                    decoration: BoxDecoration(
-                      color: FiloColors.primary.withValues(alpha: 0.12),
-                      borderRadius: FiloRadius.roundedMd,
-                    ),
-                    child: const Icon(Icons.fingerprint_rounded, color: FiloColors.primary, size: 22),
-                  ),
-                  title: const Text('Biometric Unlock', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  subtitle: const Text('Scan fingerprint or face to open vault', style: TextStyle(fontSize: 13)),
-                  value: authState.isBiometricEnabled,
-                  activeColor: FiloColors.primary,
-                  onChanged: (val) async {
-                    final success = await ref.read(authNotifierProvider.notifier).setBiometrics(val);
-                    if (!success && mounted) {
-                      final err = ref.read(authNotifierProvider).errorMessage;
-                      if (err != null) {
-                        FiloToast.show(context, message: err, type: FiloToastType.error);
-                      }
-                    } else if (success && mounted) {
-                      FiloToast.show(
-                        context,
-                        message: val ? 'Biometric unlock enabled' : 'Biometric unlock disabled',
-                        type: FiloToastType.info,
-                      );
-                    }
-                  },
-                ),
-                _buildCardDivider(isDark),
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.md),
-                  leading: Container(
-                    padding: const EdgeInsets.all(FiloSpacing.xs + 2),
-                    decoration: BoxDecoration(
-                      color: FiloColors.info.withValues(alpha: 0.12),
-                      borderRadius: FiloRadius.roundedMd,
-                    ),
-                    child: const Icon(Icons.timer_outlined, color: FiloColors.info, size: 22),
-                  ),
-                  title: const Text('Auto-Lock Timeout', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  subtitle: Text(
-                    authState.autoLockTimeoutMinutes == 0
-                        ? 'Immediately on exit'
-                        : '${authState.autoLockTimeoutMinutes} minutes',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => _showAutoLockPicker(),
-                ),
-                _buildCardDivider(isDark),
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.md),
-                  leading: Container(
-                    padding: const EdgeInsets.all(FiloSpacing.xs + 2),
-                    decoration: BoxDecoration(
-                      color: FiloColors.warning.withValues(alpha: 0.12),
-                      borderRadius: FiloRadius.roundedMd,
-                    ),
-                    child: const Icon(Icons.key_rounded, color: FiloColors.warning, size: 22),
-                  ),
-                  title: const Text('Change Master Passphrase', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  subtitle: const Text('Re-wrap key without re-encrypting files', style: TextStyle(fontSize: 13)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: _showChangePassphraseDialog,
-                ),
-                _buildCardDivider(isDark),
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.md),
-                  leading: Container(
-                    padding: const EdgeInsets.all(FiloSpacing.xs + 2),
-                    decoration: BoxDecoration(
-                      color: FiloColors.destructive.withValues(alpha: 0.12),
-                      borderRadius: FiloRadius.roundedMd,
-                    ),
-                    child: const Icon(Icons.lock_rounded, color: FiloColors.destructive, size: 22),
-                  ),
-                  title: const Text('Lock Vault Now', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  subtitle: const Text('Clear master keys from device memory', style: TextStyle(fontSize: 13)),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: FiloSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Auto-Lock Timeout',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: FiloSpacing.sm),
+              ...options.map(
+                (mins) => ListTile(
+                  title: Text(mins == 0 ? 'Immediately on exit' : '$mins minutes'),
+                  trailing: mins == currentTimeout ? const Icon(Icons.check, color: FiloColors.primary) : null,
                   onTap: () {
-                    HapticFeedback.lightImpact();
-                    ref.read(authNotifierProvider.notifier).lockVault();
+                    ref.read(authNotifierProvider.notifier).setAutoLockTimeout(mins);
                     Navigator.of(context).pop();
                   },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: FiloSpacing.lg),
-
-          // 3. Storage Breakdown Section
-          _buildSectionHeader('STORAGE USAGE', isDark),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.lg),
-            child: _buildGroupedCard(
-              isDark: isDark,
-              children: [
-                if (_isLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(FiloSpacing.xl),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_storageStats != null)
-                  Padding(
-                    padding: const EdgeInsets.all(FiloSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              HashUtils.formatBytes(_storageStats!.totalBytes),
-                              style: FiloTypography.title1.copyWith(
-                                color: FiloColors.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(
-                              '${_storageStats!.totalFiles} files',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: FiloSpacing.sm),
-                        _buildStorageBar(_storageStats!),
-                        const SizedBox(height: FiloSpacing.md),
-                        _buildStorageCategoryRow('Photos', _storageStats!.imagesBytes, FiloColors.success),
-                        _buildStorageCategoryRow('Videos', _storageStats!.videosBytes, FiloColors.info),
-                        _buildStorageCategoryRow('Audio', _storageStats!.audioBytes, FiloColors.warning),
-                        _buildStorageCategoryRow('Documents', _storageStats!.documentsBytes, FiloColors.destructive),
-                        _buildStorageCategoryRow('Other', _storageStats!.otherBytes, FiloColors.primary),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: FiloSpacing.lg),
-
-          // 4. GDPR & Data Control
-          _buildSectionHeader('DATA CONTROL (GDPR)', isDark),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.lg),
-            child: _buildGroupedCard(
-              isDark: isDark,
-              children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.md),
-                  leading: Container(
-                    padding: const EdgeInsets.all(FiloSpacing.xs + 2),
-                    decoration: BoxDecoration(
-                      color: FiloColors.primary.withValues(alpha: 0.12),
-                      borderRadius: FiloRadius.roundedMd,
-                    ),
-                    child: const Icon(Icons.download_rounded, color: FiloColors.primary, size: 22),
-                  ),
-                  title: const Text('Export Everything', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  subtitle: const Text('Download decrypted ZIP archive of all files', style: TextStyle(fontSize: 13)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: _handleExportEverything,
-                ),
-                _buildCardDivider(isDark),
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.md),
-                  leading: Container(
-                    padding: const EdgeInsets.all(FiloSpacing.xs + 2),
-                    decoration: BoxDecoration(
-                      color: FiloColors.destructive.withValues(alpha: 0.12),
-                      borderRadius: FiloRadius.roundedMd,
-                    ),
-                    child: const Icon(Icons.delete_forever_rounded, color: FiloColors.destructive, size: 22),
-                  ),
-                  title: const Text(
-                    'Delete All My Data',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: FiloColors.destructive),
-                  ),
-                  subtitle: const Text('Purge remote vault and wipe local database', style: TextStyle(fontSize: 13)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: _handleDeleteAllData,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: FiloSpacing.lg),
-
-          // 5. About & Legal
-          _buildSectionHeader('ABOUT & LEGAL', isDark),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.lg),
-            child: _buildGroupedCard(
-              isDark: isDark,
-              children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.md),
-                  title: const Text('Filo Version', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  subtitle: const Text('${AppConfig.appVersion} (${AppConfig.buildNumber})', style: TextStyle(fontSize: 13)),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: FiloColors.primary.withValues(alpha: 0.1),
-                      borderRadius: FiloRadius.roundedFull,
-                    ),
-                    child: const Text('Zero-Knowledge', style: TextStyle(fontSize: 11, color: FiloColors.primary, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                _buildCardDivider(isDark),
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.md),
-                  title: const Text('Open Source Licenses', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => showLicensePage(
-                    context: context,
-                    applicationName: AppConfig.appName,
-                    applicationVersion: AppConfig.appVersion,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(FiloSpacing.xl),
-            child: Text(
-              '${AppConfig.appName} is an independent, zero-knowledge open source cloud vault.\n'
-              'Not affiliated with or endorsed by Telegram FZ-LLC.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.4,
-                color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAppearanceSelector(ThemeMode currentMode, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.lg),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: isDark ? FiloColors.darkSurface : FiloColors.lightSurface,
-          borderRadius: FiloRadius.roundedLg,
-          border: Border.all(
-            color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            _buildThemeOption(
-              label: 'System',
-              icon: Icons.brightness_auto_rounded,
-              mode: ThemeMode.system,
-              currentMode: currentMode,
-              isDark: isDark,
-            ),
-            _buildThemeOption(
-              label: 'Light',
-              icon: Icons.light_mode_rounded,
-              mode: ThemeMode.light,
-              currentMode: currentMode,
-              isDark: isDark,
-            ),
-            _buildThemeOption(
-              label: 'Dark',
-              icon: Icons.dark_mode_rounded,
-              mode: ThemeMode.dark,
-              currentMode: currentMode,
-              isDark: isDark,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildThemeOption({
-    required String label,
-    required IconData icon,
-    required ThemeMode mode,
-    required ThemeMode currentMode,
-    required bool isDark,
-  }) {
-    final isSelected = currentMode == mode;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          if (!isSelected) {
-            HapticFeedback.selectionClick();
-            ref.read(themeModeProvider.notifier).setThemeMode(mode);
-          }
-        },
-        child: AnimatedContainer(
-          duration: FiloMotion.durationFast,
-          curve: FiloMotion.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: FiloSpacing.sm + 4),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? (isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(FiloRadius.md),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 17,
-                color: isSelected
-                    ? FiloColors.primary
-                    : (isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected
-                      ? (isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary)
-                      : (isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
                 ),
               ),
             ],
@@ -613,104 +280,478 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _buildGroupedCard({
-    required bool isDark,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? FiloColors.darkSurface : FiloColors.lightSurface,
-        borderRadius: FiloRadius.roundedLg,
-        border: Border.all(
-          color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
-          width: 1,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: FiloRadius.roundedLg,
-        child: Column(
-          children: children,
-        ),
-      ),
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final isDark = ref.watch(isDarkProvider);
+    final currentThemeMode = ref.watch(themeModeProvider);
+    final authState = ref.watch(authNotifierProvider);
 
-  Widget _buildCardDivider(bool isDark) {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      indent: FiloSpacing.md,
-      color: isDark ? FiloColors.darkBorderSubtle : FiloColors.lightBorderSubtle,
-    );
-  }
-
-  Widget _buildSectionHeader(String title, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(FiloSpacing.lg, FiloSpacing.sm, FiloSpacing.lg, FiloSpacing.xs),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-          color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+    return Scaffold(
+      backgroundColor: isDark ? FiloColors.darkBackground : FiloColors.lightBackground,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 20,
+            color: isDark ? Colors.white : Colors.black,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-      ),
-    );
-  }
-
-  Widget _buildStorageBar(StorageUsageStats stats) {
-    final total = stats.totalBytes == 0 ? 1 : stats.totalBytes;
-    return ClipRRect(
-      borderRadius: FiloRadius.roundedFull,
-      child: SizedBox(
-        height: 10,
-        child: Row(
-          children: [
-            Expanded(flex: (stats.imagesBytes * 100 ~/ total).clamp(1, 100), child: Container(color: FiloColors.success)),
-            Expanded(flex: (stats.videosBytes * 100 ~/ total).clamp(1, 100), child: Container(color: FiloColors.info)),
-            Expanded(flex: (stats.audioBytes * 100 ~/ total).clamp(1, 100), child: Container(color: FiloColors.warning)),
-            Expanded(flex: (stats.documentsBytes * 100 ~/ total).clamp(1, 100), child: Container(color: FiloColors.destructive)),
-            Expanded(flex: (stats.otherBytes * 100 ~/ total).clamp(1, 100), child: Container(color: FiloColors.primary)),
-          ],
+        title: Text(
+          'Account Details',
+          style: FiloTypography.title2.copyWith(
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+          ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.more_vert_rounded,
+              color: isDark ? Colors.white : Colors.black,
+            ),
+            onPressed: () {},
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildStorageCategoryRow(String title, int bytes, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3.0),
-      child: Row(
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xl, vertical: FiloSpacing.sm),
+        physics: const BouncingScrollPhysics(),
         children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
-          Text(HashUtils.formatBytes(bytes), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          // 1. Available Storage Hero (Screen 3 style)
+          Text(
+            'Available Storage',
+            style: FiloTypography.caption.copyWith(
+              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                _isLoading
+                    ? 'Loading...'
+                    : (_storageStats != null && _storageStats!.totalBytes > 0
+                        ? HashUtils.formatBytes(_storageStats!.totalBytes)
+                        : 'Unlimited'),
+                style: FiloTypography.title1.copyWith(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.0,
+                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: FiloColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: const Text(
+                  '+100% ↗ 2.4%',
+                  style: TextStyle(
+                    fontFamily: FiloTypography.fontFamily,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: FiloColors.success,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: FiloSpacing.md),
+
+          // 2. Card Pattern Carousel (Screen 3: 3 Visual Pattern Cards)
+          SizedBox(
+            height: 80,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              children: [
+                _buildPatternCard(
+                  label: 'Dark Mode',
+                  mode: ThemeMode.dark,
+                  currentMode: currentThemeMode,
+                  gradient: FiloColors.heroGradientDark,
+                  isDark: isDark,
+                ),
+                const SizedBox(width: 12),
+                _buildPatternCard(
+                  label: 'Light Mode',
+                  mode: ThemeMode.light,
+                  currentMode: currentThemeMode,
+                  gradient: FiloColors.heroGradient,
+                  isDark: isDark,
+                  hasDiamondPattern: true,
+                ),
+                const SizedBox(width: 12),
+                _buildPatternCard(
+                  label: 'System',
+                  mode: ThemeMode.system,
+                  currentMode: currentThemeMode,
+                  color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+                  isDark: isDark,
+                  hasDottedBorder: true,
+                ),
+              ],
+            ),
+          ),
+
+          // Dots Selector
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildThemeDot(label: 'Dark', mode: ThemeMode.dark, currentMode: currentThemeMode),
+              const SizedBox(width: 16),
+              _buildThemeDot(label: 'Light', mode: ThemeMode.light, currentMode: currentThemeMode),
+              const SizedBox(width: 16),
+              _buildThemeDot(label: 'System', mode: ThemeMode.system, currentMode: currentThemeMode),
+            ],
+          ),
+
+          const SizedBox(height: FiloSpacing.lg),
+
+          // 3. Preferences Section (Screen 3 style transactions list)
+          Text(
+            'Security & Vault Preferences',
+            style: FiloTypography.title3.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+            ),
+          ),
+          const SizedBox(height: FiloSpacing.sm),
+
+          _buildSettingsTile(
+            icon: Icons.fingerprint_rounded,
+            iconColor: FiloColors.primary,
+            title: 'Biometric Unlock',
+            subtitle: 'Scan fingerprint or face to open vault',
+            trailing: Switch(
+              value: authState.isBiometricEnabled,
+              activeColor: FiloColors.primary,
+              onChanged: (val) async {
+                final success = await ref.read(authNotifierProvider.notifier).setBiometrics(val);
+                if (!success && mounted) {
+                  final err = ref.read(authNotifierProvider).errorMessage;
+                  if (err != null) {
+                    FiloToast.show(context, message: err, type: FiloToastType.error);
+                  }
+                } else if (success && mounted) {
+                  FiloToast.show(
+                    context,
+                    message: val ? 'Biometric unlock enabled' : 'Biometric unlock disabled',
+                    type: FiloToastType.info,
+                  );
+                }
+              },
+            ),
+            isDark: isDark,
+          ),
+
+          _buildSettingsTile(
+            icon: Icons.timer_outlined,
+            iconColor: FiloColors.info,
+            title: 'Auto-Lock Timeout',
+            subtitle: authState.autoLockTimeoutMinutes == 0
+                ? 'Immediately on exit'
+                : '${authState.autoLockTimeoutMinutes} minutes',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _showAutoLockPicker,
+            isDark: isDark,
+          ),
+
+          _buildSettingsTile(
+            icon: Icons.key_rounded,
+            iconColor: FiloColors.warning,
+            title: 'Change Master Passphrase',
+            subtitle: 'Re-wrap key without re-encrypting files',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _showChangePassphraseDialog,
+            isDark: isDark,
+          ),
+
+          _buildSettingsTile(
+            icon: Icons.lock_outline_rounded,
+            iconColor: FiloColors.destructive,
+            title: 'Lock Vault Now',
+            subtitle: 'Clear master keys from device memory',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              ref.read(authNotifierProvider.notifier).lockVault();
+              Navigator.of(context).pop();
+            },
+            isDark: isDark,
+          ),
+
+          const SizedBox(height: FiloSpacing.md),
+
+          Text(
+            'Data & Storage Controls',
+            style: FiloTypography.title3.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+            ),
+          ),
+          const SizedBox(height: FiloSpacing.sm),
+
+          _buildSettingsTile(
+            icon: Icons.download_rounded,
+            iconColor: FiloColors.success,
+            title: 'Export Everything',
+            subtitle: 'Download decrypted ZIP archive of all files',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _handleExportEverything,
+            isDark: isDark,
+          ),
+
+          _buildSettingsTile(
+            icon: Icons.delete_forever_rounded,
+            iconColor: FiloColors.destructive,
+            title: 'Delete All My Data',
+            subtitle: 'Purge remote vault and wipe local database',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _handleDeleteAllData,
+            isDark: isDark,
+            isDestructive: true,
+          ),
+
+          const SizedBox(height: FiloSpacing.lg),
+
+          // Bottom Account Details Pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Filo Vault Account Details',
+                      style: FiloTypography.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Zero-Knowledge Client',
+                      style: FiloTypography.caption.copyWith(
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  'v${AppConfig.appVersion} ⌵',
+                  style: FiloTypography.caption.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? FiloColors.accentOrchid : FiloColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: FiloSpacing.xl),
         ],
       ),
     );
   }
 
-  void _showAutoLockPicker() {
-    FiloSheet.show(
-      context: context,
-      title: 'Auto-Lock Timeout',
-      child: Column(
+  Widget _buildPatternCard({
+    required String label,
+    required ThemeMode mode,
+    required ThemeMode currentMode,
+    List<Color>? gradient,
+    Color? color,
+    bool hasDiamondPattern = false,
+    bool hasDottedBorder = false,
+    required bool isDark,
+  }) {
+    final isSelected = currentMode == mode;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        ref.read(themeModeProvider.notifier).setThemeMode(mode);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 120,
+        decoration: BoxDecoration(
+          gradient: gradient != null
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: gradient,
+                )
+              : null,
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? FiloColors.accentOrchid
+                : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08)),
+            width: isSelected ? 2.0 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: FiloColors.accentOrchid.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: hasDiamondPattern
+            ? DiamondPatternOverlay(
+                borderRadius: BorderRadius.circular(16),
+                opacity: 0.18,
+                spacing: 16.0,
+                diamondSize: 6.0,
+                child: Center(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontFamily: FiloTypography.fontFamily,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              )
+            : Center(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: FiloTypography.fontFamily,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: gradient != null ? Colors.white : (isDark ? Colors.white : Colors.black),
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildThemeDot({
+    required String label,
+    required ThemeMode mode,
+    required ThemeMode currentMode,
+  }) {
+    final isSelected = currentMode == mode;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        ref.read(themeModeProvider.notifier).setThemeMode(mode);
+      },
+      child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: AppConfig.autoLockTimeoutOptions.map((min) {
-          return ListTile(
-            title: Text(min == 0 ? 'Immediately on exit' : '$min minutes'),
-            trailing: ref.read(authNotifierProvider).autoLockTimeoutMinutes == min
-                ? const Icon(Icons.check_rounded, color: FiloColors.primary)
-                : null,
-            onTap: () {
-              HapticFeedback.selectionClick();
-              ref.read(authNotifierProvider.notifier).setAutoLockTimeout(min);
-              Navigator.of(context).pop();
-            },
-          );
-        }).toList(),
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: isSelected ? FiloColors.accentOrchid : Colors.grey.withValues(alpha: 0.4),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: FiloTypography.fontFamily,
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? FiloColors.accentOrchid : Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+    VoidCallback? onTap,
+    required bool isDark,
+    bool isDestructive = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+          ),
+        ),
+        child: ListTile(
+          onTap: onTap != null
+              ? () {
+                  HapticFeedback.selectionClick();
+                  onTap();
+                }
+              : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontFamily: FiloTypography.fontFamily,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: isDestructive
+                  ? FiloColors.destructive
+                  : (isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary),
+            ),
+          ),
+          subtitle: Text(
+            subtitle,
+            style: TextStyle(
+              fontFamily: FiloTypography.fontFamily,
+              fontSize: 12,
+              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+            ),
+          ),
+          trailing: trailing,
+        ),
       ),
     );
   }
