@@ -1,0 +1,53 @@
+name: filo
+description: "A personal zero-knowledge cloud storage and file manager app powered by Telegram."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+
+  # Cryptography (Zero-Knowledge, AES-256-GCM, Argon2id, CSPRNG)
+  cryptography: ^2.7.0
+  pointycastle: ^3.9.1
+  crypto: ^3.0.3
+
+  # Local Encrypted Database & Persistence
+  drift: ^2.20.0
+  sqlite3: ^2.4.6
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Hardware Keystore / Keychain Storage
+  flutter_secure_storage: ^9.2.2
+
+  # Security & Biometrics
+  local_auth: ^2.2.0
+
+  # File System, Picking, Sharing & Archives
+  file_picker: ^8.1.2
+  share_plus: ^10.0.2
+  archive: ^3.6.1
+
+  # Networking, HTTP Streaming & MIME
+  http: ^1.2.2
+  mime: ^1.0.5
+  uuid: ^4.5.1
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true

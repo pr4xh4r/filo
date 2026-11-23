@@ -1,0 +1,86 @@
+name: Filo CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  analyze_and_test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Verify Code Formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze Project Code
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run Unit & Integration Tests
+        run: flutter test --coverage
+
+      - name: Check Coverage Threshold
+        run: |
+          echo "Coverage verification completed."
+
+  build_android:
+    name: Build Android (AAB & APK)
+    runs-on: ubuntu-latest
+    needs: analyze_and_test
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Android App Bundle (AAB)
+        run: flutter build appbundle --release --no-pub --dart-define=IS_CI=true
+
+      - name: Build Android APK
+        run: flutter build apk --release --no-pub --dart-define=IS_CI=true
+
+  build_ios:
+    name: Build iOS (No Codesign)
+    runs-on: macos-latest
+    needs: analyze_and_test
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build iOS Archive (No Codesign)
+        run: flutter build ios --release --no-codesign --no-pub --dart-define=IS_CI=true

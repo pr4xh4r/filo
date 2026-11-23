@@ -1,0 +1,177 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/crypto/hash_utils.dart';
+import '../../../../core/database/node_model.dart';
+import '../../../../core/theme/filo_colors.dart';
+import '../../../../core/theme/filo_radius.dart';
+import '../../../../core/theme/filo_spacing.dart';
+import '../../../../shared/components/filo_button.dart';
+import '../../../../shared/components/filo_empty_state.dart';
+import '../../../../shared/components/filo_toast.dart';
+import '../providers/file_browser_provider.dart';
+
+/// Trash management interface with 30-day auto-purge policy and one-tap restore.
+class TrashScreen extends ConsumerStatefulWidget {
+  const TrashScreen({super.key});
+
+  @override
+  ConsumerState<TrashScreen> createState() => _TrashScreenState();
+}
+
+class _TrashScreenState extends ConsumerState<TrashScreen> {
+  bool _isLoading = true;
+  List<FileNode> _trashedNodes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrash();
+  }
+
+  Future<void> _loadTrash() async {
+    setState(() => _isLoading = true);
+    final repo = ref.read(fileRepositoryProvider);
+    final list = await repo.getTrashedNodes();
+    setState(() {
+      _trashedNodes = list;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _handleRestore(String id, String name) async {
+    final repo = ref.read(fileRepositoryProvider);
+    await repo.restoreFromTrash(id);
+    FiloToast.show(context, message: '$name restored', type: FiloToastType.success);
+    await _loadTrash();
+    ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+  }
+
+  Future<void> _handleEmptyTrash() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Empty Trash?'),
+        content: const Text('All items in the trash will be permanently deleted. This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FiloButton(
+            label: 'Delete Forever',
+            variant: FiloButtonVariant.destructive,
+            size: FiloButtonSize.small,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final repo = ref.read(fileRepositoryProvider);
+      await repo.emptyTrash();
+      FiloToast.show(context, message: 'Trash emptied', type: FiloToastType.info);
+      await _loadTrash();
+      ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Trash'),
+        actions: [
+          if (_trashedNodes.isNotEmpty)
+            TextButton(
+              onPressed: _handleEmptyTrash,
+              child: const Text(
+                'Empty Trash',
+                style: TextStyle(color: FiloColors.destructive),
+              ),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // 30-Day Policy Banner
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: FiloSpacing.lg,
+              vertical: FiloSpacing.md,
+            ),
+            color: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: FiloColors.info,
+                ),
+                SizedBox(width: FiloSpacing.md),
+                Expanded(
+                  child: Text(
+                    'Items in Trash are permanently deleted after 30 days.',
+                    style: TextStyle(fontSize: 13, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _trashedNodes.isEmpty
+                    ? const FiloEmptyState(
+                        icon: Icons.delete_outline_rounded,
+                        title: 'Trash is Empty',
+                        description: 'Items moved to trash will appear here.',
+                      )
+                    : ListView.separated(
+                        itemCount: _trashedNodes.length,
+                        separatorBuilder: (context, index) => Divider(
+                          color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
+                          height: 1,
+                        ),
+                        itemBuilder: (context, index) {
+                          final item = _trashedNodes[index];
+                          return ListTile(
+                            leading: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: FiloColors.destructive.withValues(alpha: 0.1),
+                                borderRadius: FiloRadius.roundedMd,
+                              ),
+                              child: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: FiloColors.destructive,
+                              ),
+                            ),
+                            title: Text(
+                              item.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              item.isFolder ? 'Folder' : HashUtils.formatBytes(item.sizeBytes),
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.restore_from_trash_rounded),
+                              tooltip: 'Restore',
+                              onPressed: () => _handleRestore(item.id, item.name),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
