@@ -129,7 +129,7 @@ class _FiloGlassState extends State<FiloGlass> {
   }
 }
 
-/// Ambient Dreamlike Mesh Background (matching Image 5 in light mode, CRED in dark mode)
+/// Ambient Clean Canvas Background (Monochrome Luxury)
 class FiloAmbientBackground extends StatelessWidget {
   final Widget child;
 
@@ -137,70 +137,9 @@ class FiloAmbientBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Stack(
-      children: [
-        // Base Canvas
-        Container(
-          color: isDark ? FiloColors.darkBackground : FiloColors.lightBackground,
-        ),
-
-        // Ambient Dreamy Mesh Glow 1 (Top-Right: Electric Indigo)
-        Positioned(
-          top: -120,
-          right: -80,
-          width: 380,
-          height: 380,
-          child: RepaintBoundary(
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: isDark
-                      ? [
-                          const Color(0xFF5E6CE7).withValues(alpha: 0.28),
-                          Colors.transparent,
-                        ]
-                      : [
-                          const Color(0xFFC645F9).withValues(alpha: 0.16),
-                          Colors.transparent,
-                        ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Ambient Dreamy Mesh Glow 2 (Bottom-Left: Neon Orchid)
-        Positioned(
-          bottom: -100,
-          left: -80,
-          width: 360,
-          height: 360,
-          child: RepaintBoundary(
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: isDark
-                      ? [
-                          const Color(0xFFC645F9).withValues(alpha: 0.22),
-                          Colors.transparent,
-                        ]
-                      : [
-                          const Color(0xFF5E6CE7).withValues(alpha: 0.14),
-                          Colors.transparent,
-                        ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Child Content
-        child,
-      ],
+    return Container(
+      color: FiloColors.lightBackground,
+      child: child,
     );
   }
 }

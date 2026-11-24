@@ -29,15 +29,10 @@ class FiloLogoBadge extends StatelessWidget {
           boxShadow: showGlow
               ? [
                   BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.38),
+                    color: Colors.black.withValues(alpha: 0.35),
                     blurRadius: size * 0.35,
                     offset: Offset(0, size * 0.12),
                     spreadRadius: -2,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF06B6D4).withValues(alpha: 0.22),
-                    blurRadius: size * 0.2,
-                    offset: Offset(0, size * 0.04),
                   ),
                 ]
               : null,
@@ -46,19 +41,18 @@ class FiloLogoBadge extends StatelessWidget {
           borderRadius: borderRadius,
           child: Stack(
             children: [
-              // 1. Vibrant Multi-Stop Deep Gradient Background
+              // 1. Deep Obsidian Titanium Monogram Background
               Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFF1E1B4B), // Deep night indigo
-                      Color(0xFF2563EB), // Electric cobalt blue
-                      Color(0xFF0284C7), // Sky sapphire
-                      Color(0xFF06B6D4), // Radiant cyan
+                      Color(0xFF0F0F12), // Deep Obsidian
+                      Color(0xFF1E1E24), // Midnight Charcoal
+                      Color(0xFF2B2B34), // Brushed Titanium
                     ],
-                    stops: [0.0, 0.42, 0.78, 1.0],
+                    stops: [0.0, 0.55, 1.0],
                   ),
                 ),
               ),

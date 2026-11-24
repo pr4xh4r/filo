@@ -425,18 +425,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: FiloColors.success.withValues(alpha: 0.12),
+                  color: const Color(0xFFF5F5F7),
                   borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
                 ),
                 child: const Text(
-                  '+100% ↗ 2.4%',
+                  '100% SECURE',
                   style: TextStyle(
                     fontFamily: FiloTypography.fontFamily,
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: FiloColors.success,
+                    letterSpacing: 0.5,
+                    color: Colors.black,
                   ),
                 ),
               ),
@@ -465,13 +467,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Container(
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(
-                    color: FiloColors.primary.withValues(alpha: 0.1),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF5F5F7),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.cloud_done_outlined,
-                    color: FiloColors.primary,
+                    color: Colors.black,
                     size: 22,
                   ),
                 ),
@@ -518,12 +520,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           _buildSettingsTile(
             icon: Icons.fingerprint_rounded,
-            iconColor: FiloColors.primary,
             title: 'Biometric Unlock',
             subtitle: 'Scan fingerprint or face to open vault',
             trailing: Switch(
               value: authState.isBiometricEnabled,
-              activeColor: FiloColors.primary,
+              activeColor: Colors.black,
               onChanged: (val) async {
                 final success = await ref
                     .read(authNotifierProvider.notifier)
@@ -546,7 +547,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           _buildSettingsTile(
             icon: Icons.timer_outlined,
-            iconColor: FiloColors.info,
             title: 'Auto-Lock Timeout',
             subtitle: authState.autoLockTimeoutMinutes == 0
                 ? 'Immediately on exit'
@@ -557,7 +557,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           _buildSettingsTile(
             icon: Icons.key_rounded,
-            iconColor: FiloColors.warning,
             title: 'Change Master Passphrase',
             subtitle: 'Re-wrap key without re-encrypting files',
             trailing: const Icon(Icons.chevron_right_rounded),
@@ -566,7 +565,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           _buildSettingsTile(
             icon: Icons.lock_outline_rounded,
-            iconColor: FiloColors.destructive,
             title: 'Lock Vault Now',
             subtitle: 'Clear master keys from device memory',
             trailing: const Icon(Icons.chevron_right_rounded),
@@ -592,7 +590,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           _buildSettingsTile(
             icon: Icons.download_rounded,
-            iconColor: FiloColors.success,
             title: 'Export Everything',
             subtitle: 'Download decrypted ZIP archive of all files',
             trailing: const Icon(Icons.chevron_right_rounded),
@@ -601,7 +598,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           _buildSettingsTile(
             icon: Icons.delete_forever_rounded,
-            iconColor: FiloColors.destructive,
             title: 'Delete All My Data',
             subtitle: 'Purge remote vault and wipe local database',
             trailing: const Icon(Icons.chevron_right_rounded),
@@ -647,7 +643,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   'v${AppConfig.appVersion}',
                   style: FiloTypography.caption.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: FiloColors.primary,
+                    color: Colors.black,
                   ),
                 ),
               ],
@@ -662,13 +658,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Widget _buildSettingsTile({
     required IconData icon,
-    required Color iconColor,
     required String title,
     required String subtitle,
     Widget? trailing,
     VoidCallback? onTap,
     bool isDestructive = false,
   }) {
+    final effectiveIconColor = isDestructive ? FiloColors.destructive : Colors.black;
+    final containerColor = isDestructive ? const Color(0xFFFEE2E2) : const Color(0xFFF5F5F7);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Container(
@@ -691,10 +689,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
+              color: containerColor,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: iconColor, size: 20),
+            child: Icon(icon, color: effectiveIconColor, size: 20),
           ),
           title: Text(
             title,

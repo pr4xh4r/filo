@@ -40,13 +40,7 @@ class FileListRow extends StatelessWidget {
   }
 
   Color _getIconColor() {
-    if (node.isFolder) return FiloColors.primary;
-    final mime = node.mimeType?.toLowerCase() ?? '';
-    if (mime.startsWith('image/')) return FiloColors.success;
-    if (mime.startsWith('video/')) return FiloColors.info;
-    if (mime.startsWith('audio/')) return FiloColors.warning;
-    if (mime.contains('pdf')) return FiloColors.destructive;
-    return FiloColors.primary;
+    return Colors.black;
   }
 
   @override

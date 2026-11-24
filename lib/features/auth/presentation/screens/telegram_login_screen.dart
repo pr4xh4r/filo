@@ -899,7 +899,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
     );
   }
 
-  // Interactive Brand Button (matching CRED and Image 5)
+  // Interactive Brand Button (CRED & Apple Monochrome Luxury)
   Widget _buildActionButton({
     required String label,
     required bool isLoading,
@@ -910,29 +910,25 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
       onTapDown: (_) => HapticFeedback.lightImpact(),
       onTap: isLoading ? null : onPressed,
       child: Container(
-        height: 60,
+        height: 56,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: FiloColors.brandGradient,
-          ),
+          color: Colors.black,
           borderRadius: FiloRadius.roundedXl,
           boxShadow: [
             BoxShadow(
-              color: FiloColors.brandIndigo.withValues(alpha: isDark ? 0.45 : 0.35),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Center(
           child: isLoading
               ? const SizedBox(
-                  width: 24,
-                  height: 24,
+                  width: 22,
+                  height: 22,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2.4,
+                    strokeWidth: 2.2,
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )

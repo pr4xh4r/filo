@@ -17,32 +17,32 @@ class FiloColors {
   static const Color brandOrchid = Color(0xFFC645F9);
   static const Color brandWhite = Color(0xFFFFFFFF);
 
-  // Primary Accent Brand Colors
-  static const Color primary = Color(0xFF5E6CE7); // Electric Indigo
-  static const Color primaryHover = Color(0xFF4C59DB);
-  static const Color primaryMuted = Color(0xFFEEF0FC);
-  static const Color primaryDarkMuted = Color(0xFF18153A);
-  static const Color accentOrchid = Color(0xFFC645F9);
+  // Primary Accent Brand Colors (CRED & Apple Monochrome Luxury)
+  static const Color primary = Color(0xFF111111); // Deep Obsidian Black
+  static const Color primaryHover = Color(0xFF222222);
+  static const Color primaryMuted = Color(0xFFF4F4F6);
+  static const Color primaryDarkMuted = Color(0xFF18181C);
+  static const Color accentOrchid = Color(0xFF111111);
 
   // Status & Feedback Colors
-  static const Color success = Color(0xFF10B981); // Emerald
-  static const Color successMuted = Color(0xFFECFDF5);
+  static const Color success = Color(0xFF111111); // Monochrome Black
+  static const Color successMuted = Color(0xFFF4F4F6);
   static const Color warning = Color(0xFFF59E0B); // Amber
   static const Color warningMuted = Color(0xFFFFFBEB);
   static const Color destructive = Color(0xFFEF4444); // Crimson
   static const Color destructiveMuted = Color(0xFFFEF2F2);
-  static const Color info = Color(0xFF0EA5E9); // Sky
-  static const Color infoMuted = Color(0xFFF0F9FF);
+  static const Color info = Color(0xFF111111); // Monochrome Black
+  static const Color infoMuted = Color(0xFFF4F4F6);
 
   // Light Mode (Soft Dreamlike Ambient Mesh & Milk Glass)
-  static const Color lightBackground = Color(0xFFF6F8FC);
+  static const Color lightBackground = Color(0xFFF8F9FA);
   static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightSurfaceSecondary = Color(0xFFEEF2F9);
-  static const Color lightBorder = Color(0xFFE2E8F0);
-  static const Color lightBorderSubtle = Color(0xFFEDF2F7);
-  static const Color lightTextPrimary = Color(0xFF0D0425);
-  static const Color lightTextSecondary = Color(0xFF64748B);
-  static const Color lightTextTertiary = Color(0xFF94A3B8);
+  static const Color lightSurfaceSecondary = Color(0xFFF2F2F7);
+  static const Color lightBorder = Color(0xFFE5E5EA);
+  static const Color lightBorderSubtle = Color(0xFFEFEFF4);
+  static const Color lightTextPrimary = Color(0xFF000000);
+  static const Color lightTextSecondary = Color(0xFF3C3C43);
+  static const Color lightTextTertiary = Color(0xFF8E8E93);
 
   // Dark Mode (CRED Obsidian Canvas with Subtle Jewel Undertones)
   static const Color darkBackground = Color(0xFF070414);
@@ -66,19 +66,16 @@ class FiloColors {
     Color(0xFF5E6CE7),
   ];
 
-  // Radiant Sunset / Violet Mesh Gradient (from latest reference design)
+  // Deep Obsidian / Titanium Diamond Gradient (CRED & Apple Monochrome Luxury)
   static const List<Color> heroGradient = [
-    Color(0xFF38BDF8), // Electric Sky Blue
-    Color(0xFF818CF8), // Royal Periwinkle
-    Color(0xFFA855F7), // Neon Violet
-    Color(0xFFEC4899), // Radiant Fuchsia
+    Color(0xFF0F0F12), // Deep Obsidian
+    Color(0xFF18181D), // Midnight Graphite
+    Color(0xFF222228), // Sleek Titanium
   ];
 
   static const List<Color> heroGradientDark = [
-    Color(0xFF1E1B4B), // Deep Indigo
-    Color(0xFF3B0764), // Deep Purple
-    Color(0xFF581C87), // Rich Violet
-    Color(0xFF701A75), // Deep Magenta
+    Color(0xFF0A0A0C),
+    Color(0xFF141418),
   ];
 
   static const List<Color> darkMeshGradient = [

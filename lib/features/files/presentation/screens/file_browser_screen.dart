@@ -658,7 +658,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(
-                  color: FiloColors.accentOrchid,
+                  color: Colors.black,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
@@ -804,7 +804,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                 width: 8,
                 height: 8,
                 decoration: const BoxDecoration(
-                  color: FiloColors.accentOrchid,
+                  color: Colors.black,
                   shape: BoxShape.circle,
                 ),
               ),
