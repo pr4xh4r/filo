@@ -4,6 +4,7 @@ import 'package:filo/core/database/filo_database.dart';
 import 'package:filo/core/database/node_model.dart';
 import 'package:filo/features/files/domain/smart_tag.dart';
 import 'package:filo/features/files/domain/workspace.dart';
+import 'package:filo/features/files/presentation/providers/file_browser_provider.dart';
 
 void main() {
   group('Workspaces and Smart Tags', () {
