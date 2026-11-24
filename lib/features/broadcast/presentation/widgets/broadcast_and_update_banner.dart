@@ -10,6 +10,11 @@ import '../../../../shared/components/filo_toast.dart';
 import '../../domain/broadcast_service.dart';
 
 /// Theme-synced liquid glass banner for admin broadcasts and polite version update reminders.
+///
+/// Features:
+/// - 100% synced with Filo's Ethereal Dawn (Light) and Midnight Aurora (Dark) design systems.
+/// - Notification icons inside cards replacing text buttons.
+/// - Non-blocking polite user-choice update experience.
 class BroadcastAndUpdateBanner extends ConsumerWidget {
   const BroadcastAndUpdateBanner({super.key});
 
@@ -35,7 +40,7 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
           if (hasBroadcast) ...[
             FiloGlass(
               borderRadius: FiloRadius.roundedXl,
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -43,19 +48,37 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(colors: FiloColors.brandGradient),
                           borderRadius: BorderRadius.circular(100),
+                          boxShadow: [
+                            BoxShadow(
+                              color: FiloColors.accentCoral.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        child: Text(
-                          'ANNOUNCEMENT',
-                          style: FiloTypography.caption.copyWith(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.campaign_rounded,
+                              size: 13,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'ANNOUNCEMENT',
+                              style: FiloTypography.caption.copyWith(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (state.broadcast!.isDismissible)
@@ -66,40 +89,44 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                             FiloToast.show(context, message: 'Announcement dismissed', type: FiloToastType.info);
                           },
                           child: Container(
-                            padding: const EdgeInsets.all(4),
+                            width: 28,
+                            height: 28,
                             decoration: BoxDecoration(
-                              color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05),
+                              color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.05),
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06),
+                              ),
                             ),
                             child: Icon(
                               Icons.close_rounded,
                               size: 14,
-                              color: isDark ? Colors.white70 : Colors.black54,
+                              color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                             ),
                           ),
                         ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text(
                     state.broadcast!.title,
                     style: FiloTypography.title3.copyWith(
                       fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                      fontSize: 15.5,
                       color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   Text(
                     state.broadcast!.message,
                     style: FiloTypography.body.copyWith(
                       fontSize: 13,
                       color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                      height: 1.35,
+                      height: 1.4,
                     ),
                   ),
                   if (state.broadcast!.actionUrl != null && state.broadcast!.actionUrl!.isNotEmpty) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     GestureDetector(
                       onTap: () {
                         HapticFeedback.lightImpact();
@@ -108,8 +135,15 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: isDark ? FiloColors.darkSurfaceSecondary : Colors.black,
+                          gradient: const LinearGradient(colors: FiloColors.brandGradient),
                           borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: FiloColors.accentCoral.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -119,10 +153,10 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(width: 4),
+                            const SizedBox(width: 5),
                             const Icon(Icons.arrow_outward_rounded, size: 13, color: Colors.white),
                           ],
                         ),
@@ -135,10 +169,10 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
             const SizedBox(height: 10),
           ],
 
-          // 2. Persistent Non-Annoying Update Banner
+          // 2. Persistent Non-Annoying Update Banner (Theme-Synced)
           if (hasUpdate) ...[
             if (state.isUpdateCollapsed)
-              // Collapsed Minimal Chip
+              // Collapsed Minimal Notification Chip with Bell Icon
               GestureDetector(
                 onTap: () {
                   HapticFeedback.selectionClick();
@@ -153,18 +187,27 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                       Row(
                         children: [
                           Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: FiloColors.accentCoral,
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: FiloColors.accentCoral.withValues(alpha: isDark ? 0.22 : 0.12),
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: FiloColors.accentCoral.withValues(alpha: isDark ? 0.45 : 0.25),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.notifications_active_rounded,
+                              size: 14,
+                              color: FiloColors.accentCoral,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 9),
                           Text(
                             'Filo v${state.update!.latestVersion} update available',
                             style: FiloTypography.caption.copyWith(
                               fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
                               color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                             ),
                           ),
@@ -173,14 +216,19 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                       Row(
                         children: [
                           Text(
-                            'view details',
+                            'view',
                             style: FiloTypography.caption.copyWith(
-                              color: FiloColors.primary,
-                              fontWeight: FontWeight.w600,
+                              color: FiloColors.accentCoral,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
                             ),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: FiloColors.primary),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 16,
+                            color: FiloColors.accentCoral,
+                          ),
                         ],
                       ),
                     ],
@@ -188,7 +236,7 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                 ),
               )
             else
-              // Expanded Elegant Card
+              // Expanded Elegant Theme-Synced Card
               FiloGlass(
                 borderRadius: FiloRadius.roundedXl,
                 padding: const EdgeInsets.all(16),
@@ -198,61 +246,66 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        // Left: Theme-synced notification badge
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: FiloColors.primary.withValues(alpha: 0.12),
+                            color: FiloColors.accentCoral.withValues(alpha: isDark ? 0.20 : 0.12),
                             borderRadius: BorderRadius.circular(100),
-                            border: Border.all(color: FiloColors.primary.withValues(alpha: 0.25)),
+                            border: Border.all(
+                              color: FiloColors.accentCoral.withValues(alpha: isDark ? 0.40 : 0.28),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.rocket_launch_rounded, size: 12, color: FiloColors.primary),
-                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.notifications_active_rounded,
+                                size: 13,
+                                color: FiloColors.accentCoral,
+                              ),
+                              const SizedBox(width: 5),
                               Text(
-                                'NEW VERSION • v${state.update!.latestVersion}',
+                                'NEW UPDATE • v${state.update!.latestVersion}',
                                 style: FiloTypography.caption.copyWith(
-                                  color: FiloColors.primary,
+                                  color: FiloColors.accentCoral,
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        // Collapse / Minimize Button
+                        // Right: Notification icon button replacing the text button
                         GestureDetector(
                           onTap: () {
                             HapticFeedback.lightImpact();
                             notifier.toggleCollapseUpdate(true);
                           },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.04),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'minimize',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isDark ? Colors.white70 : Colors.black54,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                          child: Tooltip(
+                            message: 'Minimize notification',
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.05),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06),
                                 ),
-                                const SizedBox(width: 2),
-                                Icon(Icons.keyboard_arrow_up_rounded, size: 14, color: isDark ? Colors.white70 : Colors.black54),
-                              ],
+                              ),
+                              child: Icon(
+                                Icons.notifications_active_outlined,
+                                size: 16,
+                                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                              ),
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Text(
                       state.update!.title,
                       style: FiloTypography.title3.copyWith(
@@ -267,21 +320,33 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: state.update!.changelog.map((item) {
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
+                            padding: const EdgeInsets.only(bottom: 6),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 2),
-                                  child: Icon(Icons.check_circle_rounded, size: 13, color: FiloColors.success),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: FiloColors.success.withValues(alpha: isDark ? 0.20 : 0.12),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check_rounded,
+                                      size: 11,
+                                      color: FiloColors.success,
+                                    ),
+                                  ),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     item,
                                     style: FiloTypography.caption.copyWith(
                                       color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                                      height: 1.3,
+                                      fontSize: 12,
+                                      height: 1.35,
                                     ),
                                   ),
                                 ),
@@ -291,7 +356,7 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                         }).toList(),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Row(
                       children: [
                         Expanded(
@@ -307,7 +372,7 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                                 borderRadius: FiloRadius.roundedLg,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: FiloColors.primary.withValues(alpha: 0.3),
+                                    color: FiloColors.accentCoral.withValues(alpha: 0.35),
                                     blurRadius: 10,
                                     offset: const Offset(0, 3),
                                   ),
@@ -332,24 +397,27 @@ class BroadcastAndUpdateBanner extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: FiloRadius.roundedLg),
-                            side: BorderSide(
-                              color: isDark ? Colors.white24 : Colors.black12,
-                            ),
-                          ),
-                          onPressed: () {
+                        GestureDetector(
+                          onTap: () {
                             HapticFeedback.lightImpact();
                             notifier.toggleCollapseUpdate(true);
                           },
-                          child: Text(
-                            'later',
-                            style: TextStyle(
-                              color: isDark ? Colors.white70 : Colors.black87,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+                              borderRadius: FiloRadius.roundedLg,
+                              border: Border.all(
+                                color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
+                              ),
+                            ),
+                            child: Text(
+                              'later',
+                              style: TextStyle(
+                                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ),

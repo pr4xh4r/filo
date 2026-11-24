@@ -17,6 +17,7 @@ import '../../../../shared/components/filo_toast.dart';
 import '../../../preview/presentation/screens/file_preview_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
 import '../../../broadcast/presentation/widgets/broadcast_and_update_banner.dart';
+import '../../../broadcast/domain/broadcast_service.dart';
 import '../../../transfer/presentation/providers/transfer_provider.dart';
 import '../../../transfer/presentation/screens/transfer_queue_sheet.dart';
 import '../providers/file_browser_provider.dart';
@@ -1150,6 +1151,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     final activeTasksCount = activeTasks.length;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeWorkspace = Workspace.fromId(state.activeWorkspaceId, state.workspaces);
+    final broadcastState = ref.watch(broadcastNotifierProvider);
 
     return Scaffold(
       body: FiloBackground(
@@ -1268,9 +1270,22 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             ),
                             const SizedBox(width: 6),
                             _buildHeaderIconButton(
-                              icon: Icons.notifications_none_rounded,
-                              onTap: () => TransferQueueSheet.show(context),
-                              badgeCount: activeTasksCount > 0 ? activeTasksCount : null,
+                              icon: (broadcastState.update != null || broadcastState.broadcast != null)
+                                  ? Icons.notifications_active_rounded
+                                  : Icons.notifications_none_rounded,
+                              onTap: () {
+                                if (activeTasksCount > 0) {
+                                  TransferQueueSheet.show(context);
+                                } else if (broadcastState.update != null && broadcastState.isUpdateCollapsed) {
+                                  ref.read(broadcastNotifierProvider.notifier).toggleCollapseUpdate(false);
+                                  FiloToast.show(context, message: 'Update available: v${broadcastState.update?.latestVersion}', type: FiloToastType.info);
+                                } else {
+                                  TransferQueueSheet.show(context);
+                                }
+                              },
+                              badgeCount: activeTasksCount > 0
+                                  ? activeTasksCount
+                                  : ((broadcastState.update != null || broadcastState.broadcast != null) ? 1 : null),
                             ),
                             const SizedBox(width: 6),
                             _buildHeaderIconButton(
@@ -1944,6 +1959,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     required VoidCallback onTap,
     int? badgeCount,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
@@ -1956,14 +1972,14 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? FiloColors.darkSurfaceSecondary : Colors.white,
               shape: BoxShape.circle,
               border: Border.all(
-                color: Colors.black.withValues(alpha: 0.06),
+                color: isDark ? FiloColors.darkBorder : Colors.black.withValues(alpha: 0.06),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.03),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -1972,7 +1988,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             child: Icon(
               icon,
               size: 18,
-              color: FiloColors.lightTextPrimary,
+              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
             ),
           ),
           if (badgeCount != null)
@@ -1980,11 +1996,18 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               top: -2,
               right: -2,
               child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.black,
-                  shape: BoxShape.circle,
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: FiloColors.accentCoral,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: FiloColors.accentCoral.withValues(alpha: 0.4),
+                      blurRadius: 4,
+                    ),
+                  ],
                 ),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                 child: Text(
                   '$badgeCount',
                   style: const TextStyle(
@@ -1992,6 +2015,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
@@ -2000,20 +2024,21 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
-  // 5. Full Transparent Liquid Glass Navbar (5 Options, Black Filled Active Icons)
+  // 5. Full Transparent Liquid Glass Navbar (5 Options, Theme Adaptive Active Icons)
   Widget _buildTransparentNavbar(bool isFavoritesOnly, int activeTasksCount) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return FiloGlass(
       borderRadius: BorderRadius.circular(40),
       blur: 32.0,
-      color: Colors.white.withValues(alpha: 0.72),
+      color: isDark ? FiloColors.darkSurfaceSecondary.withValues(alpha: 0.85) : Colors.white.withValues(alpha: 0.72),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       border: Border.all(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: isDark ? FiloColors.darkBorder : Colors.white.withValues(alpha: 0.9),
         width: 1.5,
       ),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.08),
+          color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
           blurRadius: 28,
           offset: const Offset(0, 10),
         ),
@@ -2021,7 +2046,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          // 1. Home (Black filled when active)
+          // 1. Home
           _buildNavIcon(
             activeIcon: Icons.home_filled,
             inactiveIcon: Icons.home_outlined,
@@ -2033,7 +2058,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             },
           ),
 
-          // 2. Starred (Black filled when active)
+          // 2. Starred
           _buildNavIcon(
             activeIcon: Icons.star_rounded,
             inactiveIcon: Icons.star_border_rounded,
@@ -2067,14 +2092,14 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             child: Container(
               width: 44,
               height: 44,
-              decoration: const BoxDecoration(
-                color: Colors.black,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: FiloColors.brandGradient),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black26,
+                    color: FiloColors.accentCoral.withValues(alpha: 0.35),
                     blurRadius: 10,
-                    offset: Offset(0, 4),
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -2118,6 +2143,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     required VoidCallback onTap,
     int? badgeCount,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
@@ -2132,7 +2158,9 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             child: Icon(
               isActive ? activeIcon : inactiveIcon,
               size: 24,
-              color: isActive ? Colors.black : Colors.black.withValues(alpha: 0.38),
+              color: isActive
+                  ? (isDark ? FiloColors.accentCoral : FiloColors.primary)
+                  : (isDark ? FiloColors.darkTextSecondary.withValues(alpha: 0.6) : Colors.black.withValues(alpha: 0.38)),
             ),
           ),
           if (badgeCount != null)
@@ -2143,7 +2171,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                 width: 8,
                 height: 8,
                 decoration: const BoxDecoration(
-                  color: Colors.black,
+                  color: FiloColors.accentCoral,
                   shape: BoxShape.circle,
                 ),
               ),
