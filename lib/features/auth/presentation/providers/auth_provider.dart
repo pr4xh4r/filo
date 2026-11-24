@@ -55,7 +55,23 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     try {
       await _repository.storageBackend.initialize();
       final authState = await _repository.storageBackend.checkAuth();
-      final hasVault = await _repository.hasConfiguredVault();
+      var hasVault = await _repository.hasConfiguredVault();
+
+      if (authState.isAuthenticated && !hasVault) {
+        try {
+          final syncService = IndexSyncService(
+            database: _database,
+            storageBackend: _repository.storageBackend,
+            authRepository: _repository,
+          );
+          final cloudBundle = await syncService.fetchCloudVaultKeyBundle();
+          if (cloudBundle != null) {
+            await _repository.importVaultKeyBundle(cloudBundle);
+            hasVault = true;
+          }
+        } catch (_) {}
+      }
+
       final isBio = await _repository.isBiometricEnabled();
       final timeout = await _repository.getAutoLockTimeoutMinutes();
 
@@ -101,7 +117,21 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     try {
       final res = await _repository.storageBackend.signInWithCode(code);
       if (res.isAuthenticated) {
-        final hasVault = await _repository.hasConfiguredVault();
+        var hasVault = await _repository.hasConfiguredVault();
+        if (!hasVault) {
+          try {
+            final syncService = IndexSyncService(
+              database: _database,
+              storageBackend: _repository.storageBackend,
+              authRepository: _repository,
+            );
+            final cloudBundle = await syncService.fetchCloudVaultKeyBundle();
+            if (cloudBundle != null) {
+              await _repository.importVaultKeyBundle(cloudBundle);
+              hasVault = true;
+            }
+          } catch (_) {}
+        }
         state = state.copyWith(
           isTelegramAuthenticated: true,
           telegramUserId: res.userId,
@@ -127,7 +157,21 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     try {
       final res = await _repository.storageBackend.checkPassword(password);
       if (res.isAuthenticated) {
-        final hasVault = await _repository.hasConfiguredVault();
+        var hasVault = await _repository.hasConfiguredVault();
+        if (!hasVault) {
+          try {
+            final syncService = IndexSyncService(
+              database: _database,
+              storageBackend: _repository.storageBackend,
+              authRepository: _repository,
+            );
+            final cloudBundle = await syncService.fetchCloudVaultKeyBundle();
+            if (cloudBundle != null) {
+              await _repository.importVaultKeyBundle(cloudBundle);
+              hasVault = true;
+            }
+          } catch (_) {}
+        }
         state = state.copyWith(
           isTelegramAuthenticated: true,
           telegramUserId: res.userId,
@@ -154,7 +198,7 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       final recoveryKey = await _repository.setupNewVault(passphrase: passphrase);
       final masterKey = await _repository.unlockWithPassphrase(passphrase);
 
-      // Create storage channel in Telegram
+      // Create storage channel in Telegram ('filo')
       await _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
 
       if (state.isBiometricEnabled) {
@@ -167,6 +211,16 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         masterKey: masterKey,
         isLoading: false,
       );
+
+      // Immediately back up initial vault envelope to Telegram channel 'filo'
+      try {
+        final syncService = IndexSyncService(
+          database: _database,
+          storageBackend: _repository.storageBackend,
+          authRepository: _repository,
+        );
+        await syncService.backupIndexToCloud(masterKey: masterKey);
+      } catch (_) {}
 
       // Auto-restore check in case user is re-setting up existing account on new device
       await _maybeAutoRestore(masterKey);
@@ -271,16 +325,45 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
   }
 
   /// Checks if local database is empty and automatically downloads & restores
-  /// the encrypted index snapshot pinned in the Telegram channel.
+  /// the encrypted index snapshot pinned in the Telegram channel 'filo'.
   Future<void> _maybeAutoRestore(Uint8List masterKey) async {
     try {
       final syncService = IndexSyncService(
         database: _database,
         storageBackend: _repository.storageBackend,
+        authRepository: _repository,
       );
       await syncService.checkAndAutoRestore(masterKey: masterKey);
     } catch (_) {
       // Non-fatal if offline or no remote index exists yet
+    }
+  }
+
+  /// Checks Telegram channel 'filo' for existing vault snapshot envelope.
+  /// If found, imports the wrapped key bundle so user can unlock with their master passphrase.
+  Future<bool> checkForCloudVault() async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final syncService = IndexSyncService(
+        database: _database,
+        storageBackend: _repository.storageBackend,
+        authRepository: _repository,
+      );
+      final cloudBundle = await syncService.fetchCloudVaultKeyBundle();
+      if (cloudBundle != null) {
+        await _repository.importVaultKeyBundle(cloudBundle);
+        state = state.copyWith(
+          vaultStatus: VaultSetupStatus.passphraseNeeded,
+          lockStatus: AppLockStatus.locked,
+          isLoading: false,
+        );
+        return true;
+      }
+      state = state.copyWith(isLoading: false);
+      return false;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      return false;
     }
   }
 

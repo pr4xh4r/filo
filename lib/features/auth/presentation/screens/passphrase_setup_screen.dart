@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -104,6 +105,112 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       FiloToast.show(context, message: e.toString(), type: FiloToastType.error);
+    }
+  }
+
+  Future<void> _handleRestoreFromCloud() async {
+    setState(() => _isLoading = true);
+    try {
+      final found = await ref.read(authNotifierProvider.notifier).checkForCloudVault();
+      if (!mounted) return;
+      if (found) {
+        FiloToast.show(context, message: 'Existing vault detected! Please enter your passphrase.', type: FiloToastType.success);
+      } else {
+        FiloToast.show(context, message: 'No existing vault found in Telegram channel "filo".', type: FiloToastType.info);
+      }
+    } catch (e) {
+      if (mounted) {
+        FiloToast.show(context, message: 'Cloud check error: $e', type: FiloToastType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handlePastePairingToken() async {
+    final tokenController = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final token = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? FiloColors.darkSurface : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text(
+          'Pair Vault with Token',
+          style: FiloTypography.title3.copyWith(
+            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Paste the pairing token or QR payload exported from your other device:',
+              style: FiloTypography.caption.copyWith(
+                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: isDark ? FiloColors.darkSurfaceSecondary : const Color(0xFFF5F5F7),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isDark ? FiloColors.darkBorder : const Color(0xFFE5E5EA),
+                ),
+              ),
+              child: TextField(
+                controller: tokenController,
+                maxLines: 3,
+                style: FiloTypography.monospace.copyWith(fontSize: 12),
+                decoration: const InputDecoration(
+                  hintText: 'filo://vault?bundle=... or JSON bundle',
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(tokenController.text.trim()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: FiloColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Import', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (token == null || token.isEmpty) return;
+
+    try {
+      String rawJson = token;
+      if (token.startsWith('filo://vault?bundle=')) {
+        final b64 = token.substring('filo://vault?bundle='.length);
+        rawJson = utf8.decode(base64Url.decode(b64));
+      }
+      final data = json.decode(rawJson) as Map<String, dynamic>;
+      final repo = ref.read(authRepositoryProvider);
+      await repo.importVaultKeyBundle(data);
+      if (!mounted) return;
+      ref.read(authNotifierProvider.notifier).initialize();
+      FiloToast.show(context, message: 'Vault paired! Please enter your passphrase.', type: FiloToastType.success);
+    } catch (e) {
+      if (mounted) {
+        FiloToast.show(context, message: 'Invalid pairing token: $e', type: FiloToastType.error);
+      }
     }
   }
 
@@ -450,6 +557,43 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                                 ),
                               ],
                             ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: FiloSpacing.md),
+
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _isLoading ? null : _handleRestoreFromCloud,
+                    icon: Icon(
+                      Icons.cloud_download_outlined,
+                      size: 18,
+                      color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                    ),
+                    label: Text(
+                      'already have a vault? restore from telegram',
+                      style: FiloTypography.caption.copyWith(
+                        color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _isLoading ? null : _handlePastePairingToken,
+                    icon: Icon(
+                      Icons.qr_code_scanner_rounded,
+                      size: 16,
+                      color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                    ),
+                    label: Text(
+                      'pair with qr code / token from another phone',
+                      style: FiloTypography.caption.copyWith(
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                      ),
                     ),
                   ),
                 ),

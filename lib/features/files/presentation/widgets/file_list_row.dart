@@ -5,6 +5,7 @@ import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../shared/components/filo_progress_ring.dart';
+import '../../domain/smart_tag.dart';
 
 /// List row presentation for files and folders.
 class FileListRow extends StatelessWidget {
@@ -121,23 +122,68 @@ class FileListRow extends StatelessWidget {
                         const Icon(
                           Icons.star_rounded,
                           size: 16,
-                          color: FiloColors.warning,
+                          color: FiloColors.accentCoral,
                         ),
                       ],
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    isTransferring
-                        ? 'Transferring ${(transferProgress != null ? (transferProgress! * 100).toInt() : 0)}% • ${HashUtils.formatBytes(node.sizeBytes)}'
-                        : (node.isFolder ? 'Folder' : HashUtils.formatBytes(node.sizeBytes)),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isTransferring ? FontWeight.w600 : FontWeight.normal,
-                      color: isTransferring
-                          ? FiloColors.primary
-                          : (isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        isTransferring
+                            ? 'Transferring ${(transferProgress != null ? (transferProgress! * 100).toInt() : 0)}% • ${HashUtils.formatBytes(node.sizeBytes)}'
+                            : (node.isFolder ? 'Folder' : HashUtils.formatBytes(node.sizeBytes)),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isTransferring ? FontWeight.w600 : FontWeight.normal,
+                          color: isTransferring
+                              ? FiloColors.primary
+                              : (isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
+                        ),
+                      ),
+                      if (node.tags.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        ...node.tags.take(3).map((tId) {
+                          final tag = SmartTag.fromId(tId);
+                          if (tag == null) return const SizedBox.shrink();
+                          return Container(
+                            margin: const EdgeInsets.only(right: 5),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isDark ? tag.color.withValues(alpha: 0.15) : tag.bgColor,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: tag.color.withValues(alpha: isDark ? 0.3 : 0.4),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: tag.color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  tag.name,
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: tag.color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
                   ),
                 ],
               ),

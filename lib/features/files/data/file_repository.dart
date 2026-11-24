@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/database/filo_database.dart';
 import '../../../core/database/node_model.dart';
 import '../../../core/database/chunk_model.dart';
+import '../domain/workspace.dart';
 
 /// Repository managing file and folder operations in the local index.
 class FileRepository {
@@ -17,18 +18,24 @@ class FileRepository {
     bool onlyFavorites = false,
     String? searchQuery,
     String? mimePrefix,
+    String? workspaceId,
+    String? tag,
   }) {
     return _database.listNodes(
       parentId: parentId,
       onlyFavorites: onlyFavorites,
       searchQuery: searchQuery,
       mimePrefix: mimePrefix,
+      workspaceId: workspaceId,
+      tag: tag,
     );
   }
 
   Future<FileNode> createFolder({
     required String name,
     String? parentId,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
   }) async {
     final now = DateTime.now();
     final folder = FileNode(
@@ -39,6 +46,8 @@ class FileRepository {
       createdAt: now,
       modifiedAt: now,
       syncState: SyncState.synced,
+      workspaceId: workspaceId,
+      tags: tags,
     );
     await _database.insertNode(folder);
     return folder;
@@ -50,6 +59,8 @@ class FileRepository {
     String? parentId,
     String? mimeType,
     String? contentHash,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
   }) async {
     final now = DateTime.now();
     final node = FileNode(
@@ -64,9 +75,31 @@ class FileRepository {
       modifiedAt: now,
       // BUG 30 FIX: New files start as localOnly — they haven't been uploaded yet
       syncState: SyncState.localOnly,
+      workspaceId: workspaceId,
+      tags: tags,
     );
     await _database.insertNode(node);
     return node;
+  }
+
+  Future<void> updateNodeTags(String id, List<String> tags) {
+    return _database.updateNodeTags(id, tags);
+  }
+
+  Future<void> updateNodeWorkspace(String id, String workspaceId) {
+    return _database.updateNodeWorkspace(id, workspaceId);
+  }
+
+  Future<List<Workspace>> getWorkspaces() {
+    return _database.getWorkspaces();
+  }
+
+  Future<void> createWorkspace(Workspace workspace) {
+    return _database.insertWorkspace(workspace);
+  }
+
+  Future<void> deleteWorkspace(String id) {
+    return _database.deleteWorkspace(id);
   }
 
   Future<void> saveFileChunks(List<FileChunk> chunks) {

@@ -19,6 +19,8 @@ class FileNode {
   final bool isTrashed;
   final DateTime? trashedAt;
   final SyncState syncState;
+  final List<String> tags;
+  final String workspaceId;
 
   const FileNode({
     required this.id,
@@ -34,6 +36,8 @@ class FileNode {
     this.isTrashed = false,
     this.trashedAt,
     this.syncState = SyncState.synced,
+    this.tags = const [],
+    this.workspaceId = 'personal',
   });
 
   bool get isFolder => type == NodeType.folder;
@@ -53,6 +57,8 @@ class FileNode {
     bool? isTrashed,
     DateTime? trashedAt,
     SyncState? syncState,
+    List<String>? tags,
+    String? workspaceId,
   }) {
     return FileNode(
       id: id ?? this.id,
@@ -68,6 +74,8 @@ class FileNode {
       isTrashed: isTrashed ?? this.isTrashed,
       trashedAt: trashedAt ?? this.trashedAt,
       syncState: syncState ?? this.syncState,
+      tags: tags ?? this.tags,
+      workspaceId: workspaceId ?? this.workspaceId,
     );
   }
 
@@ -86,6 +94,8 @@ class FileNode {
       'isTrashed': isTrashed ? 1 : 0,
       'trashedAt': trashedAt?.millisecondsSinceEpoch,
       'syncState': syncState.name,
+      'tags': tags.join(','),
+      'workspaceId': workspaceId,
     };
   }
 
@@ -112,6 +122,10 @@ class FileNode {
         (e) => e.name == json['syncState'],
         orElse: () => SyncState.synced,
       ),
+      tags: json['tags'] != null
+          ? (json['tags'] as String).split(',').where((s) => s.isNotEmpty).toList()
+          : const [],
+      workspaceId: (json['workspaceId'] as String?) ?? 'personal',
     );
   }
 }

@@ -43,6 +43,8 @@ class TransferManager {
   Future<List<FileNode>> pickAndUploadFiles({
     required Uint8List masterKey,
     String? parentId,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final result = await FilePicker.platform.pickFiles(
@@ -64,6 +66,8 @@ class TransferManager {
           file: file,
           masterKey: masterKey,
           parentId: parentId,
+          workspaceId: workspaceId,
+          tags: tags,
           customName: picked.name,
           onTaskCreated: onTaskCreated,
         );
@@ -84,6 +88,8 @@ class TransferManager {
               file: file,
               masterKey: masterKey,
               parentId: parentId,
+              workspaceId: workspaceId,
+              tags: tags,
               customName: picked.name,
               onTaskCreated: onTaskCreated,
             );
@@ -102,11 +108,15 @@ class TransferManager {
   Future<FileNode?> pickAndUploadFile({
     required Uint8List masterKey,
     String? parentId,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final nodes = await pickAndUploadFiles(
       masterKey: masterKey,
       parentId: parentId,
+      workspaceId: workspaceId,
+      tags: tags,
       onTaskCreated: onTaskCreated,
     );
     return nodes.isNotEmpty ? nodes.first : null;
@@ -117,6 +127,8 @@ class TransferManager {
     required File file,
     required Uint8List masterKey,
     String? parentId,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
     String? customName,
     void Function(FileNode node)? onTaskCreated,
   }) async {
@@ -131,6 +143,8 @@ class TransferManager {
       parentId: parentId,
       mimeType: mimeType,
       contentHash: null,
+      workspaceId: workspaceId,
+      tags: tags,
     );
 
     // 2. Create Transfer Task in Queue immediately

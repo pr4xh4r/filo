@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/crypto/crypto_engine.dart';
 import '../../../../core/crypto/hash_utils.dart';
 import '../../../../core/database/chunk_model.dart';
@@ -56,7 +57,7 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
       final fileRepo = ref.read(fileRepositoryProvider);
       final chunks = await fileRepo.getChunksForNode(widget.node.id);
       final storage = ref.read(storageBackendProvider);
-      final channel = await storage.getOrCreateVaultChannel('');
+      final channel = await storage.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
 
       if (chunks.isNotEmpty) {
         final sortedChunks = List<FileChunk>.from(chunks)

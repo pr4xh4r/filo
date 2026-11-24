@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:filo/core/database/node_model.dart';
 import 'package:filo/features/auth/presentation/providers/auth_provider.dart';
 import 'package:filo/features/files/data/file_repository.dart';
+import 'package:filo/features/files/domain/workspace.dart';
 import 'package:filo/features/sync/domain/index_sync_service.dart';
 
 final fileRepositoryProvider = Provider<FileRepository>((ref) {
@@ -20,6 +22,9 @@ class FileBrowserState {
   final String? filterMimePrefix;
   final bool isFavoritesOnly;
   final bool isLoading;
+  final String activeWorkspaceId;
+  final List<Workspace> workspaces;
+  final String? selectedTagId;
 
   const FileBrowserState({
     this.currentFolderId,
@@ -32,6 +37,9 @@ class FileBrowserState {
     this.filterMimePrefix,
     this.isFavoritesOnly = false,
     this.isLoading = false,
+    this.activeWorkspaceId = 'personal',
+    this.workspaces = Workspace.defaults,
+    this.selectedTagId,
   });
 
   FileBrowserState copyWith({
@@ -47,6 +55,10 @@ class FileBrowserState {
     bool clearFilters = false,
     bool? isFavoritesOnly,
     bool? isLoading,
+    String? activeWorkspaceId,
+    List<Workspace>? workspaces,
+    String? selectedTagId,
+    bool clearTag = false,
   }) {
     return FileBrowserState(
       currentFolderId: clearFolder ? null : (currentFolderId ?? this.currentFolderId),
@@ -59,6 +71,9 @@ class FileBrowserState {
       filterMimePrefix: clearFilters ? null : (filterMimePrefix ?? this.filterMimePrefix),
       isFavoritesOnly: clearFilters ? false : (isFavoritesOnly ?? this.isFavoritesOnly),
       isLoading: isLoading ?? this.isLoading,
+      activeWorkspaceId: activeWorkspaceId ?? this.activeWorkspaceId,
+      workspaces: workspaces ?? this.workspaces,
+      selectedTagId: clearTag ? null : (clearFilters ? null : (selectedTagId ?? this.selectedTagId)),
     );
   }
 }
@@ -73,7 +88,49 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
   })  : _repository = repository,
         _ref = ref,
         super(const FileBrowserState(isLoading: true)) {
-    loadCurrentFolder();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await loadWorkspaces();
+    await loadCurrentFolder();
+  }
+
+  Future<void> loadWorkspaces() async {
+    try {
+      final ws = await _repository.getWorkspaces();
+      if (ws.isNotEmpty) {
+        state = state.copyWith(workspaces: ws);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> addWorkspace(String name) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return;
+    final wsId = cleanName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
+    final newWs = Workspace(
+      id: wsId,
+      name: cleanName,
+      description: 'Personal space',
+      icon: Icons.folder_outlined,
+    );
+    try {
+      await _repository.createWorkspace(newWs);
+    } catch (_) {}
+
+    final updated = [
+      ...state.workspaces.where((w) => w.id != wsId),
+      newWs,
+    ];
+    state = state.copyWith(
+      workspaces: updated,
+      activeWorkspaceId: wsId,
+      clearFolder: true,
+      selectedIds: {},
+      isMultiSelect: false,
+    );
+    await loadCurrentFolder();
   }
 
   void _triggerAutoSync() {
@@ -96,6 +153,8 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
       onlyFavorites: state.isFavoritesOnly,
       searchQuery: state.searchQuery,
       mimePrefix: state.filterMimePrefix,
+      workspaceId: state.currentFolderId == null ? state.activeWorkspaceId : null,
+      tag: state.selectedTagId,
     );
 
     state = state.copyWith(
@@ -103,6 +162,27 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
       items: items,
       isLoading: false,
     );
+  }
+
+  void setActiveWorkspace(String workspaceId) {
+    if (state.activeWorkspaceId == workspaceId) return;
+    state = state.copyWith(
+      activeWorkspaceId: workspaceId,
+      clearFolder: true,
+      selectedIds: {},
+      isMultiSelect: false,
+    );
+    loadCurrentFolder();
+  }
+
+  void setSelectedTag(String? tagId) {
+    if (state.selectedTagId == tagId) {
+      // Toggle off if tapping already selected tag
+      state = state.copyWith(clearTag: true);
+    } else {
+      state = state.copyWith(selectedTagId: tagId);
+    }
+    loadCurrentFolder();
   }
 
   void navigateToFolder(String? folderId) {
@@ -165,11 +245,25 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
     );
   }
 
-  Future<void> createFolder(String name) async {
+  Future<void> createFolder(String name, {List<String>? tags}) async {
     await _repository.createFolder(
       name: name,
       parentId: state.currentFolderId,
+      workspaceId: state.activeWorkspaceId,
+      tags: tags ?? (state.selectedTagId != null ? [state.selectedTagId!] : const []),
     );
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> updateNodeTags(String id, List<String> tags) async {
+    await _repository.updateNodeTags(id, tags);
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> updateNodeWorkspace(String id, String workspaceId) async {
+    await _repository.updateNodeWorkspace(id, workspaceId);
     await loadCurrentFolder();
     _triggerAutoSync();
   }

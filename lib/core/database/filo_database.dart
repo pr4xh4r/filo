@@ -7,6 +7,8 @@ import 'package:sqlite3/sqlite3.dart';
 import 'node_model.dart';
 import 'chunk_model.dart';
 import 'transfer_model.dart';
+import 'package:flutter/material.dart' show IconData, Icons;
+import '../../features/files/domain/workspace.dart';
 
 bool _sqliteInitialized = false;
 
@@ -156,6 +158,8 @@ class FiloDatabase {
         is_trashed INTEGER NOT NULL DEFAULT 0,
         trashed_at INTEGER,
         sync_state TEXT NOT NULL DEFAULT 'synced',
+        tags TEXT DEFAULT '',
+        workspace_id TEXT NOT NULL DEFAULT 'personal',
         FOREIGN KEY (parent_id) REFERENCES nodes (id) ON DELETE CASCADE
       );
 
@@ -195,7 +199,23 @@ class FiloDatabase {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS workspaces (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        icon_code INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      );
     ''');
+
+    // Backward-compatible schema migrations
+    try {
+      _db.execute("ALTER TABLE nodes ADD COLUMN tags TEXT DEFAULT '';");
+    } catch (_) {}
+    try {
+      _db.execute("ALTER TABLE nodes ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'personal';");
+    } catch (_) {}
   }
 
   // -------------------------------------------------------------
@@ -206,8 +226,9 @@ class FiloDatabase {
     final stmt = _db.prepare('''
       INSERT OR REPLACE INTO nodes (
         id, parent_id, name, type, size_bytes, mime_type, content_hash,
-        created_at, modified_at, is_favorite, is_trashed, trashed_at, sync_state
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        created_at, modified_at, is_favorite, is_trashed, trashed_at, sync_state,
+        tags, workspace_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''');
 
     stmt.execute([
@@ -224,8 +245,70 @@ class FiloDatabase {
       node.isTrashed ? 1 : 0,
       node.trashedAt?.millisecondsSinceEpoch,
       node.syncState.name,
+      node.tags.join(','),
+      node.workspaceId,
     ]);
     stmt.dispose();
+  }
+
+  Future<void> updateNodeTags(String id, List<String> tags) async {
+    _db.execute(
+      'UPDATE nodes SET tags = ?, modified_at = ? WHERE id = ?',
+      [tags.join(','), DateTime.now().millisecondsSinceEpoch, id],
+    );
+  }
+
+  Future<void> updateNodeWorkspace(String id, String workspaceId) async {
+    _db.execute(
+      'UPDATE nodes SET workspace_id = ?, modified_at = ? WHERE id = ?',
+      [workspaceId, DateTime.now().millisecondsSinceEpoch, id],
+    );
+  }
+
+  Future<List<Workspace>> getWorkspaces() async {
+    final ResultSet result = _db.select('SELECT * FROM workspaces ORDER BY created_at ASC');
+    if (result.isEmpty) {
+      for (final ws in Workspace.defaults) {
+        _db.execute(
+          'INSERT OR IGNORE INTO workspaces (id, name, description, icon_code, created_at) VALUES (?, ?, ?, ?, ?)',
+          [ws.id, ws.name, ws.description, ws.icon.codePoint, DateTime.now().millisecondsSinceEpoch],
+        );
+      }
+      return Workspace.defaults;
+    }
+    return result.map((row) {
+      final id = row['id'] as String;
+      try {
+        return Workspace.defaults.firstWhere((d) => d.id == id);
+      } catch (_) {}
+
+      final iconCode = row['icon_code'] as int;
+      final icon = _resolveWorkspaceIcon(iconCode);
+      return Workspace(
+        id: id,
+        name: row['name'] as String,
+        description: row['description'] as String,
+        icon: icon,
+      );
+    }).toList();
+  }
+
+  Future<void> insertWorkspace(Workspace ws) async {
+    _db.execute(
+      'INSERT OR REPLACE INTO workspaces (id, name, description, icon_code, created_at) VALUES (?, ?, ?, ?, ?)',
+      [ws.id, ws.name, ws.description, ws.icon.codePoint, DateTime.now().millisecondsSinceEpoch],
+    );
+  }
+
+  Future<void> deleteWorkspace(String id) async {
+    _db.execute('DELETE FROM workspaces WHERE id = ?', [id]);
+  }
+
+  static IconData _resolveWorkspaceIcon(int code) {
+    if (code == Icons.folder_outlined.codePoint) return Icons.folder_outlined;
+    if (code == Icons.business_center_outlined.codePoint) return Icons.business_center_outlined;
+    if (code == Icons.lock_outline_rounded.codePoint) return Icons.lock_outline_rounded;
+    return Icons.folder_outlined;
   }
 
   Future<FileNode?> getNode(String id) async {
@@ -256,6 +339,8 @@ class FiloDatabase {
     bool onlyFavorites = false,
     String? searchQuery,
     String? mimePrefix,
+    String? workspaceId,
+    String? tag,
   }) async {
     final conditions = <String>[];
     final params = <dynamic>[];
@@ -272,8 +357,17 @@ class FiloDatabase {
       conditions.add('parent_id = ?');
       params.add(parentId);
     } else if (!onlyFavorites && searchQuery == null) {
-      // Root folder listing
+      // Root folder listing: optionally filter by workspace
       conditions.add('parent_id IS NULL');
+      if (workspaceId != null && workspaceId.isNotEmpty) {
+        conditions.add('(workspace_id = ? OR workspace_id IS NULL)');
+        params.add(workspaceId);
+      }
+    }
+
+    if (tag != null && tag.isNotEmpty) {
+      conditions.add('tags LIKE ?');
+      params.add('%$tag%');
     }
 
     if (searchQuery != null && searchQuery.trim().isNotEmpty) {
@@ -716,6 +810,12 @@ class FiloDatabase {
         (e) => e.name == row['sync_state'],
         orElse: () => SyncState.synced,
       ),
+      tags: row.containsKey('tags') && row['tags'] != null && row['tags'] is String
+          ? (row['tags'] as String).split(',').where((s) => s.isNotEmpty).toList()
+          : const [],
+      workspaceId: row.containsKey('workspace_id') && row['workspace_id'] != null && row['workspace_id'] is String
+          ? (row['workspace_id'] as String)
+          : 'personal',
     );
   }
 }

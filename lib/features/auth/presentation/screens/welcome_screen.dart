@@ -129,7 +129,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'zero-knowledge cloud',
+                                'private vault',
                                 style: FiloTypography.caption.copyWith(
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 0.3,
@@ -153,7 +153,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               Icon(Icons.shield_outlined, size: 13, color: FiloColors.primary),
                               SizedBox(width: 5),
                               Text(
-                                'telegram linked',
+                                'end-to-end safe',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -196,7 +196,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                     // Clear, Human Value Proposition
                     Text(
-                      'your unlimited cloud storage.\nall your data will be saved securely in telegram.',
+                      'unlimited private storage for all your files,\nphotos, and documents — beautifully organized.',
                       style: FiloTypography.body.copyWith(
                         fontSize: 16,
                         height: 1.45,

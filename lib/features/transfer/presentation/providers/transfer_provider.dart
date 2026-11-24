@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:filo/core/database/node_model.dart';
 import 'package:filo/core/database/transfer_model.dart';
@@ -48,6 +49,8 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
 
   Future<FileNode?> pickAndUploadFile({
     String? parentId,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final authState = _ref.read(authNotifierProvider);
@@ -58,6 +61,8 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     final uploaded = await _manager.pickAndUploadFile(
       masterKey: authState.masterKey!,
       parentId: parentId,
+      workspaceId: workspaceId,
+      tags: tags,
       onTaskCreated: onTaskCreated,
     );
 
@@ -69,6 +74,8 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
 
   Future<List<FileNode>> pickAndUploadFiles({
     String? parentId,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final authState = _ref.read(authNotifierProvider);
@@ -79,8 +86,74 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     final uploadedList = await _manager.pickAndUploadFiles(
       masterKey: authState.masterKey!,
       parentId: parentId,
+      workspaceId: workspaceId,
+      tags: tags,
       onTaskCreated: onTaskCreated,
     );
+
+    if (uploadedList.isNotEmpty) {
+      _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: authState.masterKey!);
+    }
+    return uploadedList;
+  }
+
+  Future<FileNode> uploadLocalFile({
+    required File file,
+    String? parentId,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
+    String? customName,
+    void Function(FileNode node)? onTaskCreated,
+  }) async {
+    final authState = _ref.read(authNotifierProvider);
+    if (authState.masterKey == null) {
+      throw Exception('Vault is locked. Unlock vault before uploading.');
+    }
+
+    final node = await _manager.uploadLocalFile(
+      file: file,
+      masterKey: authState.masterKey!,
+      parentId: parentId,
+      workspaceId: workspaceId,
+      tags: tags,
+      customName: customName,
+      onTaskCreated: onTaskCreated,
+    );
+
+    _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: authState.masterKey!);
+    return node;
+  }
+
+  Future<List<FileNode>> uploadLocalFiles({
+    required List<File> files,
+    String? parentId,
+    String workspaceId = 'personal',
+    List<String> tags = const [],
+    void Function(FileNode node)? onTaskCreated,
+  }) async {
+    final authState = _ref.read(authNotifierProvider);
+    if (authState.masterKey == null) {
+      throw Exception('Vault is locked. Unlock vault before uploading.');
+    }
+
+    final uploadedList = <FileNode>[];
+    for (final file in files) {
+      if (!file.existsSync()) continue;
+      try {
+        final node = await _manager.uploadLocalFile(
+          file: file,
+          masterKey: authState.masterKey!,
+          parentId: parentId,
+          workspaceId: workspaceId,
+          tags: tags,
+          onTaskCreated: onTaskCreated,
+        );
+        uploadedList.add(node);
+        await Future.delayed(const Duration(milliseconds: 350));
+      } catch (e) {
+        // Continue uploading remaining files
+      }
+    }
 
     if (uploadedList.isNotEmpty) {
       _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: authState.masterKey!);

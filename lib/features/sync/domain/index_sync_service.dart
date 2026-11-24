@@ -4,7 +4,9 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/crypto/crypto_engine.dart';
+import '../../../core/crypto/hash_utils.dart';
 import '../../../core/database/filo_database.dart';
+import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/providers/auth_provider.dart';
 import '../../storage/domain/storage_backend.dart';
 
@@ -12,28 +14,39 @@ import '../../storage/domain/storage_backend.dart';
 final indexSyncServiceProvider = Provider<IndexSyncService>((ref) {
   final db = ref.watch(databaseProvider);
   final storage = ref.watch(storageBackendProvider);
-  final service = IndexSyncService(database: db, storageBackend: storage);
+  final authRepo = ref.watch(authRepositoryProvider);
+  final service = IndexSyncService(
+    database: db,
+    storageBackend: storage,
+    authRepository: authRepo,
+  );
   ref.onDispose(service.dispose);
   return service;
 });
 
-/// Manages cross-device zero-knowledge index synchronization.
+/// Manages cross-device zero-knowledge index synchronization and re-install restoration.
 ///
 /// Features:
 /// - Serializes the entire local directory structure and chunk catalog into an encrypted snapshot.
+/// - Packages the user's encrypted key bundle into an outer snapshot envelope so that on app
+///   re-installation or login to a new device, the vault key configuration can be automatically
+///   retrieved from the private Telegram channel 'filo'.
 /// - Debounced automatic background backup after file actions (uploads, renames, deletions).
 /// - Automatic cloud snapshot restoration on fresh device login.
 class IndexSyncService {
   final FiloDatabase _database;
   final StorageBackend _storageBackend;
+  final AuthRepository? _authRepository;
   Timer? _debounceTimer;
   bool _isSyncing = false;
 
   IndexSyncService({
     required FiloDatabase database,
     required StorageBackend storageBackend,
+    AuthRepository? authRepository,
   })  : _database = database,
-        _storageBackend = storageBackend;
+        _storageBackend = storageBackend,
+        _authRepository = authRepository;
 
   bool get isSyncing => _isSyncing;
 
@@ -74,6 +87,36 @@ class IndexSyncService {
     return restoreIndexFromCloud(masterKey: masterKey);
   }
 
+  /// Fetches the cloud snapshot envelope without needing masterKey.
+  /// Used during initial setup or new device login to detect existing vaults in channel 'filo'.
+  Future<Map<String, dynamic>?> fetchCloudVaultKeyBundle() async {
+    try {
+      final channel = await _storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
+      final pinned = await _storageBackend.getPinnedMessage(channelId: channel.channelId);
+      if (pinned == null || pinned.remoteFileId == null) {
+        return null;
+      }
+
+      final downloadedBytes = await _storageBackend.downloadChunk(
+        channelId: channel.channelId,
+        remoteFileId: pinned.remoteFileId!,
+      );
+
+      final decodedStr = utf8.decode(downloadedBytes, allowMalformed: true);
+      if (!decodedStr.trimLeft().startsWith('{')) {
+        return null; // Not in JSON envelope format
+      }
+
+      final envelope = json.decode(decodedStr) as Map<String, dynamic>;
+      if (envelope['vaultBundle'] != null || envelope['wrappedBundle'] != null) {
+        return envelope;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Backs up the entire local index to the private Telegram channel as a pinned, encrypted document.
   Future<String> backupIndexToCloud({
     required Uint8List masterKey,
@@ -82,23 +125,37 @@ class IndexSyncService {
     final jsonStr = await _database.exportSnapshotJson();
     final jsonBytes = utf8.encode(jsonStr);
 
-    // 2. Encrypt on-device with Master Key (AES-256-GCM)
-    final encrypted = await CryptoEngine.encryptBytes(
+    // 2. Encrypt catalog on-device with Master Key (AES-256-GCM)
+    final encryptedCatalog = await CryptoEngine.encryptBytes(
       plaintext: jsonBytes,
       key: masterKey,
     );
 
-    // 3. Locate or create vault channel
+    // 3. Export wrapped key bundle from auth repository (zero-knowledge envelope)
+    final keyBundle = await _authRepository?.exportVaultKeyBundle();
+
+    // 4. Construct zero-knowledge snapshot envelope
+    final envelope = <String, dynamic>{
+      'version': 1,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'vaultBundle': keyBundle?['wrappedBundle'],
+      'recoveryBundle': keyBundle?['recoveryBundle'],
+      'recoveryKeyHash': keyBundle?['recoveryKeyHash'],
+      'catalogCiphertextHex': HashUtils.bytesToHex(encryptedCatalog),
+    };
+    final envelopeBytes = Uint8List.fromList(utf8.encode(json.encode(envelope)));
+
+    // 5. Locate or create vault channel ('filo')
     final channel = await _storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
 
-    // 4. Upload encrypted snapshot document
+    // 6. Upload encrypted snapshot document as index.filo
     final remoteChunk = await _storageBackend.uploadChunk(
       channelId: channel.channelId,
-      chunkData: encrypted,
+      chunkData: envelopeBytes,
       partFileName: 'index.filo',
     );
 
-    // 5. Pin the snapshot message at the top of the channel
+    // 7. Pin the snapshot message at the top of the channel
     await _storageBackend.pinMessage(
       channelId: channel.channelId,
       messageId: remoteChunk.messageId,
@@ -111,7 +168,7 @@ class IndexSyncService {
   Future<bool> restoreIndexFromCloud({
     required Uint8List masterKey,
   }) async {
-    // 1. Locate vault channel
+    // 1. Locate vault channel ('filo')
     final channel = await _storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
 
     // 2. Fetch pinned message
@@ -120,15 +177,37 @@ class IndexSyncService {
       return false; // No existing cloud backup found
     }
 
-    // 3. Download encrypted snapshot
-    final encryptedData = await _storageBackend.downloadChunk(
+    // 3. Download snapshot bytes
+    final downloadedBytes = await _storageBackend.downloadChunk(
       channelId: channel.channelId,
       remoteFileId: pinned.remoteFileId!,
     );
 
+    Uint8List encryptedCatalogBytes;
+    final decodedStr = utf8.decode(downloadedBytes, allowMalformed: true);
+
+    if (decodedStr.trimLeft().startsWith('{')) {
+      try {
+        final envelope = json.decode(decodedStr) as Map<String, dynamic>;
+        if (envelope.containsKey('catalogCiphertextHex')) {
+          encryptedCatalogBytes = HashUtils.hexToBytes(envelope['catalogCiphertextHex'] as String);
+          if (_authRepository != null) {
+            await _authRepository.importVaultKeyBundle(envelope);
+          }
+        } else {
+          encryptedCatalogBytes = downloadedBytes;
+        }
+      } catch (_) {
+        encryptedCatalogBytes = downloadedBytes;
+      }
+    } else {
+      // Legacy raw encrypted bytes fallback
+      encryptedCatalogBytes = downloadedBytes;
+    }
+
     // 4. Decrypt on-device with Master Key
     final decryptedBytes = await CryptoEngine.decryptBytes(
-      combinedBytes: encryptedData,
+      combinedBytes: encryptedCatalogBytes,
       key: masterKey,
     );
 

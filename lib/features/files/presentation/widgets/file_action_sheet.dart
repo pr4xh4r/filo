@@ -14,6 +14,8 @@ class FileActionSheet extends StatelessWidget {
   final VoidCallback onMove;
   final VoidCallback onShare;
   final VoidCallback? onDownload;
+  final VoidCallback? onManageTags;
+  final VoidCallback? onChangeWorkspace;
   final VoidCallback onDelete;
 
   const FileActionSheet({
@@ -24,6 +26,8 @@ class FileActionSheet extends StatelessWidget {
     required this.onMove,
     required this.onShare,
     this.onDownload,
+    this.onManageTags,
+    this.onChangeWorkspace,
     required this.onDelete,
   });
 
@@ -35,6 +39,8 @@ class FileActionSheet extends StatelessWidget {
     required VoidCallback onMove,
     required VoidCallback onShare,
     VoidCallback? onDownload,
+    VoidCallback? onManageTags,
+    VoidCallback? onChangeWorkspace,
     required VoidCallback onDelete,
   }) {
     final subtitle = node.isFolder
@@ -66,6 +72,8 @@ class FileActionSheet extends StatelessWidget {
         onMove: onMove,
         onShare: onShare,
         onDownload: onDownload,
+        onManageTags: onManageTags,
+        onChangeWorkspace: onChangeWorkspace,
         onDelete: onDelete,
       ),
     );
@@ -76,10 +84,10 @@ class FileActionSheet extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Star / Favorite
+        // Star / Favorite (using signature illustration accent color)
         _buildActionTile(
           icon: node.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-          iconColor: const Color(0xFFFFB300),
+          iconColor: node.isFavorite ? FiloColors.accentCoral : FiloColors.primary,
           title: node.isFavorite ? 'Remove from Starred' : 'Add to Starred',
           onTap: () {
             Navigator.of(context).pop();
@@ -101,7 +109,7 @@ class FileActionSheet extends StatelessWidget {
         // Move
         _buildActionTile(
           icon: Icons.drive_file_move_outlined,
-          iconColor: const Color(0xFF5E5CE6),
+          iconColor: FiloColors.primary,
           title: 'Move to Folder',
           onTap: () {
             Navigator.of(context).pop();
@@ -109,11 +117,35 @@ class FileActionSheet extends StatelessWidget {
           },
         ),
 
+        // Manage Smart Tags
+        if (onManageTags != null)
+          _buildActionTile(
+            icon: Icons.label_outline_rounded,
+            iconColor: FiloColors.primary,
+            title: 'Smart Tags',
+            onTap: () {
+              Navigator.of(context).pop();
+              onManageTags!();
+            },
+          ),
+
+        // Move to Workspace
+        if (onChangeWorkspace != null)
+          _buildActionTile(
+            icon: Icons.workspaces_outline,
+            iconColor: FiloColors.primary,
+            title: 'Change Workspace',
+            onTap: () {
+              Navigator.of(context).pop();
+              onChangeWorkspace!();
+            },
+          ),
+
         // Share (Files only)
         if (node.isFile)
           _buildActionTile(
             icon: Icons.share_outlined,
-            iconColor: const Color(0xFF34C759),
+            iconColor: FiloColors.primary,
             title: 'Share Decrypted Copy',
             onTap: () {
               Navigator.of(context).pop();
@@ -124,8 +156,8 @@ class FileActionSheet extends StatelessWidget {
         // Download to Device (Files only)
         if (node.isFile && onDownload != null)
           _buildActionTile(
-            icon: Icons.download_outlined,
-            iconColor: const Color(0xFF007AFF),
+            icon: Icons.file_download_outlined,
+            iconColor: FiloColors.primary,
             title: 'Save to Downloads',
             onTap: () {
               Navigator.of(context).pop();
@@ -133,7 +165,7 @@ class FileActionSheet extends StatelessWidget {
             },
           ),
 
-        // Delete to Trash
+        // Delete to Trash (Destructive red preserved)
         _buildActionTile(
           icon: Icons.delete_outline_rounded,
           iconColor: FiloColors.destructive,
@@ -178,7 +210,9 @@ class FileActionSheet extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.12),
+                    color: isDestructive
+                        ? FiloColors.destructive.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.04),
                     borderRadius: FiloRadius.roundedMd,
                   ),
                   child: Icon(icon, color: iconColor, size: 20),

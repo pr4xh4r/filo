@@ -228,6 +228,48 @@ class AuthRepository {
     return b64 != null && b64.isNotEmpty;
   }
 
+  /// Exports the encrypted vault key bundle to embed into the cloud index snapshot.
+  /// Zero-knowledge safe: all keys are AES-256-GCM encrypted under the user's passphrase/recovery key.
+  Future<Map<String, dynamic>> exportVaultKeyBundle() async {
+    final wrappedBundle = await _secureStorage.read(key: _keyWrappedBundle);
+    final recoveryBundle = await _secureStorage.read(key: _keyRecoveryWrappedBundle);
+    final recoveryHash = await _secureStorage.read(key: _keyRecoveryKeyHash);
+
+    return {
+      'wrappedBundle': wrappedBundle != null ? json.decode(wrappedBundle) : null,
+      'recoveryBundle': recoveryBundle != null ? json.decode(recoveryBundle) : null,
+      'recoveryKeyHash': recoveryHash,
+    };
+  }
+
+  /// Imports an encrypted vault key bundle recovered from the cloud snapshot into local secure storage.
+  /// Restores access on a reinstalled app or new device.
+  Future<void> importVaultKeyBundle(Map<String, dynamic> data) async {
+    if (data['vaultBundle'] != null) {
+      await _secureStorage.write(
+        key: _keyWrappedBundle,
+        value: json.encode(data['vaultBundle']),
+      );
+    } else if (data['wrappedBundle'] != null) {
+      await _secureStorage.write(
+        key: _keyWrappedBundle,
+        value: json.encode(data['wrappedBundle']),
+      );
+    }
+    if (data['recoveryBundle'] != null) {
+      await _secureStorage.write(
+        key: _keyRecoveryWrappedBundle,
+        value: json.encode(data['recoveryBundle']),
+      );
+    }
+    if (data['recoveryKeyHash'] != null) {
+      await _secureStorage.write(
+        key: _keyRecoveryKeyHash,
+        value: data['recoveryKeyHash'] as String,
+      );
+    }
+  }
+
   /// Auto-lock timeout helpers
   Future<int> getAutoLockTimeoutMinutes() async {
     final val = await _secureStorage.read(key: _keyAutoLockTimeout);

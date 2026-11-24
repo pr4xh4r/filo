@@ -11,7 +11,8 @@ class AppConfig {
   static const String appName = 'Filo';
 
   /// Vault storage channel title created in the user's private Telegram account.
-  static const String vaultChannelTitle = '$appName Vault';
+  /// Strictly named 'filo' as requested.
+  static const String vaultChannelTitle = 'filo';
 
   /// Vault storage channel description.
   static const String vaultChannelDescription =

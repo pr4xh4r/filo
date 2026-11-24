@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
@@ -18,6 +19,7 @@ import '../../../../core/theme/filo_typography.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_glass.dart';
+import '../../../../shared/components/filo_qr_card.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
@@ -162,6 +164,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showQrPairingModal() async {
+    final repo = ref.read(authRepositoryProvider);
+    final bundle = await repo.exportVaultKeyBundle();
+    final jsonStr = json.encode(bundle);
+    final b64 = base64Url.encode(utf8.encode(jsonStr));
+    final pairingPayload = 'filo://vault?bundle=$b64';
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+        child: FiloQrCard(
+          title: 'pair new device',
+          subtitle: 'scan this qr code from another phone running filo to seamlessly unlock your vault.',
+          data: pairingPayload,
+        ),
       ),
     );
   }
@@ -772,6 +797,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: 'Re-wrap key without re-encrypting files',
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _showChangePassphraseDialog,
+          ),
+
+          _buildSettingsTile(
+            icon: Icons.qr_code_rounded,
+            title: 'Cross-Device QR Pairing',
+            subtitle: 'Show encrypted QR code to pair a new device',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _showQrPairingModal,
           ),
 
           _buildSettingsTile(

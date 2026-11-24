@@ -12,6 +12,7 @@ import 'core/theme/theme_provider.dart';
 import 'features/auth/domain/auth_state.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/auth_gate.dart';
+import 'features/transfer/domain/transfer_foreground_controller.dart';
 import 'features/transfer/presentation/providers/transfer_provider.dart';
 
 void main() async {
@@ -63,6 +64,8 @@ class _FiloAppState extends ConsumerState<FiloApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _startAutoLockWatchdog();
+    // Activate native foreground sync service controller
+    ref.read(transferForegroundControllerProvider);
   }
 
   /// Periodically checks whether the inactivity timeout has been exceeded.

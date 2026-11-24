@@ -6,6 +6,7 @@ import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../shared/components/filo_card.dart';
 import '../../../../shared/components/filo_progress_ring.dart';
+import '../../domain/smart_tag.dart';
 
 /// Grid card presentation for files and folders.
 class FileGridCard extends StatelessWidget {
@@ -110,17 +111,42 @@ class FileGridCard extends StatelessWidget {
               const SizedBox(height: 2),
 
               // Subtitle (Size or Folder item count or live transfer progress)
-              Text(
-                isTransferring
-                    ? 'Transferring ${(transferProgress != null ? (transferProgress! * 100).toInt() : 0)}%'
-                    : (node.isFolder ? 'Folder' : HashUtils.formatBytes(node.sizeBytes)),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isTransferring ? FontWeight.w600 : FontWeight.normal,
-                  color: isTransferring
-                      ? FiloColors.primary
-                      : (isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      isTransferring
+                          ? 'Transferring ${(transferProgress != null ? (transferProgress! * 100).toInt() : 0)}%'
+                          : (node.isFolder ? 'Folder' : HashUtils.formatBytes(node.sizeBytes)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isTransferring ? FontWeight.w600 : FontWeight.normal,
+                        color: isTransferring
+                            ? FiloColors.primary
+                            : (isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
+                      ),
+                    ),
+                  ),
+                  if (node.tags.isNotEmpty)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: node.tags.take(3).map((tId) {
+                        final tag = SmartTag.fromId(tId);
+                        if (tag == null) return const SizedBox.shrink();
+                        return Container(
+                          width: 7,
+                          height: 7,
+                          margin: const EdgeInsets.only(left: 3),
+                          decoration: BoxDecoration(
+                            color: tag.color,
+                            shape: BoxShape.circle,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                ],
               ),
             ],
           ),
@@ -133,7 +159,7 @@ class FileGridCard extends StatelessWidget {
               child: Icon(
                 Icons.star_rounded,
                 size: 16,
-                color: FiloColors.warning,
+                color: FiloColors.accentCoral,
               ),
             ),
 
