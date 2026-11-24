@@ -48,27 +48,43 @@ class _FiloGlassState extends State<FiloGlass> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final r = widget.borderRadius ?? FiloRadius.roundedXl;
 
     final defaultBorder = widget.border ??
         Border.all(
-          color: Colors.white.withValues(alpha: 0.85),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.14)
+              : Colors.white.withValues(alpha: 0.85),
           width: 1.2,
         );
 
     final defaultShadow = widget.boxShadow ??
-        [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-          BoxShadow(
-            color: const Color(0xFFFFD7CA).withValues(alpha: 0.08),
-            blurRadius: 30,
-            offset: const Offset(0, 12),
-          ),
-        ];
+        (isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: const Color(0xFFFFD7CA).withValues(alpha: 0.08),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
+                ),
+              ]);
 
     Widget content = RepaintBoundary(
       child: Container(
@@ -86,15 +102,23 @@ class _FiloGlassState extends State<FiloGlass> {
               decoration: BoxDecoration(
                 borderRadius: r,
                 border: defaultBorder,
-                color: widget.color ?? Colors.white.withValues(alpha: 0.72),
+                color: widget.color ??
+                    (isDark
+                        ? const Color(0xFF16122E).withValues(alpha: 0.72)
+                        : Colors.white.withValues(alpha: 0.72)),
                 gradient: widget.color == null
                     ? LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.88),
-                          Colors.white.withValues(alpha: 0.65),
-                        ],
+                        colors: isDark
+                            ? [
+                                Colors.white.withValues(alpha: 0.14),
+                                Colors.white.withValues(alpha: 0.05),
+                              ]
+                            : [
+                                Colors.white.withValues(alpha: 0.88),
+                                Colors.white.withValues(alpha: 0.65),
+                              ],
                       )
                     : null,
               ),

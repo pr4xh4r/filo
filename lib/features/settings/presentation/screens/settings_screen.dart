@@ -15,6 +15,7 @@ import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
 import '../../../../core/theme/persona_provider.dart';
+import '../../../../core/theme/theme_provider.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_glass.dart';
@@ -360,6 +361,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
+    final themeMode = ref.watch(themeModeProvider);
+    final isDark = themeMode == ThemeMode.dark;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -371,14 +374,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF16122E) : Colors.white,
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06),
+              ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.arrow_back_ios_new_rounded,
               size: 14,
-              color: Colors.black,
+              color: isDark ? Colors.white : Colors.black,
             ),
           ),
           onPressed: () => Navigator.of(context).pop(),
@@ -388,7 +393,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           style: FiloTypography.handwriting(
             fontSize: 34,
             fontWeight: FontWeight.w700,
-            color: FiloColors.lightTextPrimary,
+            color: isDark ? Colors.white : FiloColors.lightTextPrimary,
           ),
         ),
       ),
@@ -405,7 +410,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Text(
             'vault storage',
             style: FiloTypography.caption.copyWith(
-              color: FiloColors.lightTextTertiary,
+              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -425,25 +430,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   fontSize: 34,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.0,
-                  color: FiloColors.lightTextPrimary,
+                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                 ),
               ),
               const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F7),
+                  color: isDark ? const Color(0xFF16122E) : const Color(0xFFF5F5F7),
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.06),
+                  ),
                 ),
-                child: const Text(
+                child: Text(
                   '100% SECURE',
                   style: TextStyle(
                     fontFamily: FiloTypography.fontFamily,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
-                    color: Colors.black,
+                    color: isDark ? Colors.white : Colors.black,
                   ),
                 ),
               ),
@@ -456,12 +463,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF16122E) : Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.06),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
+                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.03),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -472,13 +481,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Container(
                   width: 44,
                   height: 44,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF5F5F7),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFF5F5F7),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.cloud_done_outlined,
-                    color: Colors.black,
+                    color: isDark ? Colors.white : Colors.black,
                     size: 22,
                   ),
                 ),
@@ -492,14 +501,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         style: FiloTypography.bodyMedium.copyWith(
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
-                          color: FiloColors.lightTextPrimary,
+                          color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Files are encrypted client-side with AES-256-GCM before Telegram storage.',
                         style: FiloTypography.caption.copyWith(
-                          color: FiloColors.lightTextTertiary,
+                          color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                           fontSize: 12,
                         ),
                       ),
@@ -510,9 +519,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
 
-          const SizedBox(height: FiloSpacing.lg),
+          const SizedBox(height: FiloSpacing.md),
 
-          // 3. Persona Switcher (Feminine / Masculine)
+          // 3. Theme & Appearance Switcher (Light: Ethereal Dawn / Dark: Midnight Aurora)
           FiloGlass(
             borderRadius: BorderRadius.circular(22),
             padding: const EdgeInsets.all(16),
@@ -525,22 +534,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: FiloColors.primary.withValues(alpha: 0.08),
+                        color: (isDark ? FiloColors.accentLavender : FiloColors.primary).withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.person_outline_rounded, size: 20, color: FiloColors.primary),
+                      child: Icon(
+                        isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                        size: 20,
+                        color: isDark ? FiloColors.accentLavender : FiloColors.primary,
+                      ),
                     ),
                     const SizedBox(width: 12),
-                    const Column(
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Illustration Persona',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: FiloColors.lightTextPrimary),
+                          'Theme & Appearance',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                          ),
                         ),
                         Text(
-                          'Choose character artwork style',
-                          style: TextStyle(fontSize: 12, color: FiloColors.lightTextSecondary),
+                          isDark ? 'Midnight Aurora (Dark)' : 'Ethereal Dawn (Light)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -550,7 +570,152 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: isDark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            decoration: BoxDecoration(
+                              color: !isDark ? Colors.white : Colors.transparent,
+                              borderRadius: BorderRadius.circular(100),
+                              boxShadow: !isDark
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.06),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.wb_sunny_outlined,
+                                    size: 15,
+                                    color: !isDark ? Colors.black : Colors.white60,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Ethereal Light',
+                                    style: TextStyle(
+                                      fontWeight: !isDark ? FontWeight.w700 : FontWeight.w500,
+                                      fontSize: 13,
+                                      color: !isDark ? Colors.black : Colors.white60,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E1438) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(100),
+                              border: isDark ? Border.all(color: Colors.white.withValues(alpha: 0.15)) : null,
+                              boxShadow: isDark
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.4),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.nightlight_round,
+                                    size: 15,
+                                    color: isDark ? Colors.white : Colors.black54,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Midnight Dark',
+                                    style: TextStyle(
+                                      fontWeight: isDark ? FontWeight.w700 : FontWeight.w500,
+                                      fontSize: 13,
+                                      color: isDark ? Colors.white : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: FiloSpacing.md),
+
+          // 4. Persona Switcher (Feminine / Masculine)
+          FiloGlass(
+            borderRadius: BorderRadius.circular(22),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: (isDark ? FiloColors.accentCoral : FiloColors.primary).withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.person_outline_rounded, size: 20, color: isDark ? FiloColors.accentCoral : FiloColors.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Illustration Persona',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary),
+                        ),
+                        Text(
+                          'Choose character artwork style',
+                          style: TextStyle(fontSize: 12, color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(100),
                   ),
                   child: Row(
@@ -566,13 +731,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 9),
                             decoration: BoxDecoration(
                               color: ref.watch(personaProvider) == FiloPersona.female
-                                  ? Colors.white
+                                  ? (isDark ? const Color(0xFF1E1438) : Colors.white)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(100),
+                              border: isDark && ref.watch(personaProvider) == FiloPersona.female
+                                  ? Border.all(color: Colors.white.withValues(alpha: 0.15))
+                                  : null,
                               boxShadow: ref.watch(personaProvider) == FiloPersona.female
                                   ? [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.06),
+                                        color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.06),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -587,7 +755,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       ? FontWeight.w700
                                       : FontWeight.w500,
                                   fontSize: 13,
-                                  color: FiloColors.lightTextPrimary,
+                                  color: ref.watch(personaProvider) == FiloPersona.female
+                                      ? (isDark ? Colors.white : FiloColors.lightTextPrimary)
+                                      : (isDark ? Colors.white54 : FiloColors.lightTextSecondary),
                                 ),
                               ),
                             ),
@@ -605,13 +775,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 9),
                             decoration: BoxDecoration(
                               color: ref.watch(personaProvider) == FiloPersona.male
-                                  ? Colors.white
+                                  ? (isDark ? const Color(0xFF1E1438) : Colors.white)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(100),
+                              border: isDark && ref.watch(personaProvider) == FiloPersona.male
+                                  ? Border.all(color: Colors.white.withValues(alpha: 0.15))
+                                  : null,
                               boxShadow: ref.watch(personaProvider) == FiloPersona.male
                                   ? [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.06),
+                                        color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.06),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -626,7 +799,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                       ? FontWeight.w700
                                       : FontWeight.w500,
                                   fontSize: 13,
-                                  color: FiloColors.lightTextPrimary,
+                                  color: ref.watch(personaProvider) == FiloPersona.male
+                                      ? (isDark ? Colors.white : FiloColors.lightTextPrimary)
+                                      : (isDark ? Colors.white54 : FiloColors.lightTextSecondary),
                                 ),
                               ),
                             ),
@@ -801,8 +976,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     VoidCallback? onTap,
     bool isDestructive = false,
   }) {
-    final effectiveIconColor = isDestructive ? FiloColors.destructive : Colors.black;
-    final containerColor = isDestructive ? const Color(0xFFFEE2E2) : const Color(0xFFF5F5F7);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveIconColor = isDestructive
+        ? FiloColors.destructive
+        : (isDark ? Colors.white : Colors.black);
+    final containerColor = isDestructive
+        ? (isDark ? const Color(0xFF451A1A) : const Color(0xFFFEE2E2))
+        : (isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFF5F5F7));
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -826,15 +1006,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               fontFamily: FiloTypography.fontFamily,
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: isDestructive ? FiloColors.destructive : FiloColors.lightTextPrimary,
+              color: isDestructive
+                  ? FiloColors.destructive
+                  : (isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary),
             ),
           ),
           subtitle: Text(
             subtitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: FiloTypography.fontFamily,
               fontSize: 12,
-              color: FiloColors.lightTextTertiary,
+              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
             ),
           ),
           trailing: trailing,

@@ -63,12 +63,20 @@ class FiloColors {
   static const Color glassBorder = Color(0xD9FFFFFF); // 85% Specular White Highlight
   static const Color glassDark = Color(0xCC140F2E);
 
-  // Ethereal Dawn Multi-Stop Mesh Gradients
+  // Ethereal Dawn Multi-Stop Mesh Gradients (Light Mode)
   static const List<Color> etherealDawnGradient = [
     Color(0xFFFFD7CA), // Apricot Rose (Top)
     Color(0xFFFFF2EB), // Champagne (Mid-high)
     Color(0xFFFAF8FC), // Porcelain (Center)
     Color(0xFFE8E3FA), // Arctic Lavender (Bottom)
+  ];
+
+  // Midnight Aurora Multi-Stop Mesh Gradients (Dark Mode)
+  static const List<Color> etherealDarkGradient = [
+    Color(0xFF1E1438), // Midnight Plum Aurora (Top)
+    Color(0xFF140D2B), // Deep Obsidian Violet
+    Color(0xFF0C081A), // Void Slate
+    Color(0xFF06040F), // Deepest Void Slate (Bottom)
   ];
 
   static const List<Color> etherealDawnSubtle = [

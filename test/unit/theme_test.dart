@@ -11,12 +11,21 @@ void main() {
       expect(notifier.state, ThemeMode.light);
     });
 
-    test('Locks to light theme mode', () {
+    test('Switches between light and dark theme mode', () {
       final notifier = ThemeModeNotifier();
       notifier.setThemeMode(ThemeMode.dark);
-      expect(notifier.state, ThemeMode.light);
+      expect(notifier.state, ThemeMode.dark);
 
-      notifier.setThemeMode(ThemeMode.system);
+      notifier.setThemeMode(ThemeMode.light);
+      expect(notifier.state, ThemeMode.light);
+    });
+
+    test('Toggles theme mode', () {
+      final notifier = ThemeModeNotifier();
+      expect(notifier.state, ThemeMode.light);
+      notifier.toggleTheme();
+      expect(notifier.state, ThemeMode.dark);
+      notifier.toggleTheme();
       expect(notifier.state, ThemeMode.light);
     });
   });

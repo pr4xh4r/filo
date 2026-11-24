@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Manages application-wide theme mode (Pure Light Theme).
+/// Manages application-wide theme mode (Light: Ethereal Dawn, Dark: Midnight Aurora).
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   ThemeModeNotifier() : super(ThemeMode.light);
 
   void setThemeMode(ThemeMode mode) {
-    state = ThemeMode.light;
+    state = mode;
+  }
+
+  void toggleTheme() {
+    state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
   }
 }
 
@@ -15,5 +19,8 @@ final themeModeProvider =
   return ThemeModeNotifier();
 });
 
-/// Returns true when dark mode is enabled (Always false: pure Light theme).
-final isDarkProvider = Provider<bool>((ref) => false);
+/// Returns true when dark mode is enabled.
+final isDarkProvider = Provider<bool>((ref) {
+  final mode = ref.watch(themeModeProvider);
+  return mode == ThemeMode.dark;
+});

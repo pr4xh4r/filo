@@ -215,14 +215,18 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                 style: FiloTypography.handwriting(
                                   fontSize: 40,
                                   fontWeight: FontWeight.w700,
-                                  color: FiloColors.lightTextPrimary,
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.white
+                                      : FiloColors.lightTextPrimary,
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Icon(
+                              Icon(
                                 Icons.cloud_outlined,
                                 size: 24,
-                                color: FiloColors.primary,
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? FiloColors.accentCoral
+                                    : FiloColors.primary,
                               ),
                             ],
                           ),
@@ -318,7 +322,9 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             style: FiloTypography.title3.copyWith(
                               fontWeight: FontWeight.w700,
                               fontSize: 18,
-                              color: FiloColors.lightTextPrimary,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? FiloColors.darkTextPrimary
+                                  : FiloColors.lightTextPrimary,
                             ),
                           ),
                           GestureDetector(
@@ -327,7 +333,9 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                               'Add Folder',
                               style: FiloTypography.caption.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: FiloColors.primary,
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? FiloColors.accentCoral
+                                    : FiloColors.primary,
                               ),
                             ),
                           ),
@@ -405,7 +413,9 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                           style: FiloTypography.title3.copyWith(
                             fontWeight: FontWeight.w700,
                             fontSize: 18,
-                            color: FiloColors.lightTextPrimary,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? FiloColors.darkTextPrimary
+                                : FiloColors.lightTextPrimary,
                           ),
                         ),
                         IconButton(
@@ -512,6 +522,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
 
   // Unique Artistic Empty State (Editorial Monoline & Frosted Glass)
   Widget _buildUniqueEmptySpace(bool isFavoritesOnly) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final persona = ref.watch(personaProvider);
     final illustrationAsset = isFavoritesOnly
         ? FiloIllustrations.starred
@@ -521,16 +532,10 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FiloGlass(
-            borderRadius: BorderRadius.circular(28),
-            padding: const EdgeInsets.all(20),
-            child: Container(
-              constraints: const BoxConstraints(maxHeight: 180, maxWidth: 220),
-              child: Image.asset(
-                illustrationAsset,
-                fit: BoxFit.contain,
-              ),
-            ),
+          FiloIllustrationView(
+            assetName: illustrationAsset,
+            maxHeight: 220,
+            maxWidth: 260,
           ),
           const SizedBox(height: FiloSpacing.lg),
           Text(
@@ -539,7 +544,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               fontWeight: FontWeight.w700,
               fontSize: 22,
               letterSpacing: -0.5,
-              color: FiloColors.lightTextPrimary,
+              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
             ),
           ),
           const SizedBox(height: 6),
@@ -551,7 +556,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                   : 'your encrypted telegram vault is peaceful and ready.\ntap + below to store your first file',
               textAlign: TextAlign.center,
               style: FiloTypography.body.copyWith(
-                color: FiloColors.lightTextSecondary,
+                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                 fontSize: 13,
                 height: 1.45,
               ),

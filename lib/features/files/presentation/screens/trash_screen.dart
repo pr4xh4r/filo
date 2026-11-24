@@ -8,7 +8,6 @@ import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
-import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../providers/file_browser_provider.dart';
 
@@ -105,19 +104,28 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                 horizontal: FiloSpacing.lg,
                 vertical: FiloSpacing.md,
               ),
-              color: Colors.white.withValues(alpha: 0.6),
-              child: const Row(
+              color: (Theme.of(context).brightness == Brightness.dark
+                      ? FiloColors.darkSurface
+                      : Colors.white)
+                  .withValues(alpha: 0.6),
+              child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline_rounded,
                     size: 20,
                     color: FiloColors.info,
                   ),
-                  SizedBox(width: FiloSpacing.md),
+                  const SizedBox(width: FiloSpacing.md),
                   Expanded(
                     child: Text(
                       'Items in Trash are permanently deleted after 30 days.',
-                      style: TextStyle(fontSize: 13, height: 1.3),
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.3,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? FiloColors.darkTextPrimary
+                            : FiloColors.lightTextPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -132,32 +140,30 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              FiloGlass(
-                                borderRadius: BorderRadius.circular(28),
-                                padding: const EdgeInsets.all(20),
-                                child: Container(
-                                  constraints: const BoxConstraints(maxHeight: 180, maxWidth: 220),
-                                  child: Image.asset(
-                                    FiloIllustrations.trash(persona),
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
+                              FiloIllustrationView(
+                                assetName: FiloIllustrations.trash(persona),
+                                maxHeight: 220,
+                                maxWidth: 260,
                               ),
                               const SizedBox(height: FiloSpacing.lg),
-                              const Text(
+                              Text(
                                 'trash is empty',
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w700,
-                                  color: FiloColors.lightTextPrimary,
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? FiloColors.darkTextPrimary
+                                      : FiloColors.lightTextPrimary,
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              const Text(
+                              Text(
                                 'items moved to trash will appear here',
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: FiloColors.lightTextSecondary,
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? FiloColors.darkTextSecondary
+                                      : FiloColors.lightTextSecondary,
                                 ),
                               ),
                             ],

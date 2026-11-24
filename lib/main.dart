@@ -6,6 +6,7 @@ import 'core/config/app_config.dart';
 import 'core/database/filo_database.dart';
 import 'core/theme/filo_colors.dart';
 import 'core/theme/filo_theme.dart';
+import 'core/theme/theme_provider.dart';
 import 'features/auth/presentation/screens/auth_gate.dart';
 
 void main() async {
@@ -69,14 +70,17 @@ class _FiloAppState extends ConsumerState<FiloApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Edge-to-edge system navigation & status bar for Pure Light Theme
+    final themeMode = ref.watch(themeModeProvider);
+    final isDark = themeMode == ThemeMode.dark;
+
+    // Edge-to-edge system navigation & status bar
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
+      SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-        systemNavigationBarColor: FiloColors.lightBackground,
-        systemNavigationBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: isDark ? FiloColors.darkBackground : FiloColors.lightBackground,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
     );
 
@@ -84,7 +88,8 @@ class _FiloAppState extends ConsumerState<FiloApp> with WidgetsBindingObserver {
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
       theme: FiloTheme.lightTheme,
-      themeMode: ThemeMode.light,
+      darkTheme: FiloTheme.darkTheme,
+      themeMode: themeMode,
       builder: (context, child) {
         // Obfuscate screen in OS task switcher for privacy
         if (_isBackgrounded) {

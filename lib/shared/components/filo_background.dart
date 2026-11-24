@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/filo_colors.dart';
 
-/// Full-screen ambient mesh background for the Ethereal Dawn aesthetic.
+/// Full-screen ambient mesh background for Filo.
 ///
-/// Blends warm apricot rose, champagne glow, and misty arctic lavender
-/// seamlessly behind frosted-glass surfaces.
+/// Light Mode: Ethereal Dawn (apricot rose, champagne glow, arctic lavender).
+/// Dark Mode: Midnight Aurora (midnight plum aurora, obsidian violet, void slate).
 class FiloBackground extends StatelessWidget {
   final Widget child;
 
@@ -12,15 +12,19 @@ class FiloBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: double.infinity,
       height: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: FiloColors.etherealDawnGradient,
-          stops: [0.0, 0.28, 0.65, 1.0],
+          colors: isDark
+              ? FiloColors.etherealDarkGradient
+              : FiloColors.etherealDawnGradient,
+          stops: const [0.0, 0.28, 0.65, 1.0],
         ),
       ),
       child: child,

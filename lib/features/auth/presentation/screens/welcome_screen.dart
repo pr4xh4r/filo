@@ -4,6 +4,7 @@ import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/handwriting_text.dart';
@@ -167,18 +168,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                     const Spacer(flex: 1),
 
-                    // Frosted Glass Hero Card with Editorial Illustration
-                    Center(
-                      child: FiloGlass(
-                        borderRadius: BorderRadius.circular(32),
-                        padding: const EdgeInsets.all(24),
-                        child: Container(
-                          constraints: const BoxConstraints(maxHeight: 280),
-                          child: Image.asset(
-                            'assets/illustrations/welcome_ethereal_lineart.png',
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                    // Floating Transparent Editorial Illustration (No background card)
+                    const Center(
+                      child: FiloIllustrationView(
+                        assetName: 'assets/illustrations/welcome_ethereal_lineart.png',
+                        maxHeight: 280,
+                        maxWidth: 320,
                       ),
                     ),
 
@@ -191,7 +186,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       style: FiloTypography.handwriting(
                         fontSize: 40,
                         fontWeight: FontWeight.w700,
-                        color: FiloColors.lightTextPrimary,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : FiloColors.lightTextPrimary,
                       ),
                     ),
 
@@ -204,7 +201,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         fontSize: 16,
                         height: 1.45,
                         fontWeight: FontWeight.w500,
-                        color: FiloColors.lightTextSecondary,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? FiloColors.darkTextSecondary
+                            : FiloColors.lightTextSecondary,
                       ),
                     ),
 

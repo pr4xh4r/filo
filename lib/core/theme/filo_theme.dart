@@ -95,5 +95,82 @@ class FiloTheme {
     );
   }
 
-  static ThemeData get darkTheme => lightTheme; // App is pure luxury light theme
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      pageTransitionsTheme: _cupertinoTransitions,
+      primaryColor: FiloColors.accentCoral,
+      scaffoldBackgroundColor: FiloColors.darkBackground,
+      colorScheme: const ColorScheme.dark(
+        primary: FiloColors.accentCoral,
+        secondary: FiloColors.accentLavender,
+        surface: FiloColors.darkSurface,
+        error: FiloColors.destructive,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
+        onSurface: FiloColors.darkTextPrimary,
+        onError: Colors.white,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        foregroundColor: FiloColors.darkTextPrimary,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        titleTextStyle: TextStyle(
+          color: FiloColors.darkTextPrimary,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.4,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: FiloColors.darkSurface.withValues(alpha: 0.75),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: FiloRadius.roundedXl,
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.12),
+            width: 1.2,
+          ),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: false,
+        fillColor: Colors.transparent,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        hintStyle: FiloTypography.body.copyWith(color: FiloColors.darkTextTertiary),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: FiloColors.darkBorderSubtle,
+        thickness: 1,
+        space: 1,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: FiloColors.darkSurfaceSecondary,
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
+        shape: RoundedRectangleBorder(borderRadius: FiloRadius.roundedMd),
+        behavior: SnackBarBehavior.floating,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: FiloColors.darkSurface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: FiloRadius.roundedXl,
+          side: const BorderSide(color: FiloColors.darkBorder, width: 0.8),
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+        textColor: FiloColors.darkTextPrimary,
+        iconColor: FiloColors.darkTextSecondary,
+      ),
+    );
+  }
 }
