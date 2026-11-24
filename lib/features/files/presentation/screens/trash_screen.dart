@@ -79,7 +79,6 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final persona = ref.watch(personaProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -140,10 +139,10 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              FiloIllustrationView(
-                                assetName: FiloIllustrations.trash(persona),
-                                maxHeight: 220,
-                                maxWidth: 260,
+                              const FiloIllustrationView(
+                                assetName: FiloIllustrations.trash,
+                                maxHeight: 250,
+                                maxWidth: 280,
                               ),
                               const SizedBox(height: FiloSpacing.lg),
                               Text(

@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/crypto/hash_utils.dart';
+import '../../../core/database/chunk_model.dart';
 import '../../../core/database/node_model.dart';
 import '../../../core/database/transfer_model.dart';
 import '../../files/data/file_repository.dart';
@@ -155,9 +156,24 @@ class TransferManager {
     final existingDuplicate = await _fileRepository.findDuplicateByHash(contentHash);
 
     if (existingDuplicate != null) {
-      // Re-use chunks without re-uploading
-      final existingChunks = await _fileRepository.getChunksForNode(existingDuplicate.id);
-      await _fileRepository.saveFileChunks(existingChunks.map((c) => c).toList());
+      // BUG 3 FIX: Re-link chunks to the NEW node id, not the old duplicate's id.
+      final existingChunks =
+          await _fileRepository.getChunksForNode(existingDuplicate.id);
+      final relinkedChunks = existingChunks
+          .map((c) => FileChunk(
+                id: _uuid.v4(),
+                nodeId: node.id, // ← correct node id
+                chunkIndex: c.chunkIndex,
+                remoteMessageId: c.remoteMessageId,
+                remoteFileId: c.remoteFileId,
+                sizeBytes: c.sizeBytes,
+                sha256Hash: c.sha256Hash,
+                ivHex: c.ivHex,
+              ))
+          .toList();
+      await _fileRepository.saveFileChunks(relinkedChunks);
+      // Also record the content hash on the new node
+      await _fileRepository.updateNodeHash(node.id, contentHash);
 
       _tasks[taskId] = _tasks[taskId]!.copyWith(
         status: TransferStatus.completed,
@@ -349,5 +365,10 @@ class TransferManager {
 
   void _notify() {
     _taskStreamController.add(currentTasks);
+  }
+
+  /// BUG 28 FIX: Dispose the StreamController to prevent resource leaks.
+  void dispose() {
+    _taskStreamController.close();
   }
 }

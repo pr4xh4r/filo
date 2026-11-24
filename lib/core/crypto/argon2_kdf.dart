@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:pointycastle/key_derivators/api.dart';
@@ -11,10 +12,12 @@ import '../config/app_config.dart';
 /// - Memory-hard, side-channel resistant derivation.
 /// - Produces a 256-bit (32-byte) Key Encryption Key (KEK).
 /// - Default configuration: 64 MB memory, 3 iterations, 4 parallelism lanes.
+/// - BUG 7 FIX: KDF runs in a background isolate to prevent UI freeze.
 class Argon2Kdf {
   Argon2Kdf._();
 
   /// Derives a 32-byte key from a secret passphrase and salt.
+  /// Runs in a background [Isolate] so the UI thread is never blocked.
   static Future<Uint8List> deriveKey({
     required String passphrase,
     required Uint8List salt,
@@ -23,6 +26,25 @@ class Argon2Kdf {
     int parallelism = AppConfig.argon2Parallelism,
     int keyLength = 32,
   }) async {
+    return Isolate.run(() => _deriveKeySync(
+          passphrase: passphrase,
+          salt: salt,
+          memoryKiB: memoryKiB,
+          iterations: iterations,
+          parallelism: parallelism,
+          keyLength: keyLength,
+        ));
+  }
+
+  /// Synchronous derivation — only call from a background isolate.
+  static Uint8List _deriveKeySync({
+    required String passphrase,
+    required Uint8List salt,
+    required int memoryKiB,
+    required int iterations,
+    required int parallelism,
+    required int keyLength,
+  }) {
     final passwordBytes = Uint8List.fromList(utf8.encode(passphrase));
 
     final parameters = Argon2Parameters(

@@ -4,6 +4,7 @@ import '../../../../core/crypto/hash_utils.dart';
 import '../../../../core/database/transfer_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
+import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_progress_ring.dart';
 import '../../../../shared/components/filo_sheet.dart';
 import '../providers/transfer_provider.dart';
@@ -33,8 +34,8 @@ class TransferQueueSheet extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Image.asset(
-                'assets/illustrations/transfer_upload_stream.png',
-                height: 120,
+                FiloIllustrations.transfer,
+                height: 160,
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 12),

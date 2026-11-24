@@ -1,54 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// User persona preferences for character-driven illustrations.
-enum FiloPersona {
-  female,
-  male,
-}
-
-class PersonaNotifier extends StateNotifier<FiloPersona> {
-  PersonaNotifier() : super(FiloPersona.female);
-
-  void setPersona(FiloPersona persona) {
-    state = persona;
-  }
-
-  void toggle() {
-    state = state == FiloPersona.female ? FiloPersona.male : FiloPersona.female;
-  }
-}
-
-final personaProvider = StateNotifierProvider<PersonaNotifier, FiloPersona>((ref) {
-  return PersonaNotifier();
-});
-
-/// Centralized asset helper for Filo illustrations.
+/// Centralized asset helper for Filo editorial illustrations.
+///
+/// Features unified, professional, gender-neutral editorial line-art with
+/// soft translucent frosted-glass geometry and ambient Ethereal Dawn pastel halos.
 class FiloIllustrations {
   FiloIllustrations._();
 
-  static const String welcome = 'assets/illustrations/welcome_ethereal_lineart.png';
-  static const String security = 'assets/illustrations/security_ethereal_lineart.png';
-  static const String recovery = 'assets/illustrations/recovery_phrase_capsule.png';
-  static const String transfer = 'assets/illustrations/transfer_upload_stream.png';
-  static const String starred = 'assets/illustrations/starred_favorites_empty.png';
-
-  static String emptyVault(FiloPersona persona) {
-    return persona == FiloPersona.male
-        ? 'assets/illustrations/empty_vault_male_ethereal_lineart.png'
-        : 'assets/illustrations/empty_vault_ethereal_lineart.png';
-  }
-
-  static String trash(FiloPersona persona) {
-    return persona == FiloPersona.male
-        ? 'assets/illustrations/trash_male_ethereal_lineart.png'
-        : 'assets/illustrations/trash_clean_slate.png';
-  }
+  static const String welcome = 'assets/illustrations/welcome.png';
+  static const String emptyVault = 'assets/illustrations/empty_vault.png';
+  static const String trash = 'assets/illustrations/trash.png';
+  static const String security = 'assets/illustrations/s&tencrpt.png';
+  static const String recovery = 'assets/illustrations/key.png';
+  static const String transfer = 'assets/illustrations/upload.png';
+  static const String starred = 'assets/illustrations/starred.png';
 }
 
-/// Adaptive illustration widget:
-/// - Renders transparent editorial line-art with NO background box/vignette.
-/// - In Dark Mode, automatically inverts black lines into luminous celestial silver-white.
+/// Adaptive editorial illustration widget:
+/// - Renders precision monoline artwork with soft ambient pastel halo.
+/// - In Dark Mode, inverts black lines into luminous celestial silver-white.
 /// - In Light Mode, preserves fine midnight ink contours.
 class FiloIllustrationView extends StatelessWidget {
   final String assetName;

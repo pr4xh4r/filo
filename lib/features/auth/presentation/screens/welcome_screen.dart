@@ -168,12 +168,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                     const Spacer(flex: 1),
 
-                    // Floating Transparent Editorial Illustration (No background card)
+                    // Flagship Editorial Illustration with Ethereal Dawn Ambient Halo
                     const Center(
                       child: FiloIllustrationView(
-                        assetName: 'assets/illustrations/welcome_ethereal_lineart.png',
-                        maxHeight: 280,
-                        maxWidth: 320,
+                        assetName: FiloIllustrations.welcome,
+                        maxHeight: 330,
+                        maxWidth: 360,
                       ),
                     ),
 

@@ -62,7 +62,8 @@ class FileRepository {
       contentHash: contentHash,
       createdAt: now,
       modifiedAt: now,
-      syncState: SyncState.synced,
+      // BUG 30 FIX: New files start as localOnly — they haven't been uploaded yet
+      syncState: SyncState.localOnly,
     );
     await _database.insertNode(node);
     return node;
@@ -90,6 +91,19 @@ class FileRepository {
 
   Future<void> moveToTrash(String id) {
     return _database.trashNode(id);
+  }
+
+  Future<void> trashNodes(List<String> ids) {
+    return _database.trashNodes(ids);
+  }
+
+  Future<void> updateNodeHash(String id, String contentHash) {
+    return _database.updateNodeHash(id, contentHash);
+  }
+
+  Future<List<FileNode>> getFolders() async {
+    final allNodes = await _database.listNodes(includeTrashed: false);
+    return allNodes.where((n) => n.isFolder).toList();
   }
 
   Future<void> restoreFromTrash(String id) {

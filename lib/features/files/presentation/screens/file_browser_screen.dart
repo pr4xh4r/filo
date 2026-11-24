@@ -241,13 +241,114 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
-  void _showMoveDialog(FileNode node) {
-    ref.read(fileBrowserProvider.notifier).moveNode(node.id, null);
-    FiloToast.show(context, message: 'Moved to Vault Root', type: FiloToastType.success);
+  void _showMoveDialog(FileNode node) async {
+    final repo = ref.read(fileRepositoryProvider);
+    final folders = await repo.getFolders();
+    final candidateFolders = folders.where((f) => f.id != node.id).toList();
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? FiloColors.darkSurface : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    'Move "${node.name}"',
+                    style: FiloTypography.title3.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.cloud_outlined, color: FiloColors.primary),
+                  title: Text(
+                    'Vault Root',
+                    style: TextStyle(
+                      color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    ref.read(fileBrowserProvider.notifier).moveNode(node.id, null);
+                    FiloToast.show(context, message: 'Moved to Vault Root', type: FiloToastType.success);
+                  },
+                ),
+                const Divider(),
+                if (candidateFolders.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'No subfolders created yet',
+                      style: TextStyle(
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 250),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: candidateFolders.length,
+                      itemBuilder: (c, idx) {
+                        final folder = candidateFolders[idx];
+                        return ListTile(
+                          leading: const Icon(Icons.folder_outlined, color: FiloColors.primary),
+                          title: Text(
+                            folder.name,
+                            style: TextStyle(
+                              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            ref.read(fileBrowserProvider.notifier).moveNode(node.id, folder.id);
+                            FiloToast.show(
+                              context,
+                              message: 'Moved to ${folder.name}',
+                              type: FiloToastType.success,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  void _handleShareFile(FileNode node) {
-    FiloToast.show(context, message: 'Sharing ${node.name}...', type: FiloToastType.info);
+  void _handleShareFile(FileNode node) async {
+    // BUG 8 FIX: Decrypt and invoke OS share sheet
+    FiloToast.show(context, message: 'Decrypting ${node.name}...', type: FiloToastType.info);
+    try {
+      await ref.read(transferQueueProvider.notifier).shareDecryptedCopy(node);
+    } catch (e) {
+      if (mounted) {
+        FiloToast.show(context, message: 'Share failed: $e', type: FiloToastType.error);
+      }
+    }
   }
 
   void _navigateUp() {
@@ -322,6 +423,23 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                         Row(
                           children: [
                             _buildHeaderIconButton(
+                              icon: Icons.sync_rounded,
+                              onTap: () async {
+                                FiloToast.show(context, message: 'Syncing with Telegram...', type: FiloToastType.info);
+                                try {
+                                  await notifier.syncNow();
+                                  if (mounted) {
+                                    FiloToast.show(context, message: 'Snapshot synced & pinned to Telegram', type: FiloToastType.success);
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    FiloToast.show(context, message: 'Sync failed: $e', type: FiloToastType.error);
+                                  }
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            _buildHeaderIconButton(
                               icon: _isSearchActive ? Icons.close_rounded : Icons.search_rounded,
                               onTap: () {
                                 setState(() {
@@ -363,24 +481,32 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? FiloColors.darkSurface
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(100),
                           border: Border.all(
-                            color: Colors.black.withValues(alpha: 0.08),
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white.withValues(alpha: 0.12)
+                                : Colors.black.withValues(alpha: 0.08),
                           ),
                         ),
                         child: TextField(
                           controller: _searchController,
                           autofocus: true,
                           style: FiloTypography.bodyMedium.copyWith(
-                            color: FiloColors.lightTextPrimary,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? FiloColors.darkTextPrimary
+                                : FiloColors.lightTextPrimary,
                           ),
                           decoration: InputDecoration(
                             filled: false,
                             fillColor: Colors.transparent,
                             hintText: 'search your vault...',
                             hintStyle: FiloTypography.body.copyWith(
-                              color: FiloColors.lightTextTertiary,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? FiloColors.darkTextTertiary
+                                  : FiloColors.lightTextTertiary,
                             ),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
@@ -445,25 +571,25 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                           _buildCategoryCard(
                             title: 'Photos',
                             icon: Icons.photo_outlined,
-                            count: '${state.items.where((i) => i.name.toLowerCase().endsWith('.jpg') || i.name.toLowerCase().endsWith('.png')).length} files',
+                            count: '${state.items.where((i) => (i.mimeType?.startsWith('image/') ?? false) || i.name.toLowerCase().endsWith('.jpg') || i.name.toLowerCase().endsWith('.png') || i.name.toLowerCase().endsWith('.jpeg') || i.name.toLowerCase().endsWith('.webp') || i.name.toLowerCase().endsWith('.heic')).length} files',
                           ),
                           const SizedBox(width: 12),
                           _buildCategoryCard(
                             title: 'Videos',
                             icon: Icons.videocam_outlined,
-                            count: '${state.items.where((i) => i.name.toLowerCase().endsWith('.mp4')).length} files',
+                            count: '${state.items.where((i) => (i.mimeType?.startsWith('video/') ?? false) || i.name.toLowerCase().endsWith('.mp4') || i.name.toLowerCase().endsWith('.mov') || i.name.toLowerCase().endsWith('.mkv')).length} files',
                           ),
                           const SizedBox(width: 12),
                           _buildCategoryCard(
                             title: 'Docs',
                             icon: Icons.description_outlined,
-                            count: '${state.items.where((i) => i.name.toLowerCase().endsWith('.pdf') || i.name.toLowerCase().endsWith('.txt')).length} files',
+                            count: '${state.items.where((i) => (i.mimeType?.contains('pdf') ?? false) || (i.mimeType?.contains('document') ?? false) || (i.mimeType?.contains('text') ?? false) || i.name.toLowerCase().endsWith('.pdf') || i.name.toLowerCase().endsWith('.txt') || i.name.toLowerCase().endsWith('.docx') || i.name.toLowerCase().endsWith('.xlsx')).length} files',
                           ),
                           const SizedBox(width: 12),
                           _buildCategoryCard(
                             title: 'Audio',
                             icon: Icons.headphones_outlined,
-                            count: '${state.items.where((i) => i.name.toLowerCase().endsWith('.mp3')).length} files',
+                            count: '${state.items.where((i) => (i.mimeType?.startsWith('audio/') ?? false) || i.name.toLowerCase().endsWith('.mp3') || i.name.toLowerCase().endsWith('.m4a') || i.name.toLowerCase().endsWith('.flac') || i.name.toLowerCase().endsWith('.wav')).length} files',
                           ),
                           const SizedBox(width: 12),
                           _buildCategoryCard(
@@ -612,10 +738,9 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
   // Unique Artistic Empty State (Editorial Monoline & Frosted Glass)
   Widget _buildUniqueEmptySpace(bool isFavoritesOnly) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final persona = ref.watch(personaProvider);
     final illustrationAsset = isFavoritesOnly
         ? FiloIllustrations.starred
-        : FiloIllustrations.emptyVault(persona);
+        : FiloIllustrations.emptyVault;
 
     return Center(
       child: Column(
@@ -623,8 +748,8 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
         children: [
           FiloIllustrationView(
             assetName: illustrationAsset,
-            maxHeight: 220,
-            maxWidth: 260,
+            maxHeight: 250,
+            maxWidth: 280,
           ),
           const SizedBox(height: FiloSpacing.lg),
           Text(
@@ -662,18 +787,21 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     required IconData icon,
     required String count,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: 125,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? FiloColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Colors.black.withValues(alpha: 0.06),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -689,11 +817,11 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: FiloTypography.fontFamily,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: FiloColors.lightTextPrimary,
+                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                 ),
               ),
             ],
@@ -701,10 +829,10 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
           const SizedBox(height: 8),
           Text(
             count,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: FiloTypography.fontFamily,
               fontSize: 12,
-              color: FiloColors.lightTextTertiary,
+              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
             ),
           ),
         ],

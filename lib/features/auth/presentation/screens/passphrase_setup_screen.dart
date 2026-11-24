@@ -5,6 +5,7 @@ import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../providers/auth_provider.dart';
@@ -135,10 +136,10 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
               const SizedBox(height: 14),
               Center(
                 child: Container(
-                  height: 100,
+                  height: 150,
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   child: Image.asset(
-                    'assets/illustrations/recovery_phrase_capsule.png',
+                    FiloIllustrations.recovery,
                     fit: BoxFit.contain,
                   ),
                 ),

@@ -6,10 +6,12 @@ import 'package:filo/features/transfer/domain/chunking_engine.dart';
 
 /// Lightweight loopback HTTP proxy (strictly bound to 127.0.0.1) that translates
 /// video player HTTP Range requests into targeted decrypted chunk streams on the fly.
+/// BUG 1 FIX: masterKey is now a required constructor parameter — no more zero-key.
 class LocalStreamingProxy {
   final FileRepository _fileRepository;
   final ChunkingEngine _chunkingEngine;
   final String _channelId;
+  final Uint8List _masterKey; // BUG 1 FIX: real key injected at construction time
 
   HttpServer? _server;
   int? _port;
@@ -18,9 +20,11 @@ class LocalStreamingProxy {
     required FileRepository fileRepository,
     required ChunkingEngine chunkingEngine,
     required String channelId,
+    required Uint8List masterKey, // BUG 1 FIX: required — no default
   })  : _fileRepository = fileRepository,
         _chunkingEngine = chunkingEngine,
-        _channelId = channelId;
+        _channelId = channelId,
+        _masterKey = masterKey;
 
   int? get port => _port;
   String? get baseUrl => _port != null ? 'http://127.0.0.1:$_port' : null;
@@ -101,7 +105,7 @@ class LocalStreamingProxy {
         // Download and decrypt chunk
         final chunkBytes = await _chunkingEngine.downloadAndDecryptSingleChunk(
           chunk: chunk,
-          masterKey: Uint8List(32), // Injected by caller session
+          masterKey: _masterKey, // BUG 1 FIX: real key used
           channelId: _channelId,
         );
         request.response.add(chunkBytes);

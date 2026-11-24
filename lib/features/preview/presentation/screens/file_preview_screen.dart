@@ -67,6 +67,10 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
             channelId: channel.channelId,
             remoteFileId: c.remoteFileId,
           );
+          final downloadedHash = HashUtils.sha256Hex(chunkCipher);
+          if (downloadedHash != c.sha256Hash) {
+            throw Exception('Chunk integrity check failed for part ${c.chunkIndex}');
+          }
           final decrypted = await CryptoEngine.decryptBytes(
             combinedBytes: chunkCipher,
             key: masterKey,

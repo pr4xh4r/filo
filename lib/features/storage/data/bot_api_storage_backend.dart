@@ -229,13 +229,28 @@ class BotApiStorageBackend implements StorageBackend {
   Future<RemoteMessage?> getPinnedMessage({
     required String channelId,
   }) async {
-    final channelInfo = await getOrCreateVaultChannel('');
-    if (channelInfo.pinnedMessageId == null) return null;
+    // BUG 14 FIX: Retrieve chat info and extract pinned document remote file id
+    final response = await _client.post(
+      Uri.parse('$_baseUrl/getChat'),
+      body: {'chat_id': channelId.isNotEmpty ? channelId : targetChatId},
+    );
+    final data = json.decode(response.body) as Map<String, dynamic>;
+    if (data['ok'] != true) return null;
 
-    // Fetch the pinned document
+    final result = data['result'] as Map<String, dynamic>;
+    final pinned = result['pinned_message'] as Map<String, dynamic>?;
+    if (pinned == null) return null;
+
+    final document = pinned['document'] as Map<String, dynamic>?;
+    final remoteFileId = document?['file_id'] as String?;
+
     return RemoteMessage(
-      messageId: channelInfo.pinnedMessageId!,
-      date: DateTime.now(),
+      messageId: pinned['message_id'].toString(),
+      remoteFileId: remoteFileId,
+      caption: pinned['caption'] as String?,
+      date: DateTime.fromMillisecondsSinceEpoch(
+        ((pinned['date'] as num?)?.toInt() ?? 0) * 1000,
+      ),
     );
   }
 

@@ -1,23 +1,32 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:filo/core/database/node_model.dart';
 import 'package:filo/core/database/transfer_model.dart';
 import 'package:filo/features/auth/presentation/providers/auth_provider.dart';
 import 'package:filo/features/files/presentation/providers/file_browser_provider.dart';
+import 'package:filo/features/sync/domain/index_sync_service.dart';
 import 'package:filo/features/transfer/data/transfer_manager.dart';
 
 final transferManagerProvider = Provider<TransferManager>((ref) {
   final storage = ref.watch(storageBackendProvider);
   final fileRepo = ref.watch(fileRepositoryProvider);
 
-  return TransferManager(
+  final manager = TransferManager(
     storageBackend: storage,
     fileRepository: fileRepo,
   );
+
+  // BUG 28 FIX: Dispose the manager (closes StreamController) when provider is disposed
+  ref.onDispose(manager.dispose);
+
+  return manager;
 });
 
 class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
   final TransferManager _manager;
   final Ref _ref;
+  // BUG 15 FIX: Store subscription reference so it can be cancelled on dispose
+  late final StreamSubscription<List<TransferTask>> _subscription;
 
   TransferQueueNotifier({
     required TransferManager manager,
@@ -25,9 +34,37 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
   })  : _manager = manager,
         _ref = ref,
         super([]) {
-    _manager.tasksStream.listen((tasks) {
+    _subscription = _manager.tasksStream.listen((tasks) {
       state = tasks;
     });
+  }
+
+  @override
+  void dispose() {
+    // BUG 15 FIX: Cancel subscription to avoid memory/event leak
+    _subscription.cancel();
+    super.dispose();
+  }
+
+  Future<FileNode?> pickAndUploadFile({
+    String? parentId,
+    void Function(FileNode node)? onTaskCreated,
+  }) async {
+    final authState = _ref.read(authNotifierProvider);
+    if (authState.masterKey == null) {
+      throw Exception('Vault is locked. Unlock vault before uploading.');
+    }
+
+    final uploaded = await _manager.pickAndUploadFile(
+      masterKey: authState.masterKey!,
+      parentId: parentId,
+      onTaskCreated: onTaskCreated,
+    );
+
+    if (uploaded != null) {
+      _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: authState.masterKey!);
+    }
+    return uploaded;
   }
 
   Future<List<FileNode>> pickAndUploadFiles({
@@ -39,22 +76,16 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
       throw Exception('Vault is locked. Unlock vault before uploading.');
     }
 
-    return _manager.pickAndUploadFiles(
+    final uploadedList = await _manager.pickAndUploadFiles(
       masterKey: authState.masterKey!,
       parentId: parentId,
       onTaskCreated: onTaskCreated,
     );
-  }
 
-  Future<FileNode?> pickAndUploadFile({
-    String? parentId,
-    void Function(FileNode node)? onTaskCreated,
-  }) async {
-    final nodes = await pickAndUploadFiles(
-      parentId: parentId,
-      onTaskCreated: onTaskCreated,
-    );
-    return nodes.isNotEmpty ? nodes.first : null;
+    if (uploadedList.isNotEmpty) {
+      _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: authState.masterKey!);
+    }
+    return uploadedList;
   }
 
   Future<void> shareDecryptedCopy(FileNode node) async {

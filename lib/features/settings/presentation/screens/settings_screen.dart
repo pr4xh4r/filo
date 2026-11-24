@@ -15,8 +15,6 @@ import '../../../../core/database/filo_database.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
-import '../../../../core/theme/persona_provider.dart';
-import '../../../../core/theme/theme_provider.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_glass.dart';
@@ -561,8 +559,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
-    final themeMode = ref.watch(themeModeProvider);
-    final isDark = themeMode == ThemeMode.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -719,149 +716,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
 
-          const SizedBox(height: FiloSpacing.md),
-
-          // 3. Persona Switcher (Feminine / Masculine)
-          FiloGlass(
-            borderRadius: BorderRadius.circular(22),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: (isDark ? FiloColors.accentCoral : FiloColors.primary).withValues(alpha: 0.08),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.person_outline_rounded, size: 20, color: isDark ? FiloColors.accentCoral : FiloColors.primary),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Illustration Persona',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary),
-                        ),
-                        Text(
-                          'Choose character artwork style',
-                          style: TextStyle(fontSize: 12, color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            ref.read(personaProvider.notifier).setPersona(FiloPersona.female);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 9),
-                            decoration: BoxDecoration(
-                              color: ref.watch(personaProvider) == FiloPersona.female
-                                  ? (isDark ? const Color(0xFF1E1438) : Colors.white)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(100),
-                              border: isDark && ref.watch(personaProvider) == FiloPersona.female
-                                  ? Border.all(color: Colors.white.withValues(alpha: 0.15))
-                                  : null,
-                              boxShadow: ref.watch(personaProvider) == FiloPersona.female
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.06),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Feminine',
-                                style: TextStyle(
-                                  fontWeight: ref.watch(personaProvider) == FiloPersona.female
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  fontSize: 13,
-                                  color: ref.watch(personaProvider) == FiloPersona.female
-                                      ? (isDark ? Colors.white : FiloColors.lightTextPrimary)
-                                      : (isDark ? Colors.white54 : FiloColors.lightTextSecondary),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            ref.read(personaProvider.notifier).setPersona(FiloPersona.male);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 9),
-                            decoration: BoxDecoration(
-                              color: ref.watch(personaProvider) == FiloPersona.male
-                                  ? (isDark ? const Color(0xFF1E1438) : Colors.white)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(100),
-                              border: isDark && ref.watch(personaProvider) == FiloPersona.male
-                                  ? Border.all(color: Colors.white.withValues(alpha: 0.15))
-                                  : null,
-                              boxShadow: ref.watch(personaProvider) == FiloPersona.male
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.06),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Masculine',
-                                style: TextStyle(
-                                  fontWeight: ref.watch(personaProvider) == FiloPersona.male
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  fontSize: 13,
-                                  color: ref.watch(personaProvider) == FiloPersona.male
-                                      ? (isDark ? Colors.white : FiloColors.lightTextPrimary)
-                                      : (isDark ? Colors.white54 : FiloColors.lightTextSecondary),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
           const SizedBox(height: FiloSpacing.lg),
 
-          // 4. Security & Vault Preferences
+          // Security & Vault Preferences
           Text(
             'Security & Vault Preferences',
             style: FiloTypography.title3.copyWith(

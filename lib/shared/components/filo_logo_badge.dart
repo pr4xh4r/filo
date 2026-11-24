@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../core/theme/filo_colors.dart';
 
 /// Distinctive, Apple-grade app logo badge for Filo (Ethereal Dawn Frosted Glass Aesthetic).
 ///
@@ -89,10 +88,14 @@ class FiloLogoBadge extends StatelessWidget {
                   ),
                 ),
 
-                // 3. Custom-Painted Geometric Vault Monogram ("F" Emblem)
+                // 3. Welcome Illustration Logo Emblem
                 Positioned.fill(
-                  child: CustomPaint(
-                    painter: _FiloLogoPainter(size: size),
+                  child: Padding(
+                    padding: EdgeInsets.all(size * 0.04),
+                    child: Image.asset(
+                      'assets/illustrations/welcome.png',
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
 
@@ -113,89 +116,4 @@ class FiloLogoBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Custom painter rendering the precision architectural Filo vault monogram.
-class _FiloLogoPainter extends CustomPainter {
-  final double size;
-
-  const _FiloLogoPainter({required this.size});
-
-  @override
-  void paint(Canvas canvas, Size canvasSize) {
-    final w = canvasSize.width;
-    final h = canvasSize.height;
-
-    // Paint for the primary Deep Midnight Ink architectural glyph
-    final glyphPaint = Paint()
-      ..color = FiloColors.primary
-      ..style = PaintingStyle.fill;
-
-    // Soft shadow behind glyph for frosted tactile depth
-    final shadowPaint = Paint()
-      ..color = const Color(0xFF0F172A).withValues(alpha: 0.14)
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-
-    // Coral peach accent paint for the cryptographic lock eye
-    final coralPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFFFF8566), Color(0xFFFF5233)],
-      ).createShader(Rect.fromLTWH(0, 0, w, h))
-      ..style = PaintingStyle.fill;
-
-    // Draw Architectural Vault "F" Geometry:
-    // Vertical spine of "F" (rounded bar)
-    final spineRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.27, h * 0.23, w * 0.15, h * 0.53),
-      Radius.circular(w * 0.075),
-    );
-
-    // Top horizontal bar of "F" (vault roof extending right)
-    final topBarRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.27, h * 0.23, w * 0.46, h * 0.14),
-      Radius.circular(w * 0.07),
-    );
-
-    // Middle horizontal bar of "F" (shield key bar)
-    final midBarRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.27, h * 0.43, w * 0.33, h * 0.13),
-      Radius.circular(w * 0.065),
-    );
-
-    // Soft drop shadow under bars
-    canvas.drawRRect(spineRect.shift(Offset(0, h * 0.015)), shadowPaint);
-    canvas.drawRRect(topBarRect.shift(Offset(0, h * 0.015)), shadowPaint);
-    canvas.drawRRect(midBarRect.shift(Offset(0, h * 0.015)), shadowPaint);
-
-    // Primary glyph fill
-    canvas.drawRRect(spineRect, glyphPaint);
-    canvas.drawRRect(topBarRect, glyphPaint);
-    canvas.drawRRect(midBarRect, glyphPaint);
-
-    // Luminous vault eye / cryptographic dot (zero-knowledge vault lock)
-    final dotCenter = Offset(w * 0.64, h * 0.65);
-    final dotRadius = w * 0.075;
-
-    // Outer coral glow
-    final glowPaint = Paint()
-      ..color = const Color(0xFFFF6B4A).withValues(alpha: 0.35)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.5);
-    canvas.drawCircle(dotCenter, dotRadius * 1.5, glowPaint);
-
-    // Center radiant coral dot
-    canvas.drawCircle(dotCenter, dotRadius, coralPaint);
-
-    // Inner bright white pinpoint
-    final whitePin = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(dotCenter, dotRadius * 0.4, whitePin);
-  }
-
-  @override
-  bool shouldRepaint(covariant _FiloLogoPainter oldDelegate) =>
-      oldDelegate.size != size;
 }

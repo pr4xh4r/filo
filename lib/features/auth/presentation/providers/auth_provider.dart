@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../../../core/config/app_config.dart';
@@ -5,6 +6,7 @@ import '../../../../core/database/filo_database.dart';
 import '../../../storage/data/tdlib_storage_backend.dart';
 import '../../../storage/domain/storage_backend.dart';
 import '../../../storage/domain/storage_models.dart';
+import '../../../sync/domain/index_sync_service.dart';
 import '../../data/auth_repository.dart';
 import '../../domain/auth_state.dart';
 
@@ -21,20 +23,28 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(storageBackend: storage);
 });
 
+// BUG 2 FIX: databaseProvider is overridden in main() with a file-backed DB.
+// Throws clearly if someone forgets to override it.
 final databaseProvider = Provider<FiloDatabase>((ref) {
-  // Uses in-memory for testing or defaults
-  return FiloDatabase.openInMemory();
+  throw StateError(
+    'databaseProvider must be overridden in ProviderScope with a file-backed '
+    'FiloDatabase. Call FiloDatabase.openFile() in main() and pass it via '
+    'databaseProvider.overrideWithValue(database).',
+  );
 });
 
 /// Riverpod StateNotifier managing the authentication and vault state.
 class AuthNotifier extends StateNotifier<FiloAuthState> {
   final AuthRepository _repository;
+  final FiloDatabase _database;
   final LocalAuthentication _localAuth;
 
   AuthNotifier({
     required AuthRepository repository,
+    required FiloDatabase database,
     LocalAuthentication? localAuth,
   })  : _repository = repository,
+        _database = database,
         _localAuth = localAuth ?? LocalAuthentication(),
         super(const FiloAuthState(isLoading: true)) {
     initialize();
@@ -158,6 +168,9 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         isLoading: false,
       );
 
+      // Auto-restore check in case user is re-setting up existing account on new device
+      await _maybeAutoRestore(masterKey);
+
       return recoveryKey;
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
@@ -178,10 +191,35 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         masterKey: masterKey,
         isLoading: false,
       );
+      await _maybeAutoRestore(masterKey);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Invalid passphrase. Please verify and try again.',
+      );
+      rethrow;
+    }
+  }
+
+  /// BUG 5 FIX: Emergency recovery path for when passphrase is lost
+  Future<void> unlockWithRecoveryKey(String recoveryKey) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final masterKey = await _repository.unlockWithRecoveryKey(recoveryKey);
+      if (state.isBiometricEnabled) {
+        await _repository.storeBiometricMasterKey(masterKey);
+      }
+      state = state.copyWith(
+        vaultStatus: VaultSetupStatus.ready,
+        lockStatus: AppLockStatus.unlocked,
+        masterKey: masterKey,
+        isLoading: false,
+      );
+      await _maybeAutoRestore(masterKey);
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Invalid recovery key. Please check formatting and try again.',
       );
       rethrow;
     }
@@ -216,6 +254,7 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
             masterKey: masterKey,
             errorMessage: null,
           );
+          await _maybeAutoRestore(masterKey);
           return true;
         } else {
           state = state.copyWith(
@@ -228,6 +267,20 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     } catch (e) {
       state = state.copyWith(errorMessage: 'Biometric authentication error: $e');
       return false;
+    }
+  }
+
+  /// Checks if local database is empty and automatically downloads & restores
+  /// the encrypted index snapshot pinned in the Telegram channel.
+  Future<void> _maybeAutoRestore(Uint8List masterKey) async {
+    try {
+      final syncService = IndexSyncService(
+        database: _database,
+        storageBackend: _repository.storageBackend,
+      );
+      await syncService.checkAndAutoRestore(masterKey: masterKey);
+    } catch (_) {
+      // Non-fatal if offline or no remote index exists yet
     }
   }
 
@@ -245,7 +298,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       try {
         final canCheck = await _localAuth.canCheckBiometrics;
         final isSupported = await _localAuth.isDeviceSupported();
-        if (!canCheck && !isSupported) {
+      // BUG 20 FIX: Use || (not &&) — block if EITHER check fails
+        if (!canCheck || !isSupported) {
           state = state.copyWith(
             errorMessage: 'Biometric authentication is not supported or enrolled on this device.',
           );
@@ -309,5 +363,6 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
 final authNotifierProvider =
     StateNotifierProvider<AuthNotifier, FiloAuthState>((ref) {
   final repo = ref.watch(authRepositoryProvider);
-  return AuthNotifier(repository: repo);
+  final db = ref.watch(databaseProvider);
+  return AuthNotifier(repository: repo, database: db);
 });

@@ -18,6 +18,8 @@ class AuthRepository {
   static const _keyBiometricMasterKey = 'filo_biometric_master_key';
   static const _keyAutoLockTimeout = 'filo_auto_lock_timeout';
   static const _keyRecoveryKeyHash = 'filo_recovery_key_hash';
+  // BUG 5 FIX: Store a separate bundle wrapped with the recovery key as KEK
+  static const _keyRecoveryWrappedBundle = 'filo_recovery_wrapped_bundle';
 
   AuthRepository({
     required StorageBackend storageBackend,
@@ -49,18 +51,28 @@ class AuthRepository {
       salt: salt,
     );
 
-    // 3. Wrap Master Key
+    // 3. Wrap Master Key under passphrase KEK
     final bundle = await KeyWrapper.wrapKey(
       masterKey: masterKey,
       kek: kek,
       salt: salt,
     );
 
-    // 4. Generate Emergency Recovery Key and record its hash for recovery verification
+    // 4. BUG 5 FIX: Generate recovery key and wrap the SAME master key under it
+    //    so users can actually recover their vault using this key.
     final recoveryKey = RecoveryKey.generate();
-    final recoveryHash = HashUtils.sha256Hex(RecoveryKey.parseToBytes(recoveryKey));
+    final recoveryKeyBytes = RecoveryKey.parseToBytes(recoveryKey);
+    final recoveryHash = HashUtils.sha256Hex(recoveryKeyBytes);
 
-    // 5. Persist to hardware secure storage
+    // Use recovery key bytes directly as the 32-byte KEK
+    final recoverySalt = Argon2Kdf.generateSalt();
+    final recoveryBundle = await KeyWrapper.wrapKey(
+      masterKey: masterKey,
+      kek: recoveryKeyBytes, // 32 bytes of CSPRNG = valid AES-256 key
+      salt: recoverySalt,
+    );
+
+    // 5. Persist all bundles to hardware secure storage atomically
     await _secureStorage.write(
       key: _keyWrappedBundle,
       value: json.encode(bundle.toJson()),
@@ -68,6 +80,11 @@ class AuthRepository {
     await _secureStorage.write(
       key: _keyRecoveryKeyHash,
       value: recoveryHash,
+    );
+    // BUG 5 FIX: Persist the recovery-wrapped bundle so recovery is actually possible
+    await _secureStorage.write(
+      key: _keyRecoveryWrappedBundle,
+      value: json.encode(recoveryBundle.toJson()),
     );
 
     return recoveryKey;
@@ -94,6 +111,37 @@ class AuthRepository {
     return KeyWrapper.unwrapKey(bundle: bundle, kek: kek);
   }
 
+  /// BUG 5 FIX: Unlocks the vault using the emergency recovery key.
+  /// This is the disaster recovery path when the passphrase is forgotten.
+  Future<Uint8List> unlockWithRecoveryKey(String formattedRecoveryKey) async {
+    final recoveryBundleJson =
+        await _secureStorage.read(key: _keyRecoveryWrappedBundle);
+    if (recoveryBundleJson == null) {
+      throw Exception(
+        'No recovery bundle found. This vault was created before recovery key support was added. '
+        'Please use your passphrase to unlock.',
+      );
+    }
+
+    // Verify the recovery key hash first
+    final storedHash = await _secureStorage.read(key: _keyRecoveryKeyHash);
+    final recoveryKeyBytes = RecoveryKey.parseToBytes(formattedRecoveryKey);
+    final providedHash = HashUtils.sha256Hex(recoveryKeyBytes);
+
+    if (storedHash != null && !HashUtils.constantTimeCompare(
+      providedHash.codeUnits,
+      storedHash.codeUnits,
+    )) {
+      throw Exception('Invalid recovery key.');
+    }
+
+    final bundle = WrappedKeyBundle.fromJson(
+      json.decode(recoveryBundleJson) as Map<String, dynamic>,
+    );
+
+    return KeyWrapper.unwrapKey(bundle: bundle, kek: recoveryKeyBytes);
+  }
+
   /// Re-wraps the Master Key when the user changes their passphrase.
   /// Existing encrypted files in Telegram do not require re-encryption!
   Future<void> changePassphrase({
@@ -109,11 +157,12 @@ class AuthRepository {
       json.decode(bundleJson) as Map<String, dynamic>,
     );
 
-    // Derive old KEK
+    // Derive old KEK and unwrap the master key first
     final oldKek = await Argon2Kdf.deriveKey(
       passphrase: currentPassphrase,
       salt: oldBundle.salt,
     );
+    final masterKey = await KeyWrapper.unwrapKey(bundle: oldBundle, kek: oldKek);
 
     // Derive new KEK with fresh salt
     final newSalt = Argon2Kdf.generateSalt();
@@ -122,19 +171,21 @@ class AuthRepository {
       salt: newSalt,
     );
 
-    // Rewrap Master Key
-    final newBundle = await KeyWrapper.rewrapKey(
-      oldBundle: oldBundle,
-      oldKek: oldKek,
-      newKek: newKek,
-      newSalt: newSalt,
+    // Wrap master key under new KEK
+    final newBundle = await KeyWrapper.wrapKey(
+      masterKey: masterKey,
+      kek: newKek,
+      salt: newSalt,
     );
 
-    // Save updated bundle
+    // Save updated passphrase bundle
     await _secureStorage.write(
       key: _keyWrappedBundle,
       value: json.encode(newBundle.toJson()),
     );
+    // BUG 6 FIX: Recovery bundle stays valid — master key hasn't changed,
+    // so the recovery-wrapped bundle still correctly unlocks the same master key.
+    // No update needed for _keyRecoveryWrappedBundle or _keyRecoveryKeyHash.
   }
 
   /// Biometric preference helpers

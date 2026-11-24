@@ -80,6 +80,80 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
     }
   }
 
+  void _showRecoveryKeyDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? FiloColors.darkSurface : Colors.white,
+          title: Text(
+            'Emergency Recovery',
+            style: TextStyle(
+              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Enter the 64-character recovery key generated when your vault was created.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 12,
+                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'e.g. A1B2-C3D4-...',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final key = controller.text.trim();
+                if (key.isEmpty) return;
+                Navigator.of(ctx).pop();
+                setState(() => _isLoading = true);
+                try {
+                  await ref.read(authNotifierProvider.notifier).unlockWithRecoveryKey(key);
+                  if (mounted) {
+                    FiloToast.show(context, message: 'Vault recovered successfully', type: FiloToastType.success);
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    FiloToast.show(context, message: 'Recovery failed: $e', type: FiloToastType.error);
+                  }
+                } finally {
+                  if (mounted) {
+                    setState(() => _isLoading = false);
+                  }
+                }
+              },
+              child: const Text('Recover'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -247,6 +321,19 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                     ),
                   ),
                 ],
+
+                const SizedBox(height: FiloSpacing.md),
+                Center(
+                  child: TextButton(
+                    onPressed: _showRecoveryKeyDialog,
+                    child: Text(
+                      'forgot key? use recovery key',
+                      style: FiloTypography.caption.copyWith(
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                      ),
+                    ),
+                  ),
+                ),
 
                 const Spacer(flex: 3),
               ],

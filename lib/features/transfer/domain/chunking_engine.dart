@@ -22,6 +22,40 @@ class ChunkingEngine {
   ChunkingEngine({required StorageBackend storageBackend})
       : _storageBackend = storageBackend;
 
+  /// Retries a network chunk operation with exponential backoff and Telegram FloodWait handling.
+  /// Ensures uploads and downloads survive brief network interruptions or backgrounding.
+  Future<T> _retryWithBackoff<T>(
+    Future<T> Function() action, {
+    int maxRetries = 4,
+    String debugLabel = 'chunk-transfer',
+  }) async {
+    int attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        return await action();
+      } catch (e) {
+        if (attempt >= maxRetries) {
+          rethrow;
+        }
+
+        int delayMs = 800 * (1 << (attempt - 1)); // 800ms, 1600ms, 3200ms
+        final errText = e.toString();
+
+        // Respect Telegram Flood Wait if returned
+        if (errText.contains('FLOOD_WAIT_')) {
+          final match = RegExp(r'FLOOD_WAIT_(\d+)').firstMatch(errText);
+          if (match != null) {
+            final seconds = int.tryParse(match.group(1)!) ?? 2;
+            delayMs = seconds * 1000;
+          }
+        }
+
+        await Future<void>.delayed(Duration(milliseconds: delayMs));
+      }
+    }
+  }
+
   /// Uploads a file with chunked AES-256-GCM encryption.
   /// Handles files of any size (including files > 1 GB) with memory safety.
   Future<List<FileChunk>> uploadFile({
@@ -69,21 +103,24 @@ class ChunkingEngine {
         final chunkHash = HashUtils.sha256Hex(combinedBytes);
         final partFileName = '${nodeId}_part$chunkIndex.enc';
 
-        // 3. Upload encrypted chunk to Telegram channel with streaming progress
-        final remoteChunk = await _storageBackend.uploadChunk(
-          channelId: channelId,
-          chunkData: combinedBytes,
-          partFileName: partFileName,
-          onProgress: (chunkBytes, chunkTotal) {
-            if (onProgress != null && chunkTotal > 0) {
-              final subChunk = bytesProcessed + (chunkBytes * currentChunkSize ~/ chunkTotal);
-              onProgress(
-                subChunk.clamp(0, fileSize),
-                fileSize,
-                (subChunk / fileSize).clamp(0.0, 1.0),
-              );
-            }
-          },
+        // 3. Upload encrypted chunk to Telegram channel with streaming progress and resilience
+        final remoteChunk = await _retryWithBackoff(
+          () => _storageBackend.uploadChunk(
+            channelId: channelId,
+            chunkData: combinedBytes,
+            partFileName: partFileName,
+            onProgress: (chunkBytes, chunkTotal) {
+              if (onProgress != null && chunkTotal > 0) {
+                final subChunk = bytesProcessed + (chunkBytes * currentChunkSize ~/ chunkTotal);
+                onProgress(
+                  subChunk.clamp(0, fileSize),
+                  fileSize,
+                  (subChunk / fileSize).clamp(0.0, 1.0),
+                );
+              }
+            },
+          ),
+          debugLabel: 'upload-$partFileName',
         );
 
         // 4. Record chunk metadata
@@ -139,10 +176,13 @@ class ChunkingEngine {
 
     try {
       for (final chunk in sortedChunks) {
-        // 1. Download ciphertext chunk
-        final cipherBytes = await _storageBackend.downloadChunk(
-          channelId: channelId,
-          remoteFileId: chunk.remoteFileId,
+        // 1. Download ciphertext chunk with resilient retry
+        final cipherBytes = await _retryWithBackoff(
+          () => _storageBackend.downloadChunk(
+            channelId: channelId,
+            remoteFileId: chunk.remoteFileId,
+          ),
+          debugLabel: 'download-chunk-${chunk.chunkIndex}',
         );
 
         // 2. Validate ciphertext integrity hash
@@ -178,15 +218,29 @@ class ChunkingEngine {
   }
 
   /// Decrypts a single chunk in-memory (useful for on-demand media streaming).
+  /// BUG 4 FIX: Integrity check added before decryption.
   Future<Uint8List> downloadAndDecryptSingleChunk({
     required FileChunk chunk,
     required Uint8List masterKey,
     required String channelId,
   }) async {
-    final cipherBytes = await _storageBackend.downloadChunk(
-      channelId: channelId,
-      remoteFileId: chunk.remoteFileId,
+    final cipherBytes = await _retryWithBackoff(
+      () => _storageBackend.downloadChunk(
+        channelId: channelId,
+        remoteFileId: chunk.remoteFileId,
+      ),
+      debugLabel: 'download-single-chunk-${chunk.chunkIndex}',
     );
+
+    // BUG 4 FIX: Validate ciphertext integrity before decrypting
+    final downloadedHash = HashUtils.sha256Hex(cipherBytes);
+    if (downloadedHash != chunk.sha256Hash) {
+      throw Exception(
+        'Chunk integrity check failed for part ${chunk.chunkIndex}. '
+        'Expected ${chunk.sha256Hash}, got $downloadedHash. '
+        'Data may be corrupted or tampered.',
+      );
+    }
 
     return CryptoEngine.decryptBytes(
       combinedBytes: cipherBytes,

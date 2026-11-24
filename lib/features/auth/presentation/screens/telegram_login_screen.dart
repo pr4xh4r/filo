@@ -6,6 +6,7 @@ import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../storage/domain/storage_models.dart';
@@ -767,8 +768,8 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
             borderRadius: BorderRadius.circular(24),
             padding: const EdgeInsets.all(16),
             child: Image.asset(
-              'assets/illustrations/security_ethereal_lineart.png',
-              height: 140,
+              FiloIllustrations.security,
+              height: 180,
               fit: BoxFit.contain,
             ),
           ),

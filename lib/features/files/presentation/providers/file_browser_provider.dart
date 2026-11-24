@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:filo/core/database/node_model.dart';
 import 'package:filo/features/auth/presentation/providers/auth_provider.dart';
 import 'package:filo/features/files/data/file_repository.dart';
+import 'package:filo/features/sync/domain/index_sync_service.dart';
 
 final fileRepositoryProvider = Provider<FileRepository>((ref) {
   final db = ref.watch(databaseProvider);
@@ -64,11 +65,22 @@ class FileBrowserState {
 
 class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
   final FileRepository _repository;
+  final Ref _ref;
 
-  FileBrowserNotifier({required FileRepository repository})
-      : _repository = repository,
+  FileBrowserNotifier({
+    required FileRepository repository,
+    required Ref ref,
+  })  : _repository = repository,
+        _ref = ref,
         super(const FileBrowserState(isLoading: true)) {
     loadCurrentFolder();
+  }
+
+  void _triggerAutoSync() {
+    final masterKey = _ref.read(authNotifierProvider).masterKey;
+    if (masterKey != null) {
+      _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: masterKey);
+    }
   }
 
   Future<void> loadCurrentFolder() async {
@@ -159,39 +171,53 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
       parentId: state.currentFolderId,
     );
     await loadCurrentFolder();
+    _triggerAutoSync();
   }
 
   Future<void> renameNode(String id, String newName) async {
     await _repository.renameNode(id, newName);
     await loadCurrentFolder();
+    _triggerAutoSync();
   }
 
   Future<void> moveNode(String id, String? targetFolderId) async {
     await _repository.moveNode(id, targetFolderId);
     await loadCurrentFolder();
+    _triggerAutoSync();
   }
 
   Future<void> toggleFavorite(String id, bool isFav) async {
     await _repository.toggleFavorite(id, isFav);
     await loadCurrentFolder();
+    _triggerAutoSync();
   }
 
   Future<void> moveToTrash(String id) async {
     await _repository.moveToTrash(id);
     await loadCurrentFolder();
+    _triggerAutoSync();
   }
 
   Future<void> deleteSelected() async {
-    for (final id in state.selectedIds) {
-      await _repository.moveToTrash(id);
-    }
+    // BUG 11 FIX: Batch delete in a single database transaction
+    final ids = state.selectedIds.toList();
+    await _repository.trashNodes(ids);
     clearSelection();
     await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  /// Manually triggers immediate cloud backup
+  Future<void> syncNow() async {
+    final masterKey = _ref.read(authNotifierProvider).masterKey;
+    if (masterKey != null) {
+      await _ref.read(indexSyncServiceProvider).backupIndexToCloud(masterKey: masterKey);
+    }
   }
 }
 
 final fileBrowserProvider =
     StateNotifierProvider<FileBrowserNotifier, FileBrowserState>((ref) {
   final repo = ref.watch(fileRepositoryProvider);
-  return FileBrowserNotifier(repository: repo);
+  return FileBrowserNotifier(repository: repo, ref: ref);
 });

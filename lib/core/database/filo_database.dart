@@ -136,6 +136,11 @@ class FiloDatabase {
   }
 
   void _createTables() {
+    _db.execute('PRAGMA foreign_keys = OFF;');
+    _db.execute('PRAGMA journal_mode = WAL;');
+    _db.execute('PRAGMA synchronous = NORMAL;');
+    _db.execute('PRAGMA temp_store = MEMORY;');
+    _db.execute('PRAGMA cache_size = -64000;'); // 64MB RAM page cache for 120fps scrolling
     _db.execute('''
       CREATE TABLE IF NOT EXISTS nodes (
         id TEXT PRIMARY KEY,
@@ -158,6 +163,9 @@ class FiloDatabase {
       CREATE INDEX IF NOT EXISTS idx_nodes_trashed ON nodes (is_trashed);
       CREATE INDEX IF NOT EXISTS idx_nodes_favorite ON nodes (is_favorite);
       CREATE INDEX IF NOT EXISTS idx_nodes_hash ON nodes (content_hash);
+      CREATE INDEX IF NOT EXISTS idx_nodes_parent_trashed ON nodes (parent_id, is_trashed);
+      CREATE INDEX IF NOT EXISTS idx_nodes_type_name ON nodes (type DESC, name COLLATE NOCASE ASC);
+      CREATE INDEX IF NOT EXISTS idx_nodes_search ON nodes (name COLLATE NOCASE);
 
       CREATE TABLE IF NOT EXISTS chunks (
         id TEXT PRIMARY KEY,
@@ -172,6 +180,7 @@ class FiloDatabase {
       );
 
       CREATE INDEX IF NOT EXISTS idx_chunks_node ON chunks (node_id);
+      CREATE INDEX IF NOT EXISTS idx_chunks_node_index ON chunks (node_id, chunk_index);
 
       CREATE TABLE IF NOT EXISTS transfer_tasks (
         id TEXT PRIMARY KEY,
@@ -223,6 +232,13 @@ class FiloDatabase {
     final ResultSet result = _db.select('SELECT * FROM nodes WHERE id = ?', [id]);
     if (result.isEmpty) return null;
     return _rowToNode(result.first);
+  }
+
+  /// Total number of stored filesystem nodes (used for auto-restore checks).
+  Future<int> getNodeCount() async {
+    final ResultSet result = _db.select('SELECT COUNT(*) as count FROM nodes');
+    if (result.isEmpty) return 0;
+    return result.first['count'] as int;
   }
 
   Future<FileNode?> findByHash(String contentHash) async {
@@ -291,7 +307,47 @@ class FiloDatabase {
   }
 
   Future<void> updateNode(FileNode node) async {
-    await insertNode(node);
+    // BUG 13 & 28 FIX: Use explicit UPDATE instead of INSERT OR REPLACE
+    // to avoid deleting the node and cascading deletion of chunks.
+    final stmt = _db.prepare('''
+      UPDATE nodes SET
+        parent_id = ?,
+        name = ?,
+        type = ?,
+        size_bytes = ?,
+        mime_type = ?,
+        content_hash = ?,
+        created_at = ?,
+        modified_at = ?,
+        is_favorite = ?,
+        is_trashed = ?,
+        trashed_at = ?,
+        sync_state = ?
+      WHERE id = ?
+    ''');
+    stmt.execute([
+      node.parentId,
+      node.name,
+      node.type.name,
+      node.sizeBytes,
+      node.mimeType,
+      node.contentHash,
+      node.createdAt.millisecondsSinceEpoch,
+      node.modifiedAt.millisecondsSinceEpoch,
+      node.isFavorite ? 1 : 0,
+      node.isTrashed ? 1 : 0,
+      node.trashedAt?.millisecondsSinceEpoch,
+      node.syncState.name,
+      node.id,
+    ]);
+    stmt.dispose();
+  }
+
+  Future<void> updateNodeHash(String id, String contentHash) async {
+    _db.execute(
+      'UPDATE nodes SET content_hash = ?, modified_at = ? WHERE id = ?',
+      [contentHash, DateTime.now().millisecondsSinceEpoch, id],
+    );
   }
 
   Future<void> renameNode(String id, String newName) async {
@@ -322,6 +378,25 @@ class FiloDatabase {
     );
   }
 
+  Future<void> trashNodes(List<String> ids) async {
+    if (ids.isEmpty) return;
+    _db.execute('BEGIN TRANSACTION');
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final stmt = _db.prepare(
+        'UPDATE nodes SET is_trashed = 1, trashed_at = ? WHERE id = ?',
+      );
+      for (final id in ids) {
+        stmt.execute([now, id]);
+      }
+      stmt.dispose();
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
   Future<void> restoreNode(String id) async {
     _db.execute(
       'UPDATE nodes SET is_trashed = 0, trashed_at = NULL WHERE id = ?',
@@ -335,17 +410,25 @@ class FiloDatabase {
   }
 
   Future<void> emptyTrash() async {
-    final trashed = await listTrashedNodes();
-    for (final node in trashed) {
-      await deleteNodePermanently(node.id);
+    // BUG 12 FIX: Execute emptyTrash in an atomic transaction
+    _db.execute('BEGIN TRANSACTION');
+    try {
+      _db.execute('DELETE FROM chunks WHERE node_id IN (SELECT id FROM nodes WHERE is_trashed = 1)');
+      _db.execute('DELETE FROM nodes WHERE is_trashed = 1');
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
     }
   }
 
   Future<List<FileNode>> getBreadcrumbs(String nodeId) async {
     final trail = <FileNode>[];
+    final seen = <String>{};
     String? currentId = nodeId;
 
-    while (currentId != null) {
+    // BUG 21 FIX: Guard against circular parent references with 'seen' set
+    while (currentId != null && seen.add(currentId)) {
       final node = await getNode(currentId);
       if (node == null) break;
       trail.insert(0, node);
@@ -359,27 +442,35 @@ class FiloDatabase {
   // Chunk Operations
   // -------------------------------------------------------------
 
-  Future<void> insertChunks(List<FileChunk> chunks) async {
-    final stmt = _db.prepare('''
-      INSERT OR REPLACE INTO chunks (
-        id, node_id, chunk_index, remote_message_id, remote_file_id,
-        size_bytes, sha256_hash, iv_hex
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''');
+  Future<void> insertChunks(List<FileChunk> chunks, {bool inTransaction = false}) async {
+    if (chunks.isEmpty) return;
+    if (!inTransaction) _db.execute('BEGIN TRANSACTION');
+    try {
+      final stmt = _db.prepare('''
+        INSERT OR REPLACE INTO chunks (
+          id, node_id, chunk_index, remote_message_id, remote_file_id,
+          size_bytes, sha256_hash, iv_hex
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ''');
 
-    for (final chunk in chunks) {
-      stmt.execute([
-        chunk.id,
-        chunk.nodeId,
-        chunk.chunkIndex,
-        chunk.remoteMessageId,
-        chunk.remoteFileId,
-        chunk.sizeBytes,
-        chunk.sha256Hash,
-        chunk.ivHex,
-      ]);
+      for (final chunk in chunks) {
+        stmt.execute([
+          chunk.id,
+          chunk.nodeId,
+          chunk.chunkIndex,
+          chunk.remoteMessageId,
+          chunk.remoteFileId,
+          chunk.sizeBytes,
+          chunk.sha256Hash,
+          chunk.ivHex,
+        ]);
+      }
+      stmt.dispose();
+      if (!inTransaction) _db.execute('COMMIT');
+    } catch (_) {
+      if (!inTransaction) _db.execute('ROLLBACK');
+      rethrow;
     }
-    stmt.dispose();
   }
 
   Future<List<FileChunk>> getChunksForNode(String nodeId) async {
@@ -556,34 +647,42 @@ class FiloDatabase {
   }
 
   /// Restores the entire virtual index from a decrypted snapshot JSON string.
+  /// BUG 10 FIX: Execute entire restore in a transaction to prevent data loss on error.
   Future<void> restoreFromSnapshotJson(String jsonStr) async {
     final Map<String, dynamic> data = json.decode(jsonStr) as Map<String, dynamic>;
     final nodesRaw = data['nodes'] as List<dynamic>? ?? [];
     final chunksRaw = data['chunks'] as List<dynamic>? ?? [];
 
-    _db.execute('DELETE FROM chunks');
-    _db.execute('DELETE FROM nodes');
+    _db.execute('BEGIN TRANSACTION');
+    try {
+      _db.execute('DELETE FROM chunks');
+      _db.execute('DELETE FROM nodes');
 
-    for (final item in nodesRaw) {
-      final node = FileNode.fromJson(item as Map<String, dynamic>);
-      await insertNode(node);
+      for (final item in nodesRaw) {
+        final node = FileNode.fromJson(item as Map<String, dynamic>);
+        await insertNode(node);
+      }
+
+      final chunks = chunksRaw.map((c) {
+        final m = c as Map<String, dynamic>;
+        return FileChunk(
+          id: m['id'] as String,
+          nodeId: m['nodeId'] as String,
+          chunkIndex: (m['chunkIndex'] as num).toInt(),
+          remoteMessageId: m['remoteMessageId'] as String,
+          remoteFileId: m['remoteFileId'] as String,
+          sizeBytes: (m['sizeBytes'] as num).toInt(),
+          sha256Hash: m['sha256Hash'] as String,
+          ivHex: m['ivHex'] as String,
+        );
+      }).toList();
+
+      await insertChunks(chunks, inTransaction: true);
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
     }
-
-    final chunks = chunksRaw.map((c) {
-      final m = c as Map<String, dynamic>;
-      return FileChunk(
-        id: m['id'] as String,
-        nodeId: m['nodeId'] as String,
-        chunkIndex: (m['chunkIndex'] as num).toInt(),
-        remoteMessageId: m['remoteMessageId'] as String,
-        remoteFileId: m['remoteFileId'] as String,
-        sizeBytes: (m['sizeBytes'] as num).toInt(),
-        sha256Hash: m['sha256Hash'] as String,
-        ivHex: m['ivHex'] as String,
-      );
-    }).toList();
-
-    await insertChunks(chunks);
   }
 
   /// Wipes all tables locally.
