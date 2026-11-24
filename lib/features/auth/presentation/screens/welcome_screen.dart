@@ -109,63 +109,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Top Bar: Minimal Status Pill
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        FiloGlass(
-                          borderRadius: BorderRadius.circular(100),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: const BoxDecoration(
-                                  color: FiloColors.accentCoral,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'private vault',
-                                style: FiloTypography.caption.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.3,
-                                  color: FiloColors.lightTextPrimary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(100),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 1),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.shield_outlined, size: 13, color: FiloColors.primary),
-                              SizedBox(width: 5),
-                              Text(
-                                'end-to-end safe',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: FiloColors.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
                     const Spacer(flex: 1),
 
                     // Flagship Editorial Illustration with Ethereal Dawn Ambient Halo

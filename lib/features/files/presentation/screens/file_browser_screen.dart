@@ -212,14 +212,14 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'New Workspace',
+                    'New Space',
                     style: FiloTypography.title3.copyWith(
                       color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Create an isolated vault space with dedicated encryption tags.',
+                    'Create an isolated space with dedicated encryption tags.',
                     style: TextStyle(
                       fontSize: 12,
                       color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
@@ -442,7 +442,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Move to Workspace',
+                    'Move to Space',
                     style: FiloTypography.title3.copyWith(
                       color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                     ),
