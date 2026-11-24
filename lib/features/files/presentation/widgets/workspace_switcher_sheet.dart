@@ -97,9 +97,11 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'workspaces',
-                      style: FiloTypography.editorial(
-                        fontSize: 26,
+                      'Spaces',
+                      style: FiloTypography.title1.copyWith(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.6,
                         color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                       ),
                     ),
@@ -112,8 +114,9 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                         borderRadius: BorderRadius.circular(100),
                       ),
                       child: Text(
-                        'isolated spaces',
+                        'Separate Spaces',
                         style: TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
@@ -197,6 +200,7 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                                       Text(
                                         workspace.name,
                                         style: TextStyle(
+                                          fontFamily: FiloTypography.fontFamily,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w700,
                                           color: isDark ? Colors.white : FiloColors.lightTextPrimary,
@@ -213,6 +217,7 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                                           child: Text(
                                             'ACTIVE',
                                             style: TextStyle(
+                                              fontFamily: FiloTypography.fontFamily,
                                               fontSize: 9.5,
                                               fontWeight: FontWeight.w800,
                                               letterSpacing: 0.4,
@@ -227,6 +232,7 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                                   Text(
                                     workspace.description,
                                     style: TextStyle(
+                                      fontFamily: FiloTypography.fontFamily,
                                       fontSize: 12.5,
                                       color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                                     ),
@@ -281,8 +287,9 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'Create New Workspace',
+                          'Create New Space',
                           style: TextStyle(
+                            fontFamily: FiloTypography.fontFamily,
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: isDark ? Colors.white70 : FiloColors.lightTextPrimary,

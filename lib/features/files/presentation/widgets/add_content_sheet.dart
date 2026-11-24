@@ -88,9 +88,11 @@ class AddContentSheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
-                  'add to filo',
-                  style: FiloTypography.editorial(
-                    fontSize: 26,
+                  'Add to Filo',
+                  style: FiloTypography.title1.copyWith(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
                     color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                   ),
                 ),
@@ -99,9 +101,10 @@ class AddContentSheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
-                  'all files are encrypted directly on your device before saving',
+                  'All files are encrypted directly on your device before saving',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontFamily: FiloTypography.fontFamily,
+                    fontSize: 12.5,
                     color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                   ),
                 ),
@@ -146,7 +149,7 @@ class AddContentSheet extends StatelessWidget {
                 context: context,
                 icon: Icons.camera_alt_outlined,
                 title: 'Take Photo / Scan',
-                subtitle: 'Capture directly into your private vault',
+                subtitle: 'Capture directly into your space',
                 onTap: () => onActionSelected(AddContentAction.takePhoto),
                 isDark: isDark,
               ),
@@ -211,6 +214,7 @@ class AddContentSheet extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white : FiloColors.lightTextPrimary,
@@ -220,6 +224,7 @@ class AddContentSheet extends StatelessWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
                         fontSize: 12,
                         color: isDark
                             ? FiloColors.darkTextTertiary

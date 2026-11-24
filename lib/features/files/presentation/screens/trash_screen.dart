@@ -5,6 +5,7 @@ import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
+import '../../../../core/theme/filo_typography.dart';
 import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
@@ -146,8 +147,9 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                               ),
                               const SizedBox(height: FiloSpacing.lg),
                               Text(
-                                'trash is empty',
+                                'Trash is Empty',
                                 style: TextStyle(
+                                  fontFamily: FiloTypography.fontFamily,
                                   fontSize: 22,
                                   fontWeight: FontWeight.w700,
                                   color: Theme.of(context).brightness == Brightness.dark
@@ -157,8 +159,9 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'items moved to trash will appear here',
+                                'Items moved to trash will appear here',
                                 style: TextStyle(
+                                  fontFamily: FiloTypography.fontFamily,
                                   fontSize: 13,
                                   color: Theme.of(context).brightness == Brightness.dark
                                       ? FiloColors.darkTextSecondary

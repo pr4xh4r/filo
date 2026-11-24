@@ -6,7 +6,6 @@ import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
 import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_background.dart';
-import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/handwriting_text.dart';
 import 'telegram_login_screen.dart';
 
@@ -124,7 +123,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                     // Captivating Animated Handwriting
                     HandwritingText(
-                      text: 'welcome to filo',
+                      text: 'Welcome to Filo',
                       duration: const Duration(milliseconds: 1400),
                       style: FiloTypography.handwriting(
                         fontSize: 40,
@@ -139,7 +138,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                     // Clear, Human Value Proposition
                     Text(
-                      'unlimited private storage for all your files,\nphotos, and documents — beautifully organized.',
+                      'Unlimited private storage for all your files,\nphotos, and documents — beautifully organized.',
                       style: FiloTypography.body.copyWith(
                         fontSize: 16,
                         height: 1.45,
@@ -183,7 +182,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'get started',
+                                'Get Started',
                                 style: FiloTypography.callout.copyWith(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,

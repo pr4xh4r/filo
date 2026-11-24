@@ -1,32 +1,30 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/filo_colors.dart';
-import '../../../core/theme/filo_radius.dart';
-import '../../../core/theme/filo_spacing.dart';
 import '../../../core/theme/filo_typography.dart';
-import 'filo_glass.dart';
 import 'filo_toast.dart';
 
-/// Lightweight, zero-dependency visual QR code renderer and pairing card.
-///
-/// Designed with CRED / iOS 18 glass styling:
-/// - Pure Dart QR matrix rasterization (no heavy C++ or binary dependencies).
-/// - 120fps hardware-accelerated CustomPainter with rounded squircle modules.
-/// - One-tap copy and system share options for cross-device vault migration.
+/// Clean frosted glass modal bottom sheet for cross-device QR code pairing.
+/// Features high-contrast square modules and 3 distinct action blocks:
+/// [Copy], [Scan], and [Pair].
 class FiloQrCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String data;
   final double size;
+  final VoidCallback? onScanPressed;
+  final VoidCallback? onPairPressed;
 
   const FiloQrCard({
     super.key,
     required this.title,
     required this.subtitle,
     required this.data,
-    this.size = 220,
+    this.size = 200,
+    this.onScanPressed,
+    this.onPairPressed,
   });
 
   @override
@@ -34,127 +32,221 @@ class FiloQrCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final matrix = _generateQrMatrix(data);
 
-    return FiloGlass(
-      borderRadius: FiloRadius.roundedXl,
-      padding: const EdgeInsets.all(FiloSpacing.lg),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            style: FiloTypography.title3.copyWith(
-              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-              fontWeight: FontWeight.w700,
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF161622).withValues(alpha: 0.94)
+                : const Color(0xFFFFFBF9).withValues(alpha: 0.96),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.8),
+                width: 1.5,
+              ),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+                blurRadius: 30,
+                offset: const Offset(0, -10),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: FiloTypography.caption.copyWith(
-              color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: FiloSpacing.lg),
-
-          // High-contrast QR canvas with rounded module squircle dots
-          Container(
-            width: size,
-            height: size,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: CustomPaint(
-              size: Size(size - 28, size - 28),
-              painter: _QrCustomPainter(matrix: matrix),
-            ),
-          ),
-
-          const SizedBox(height: FiloSpacing.lg),
-
-          Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: FiloRadius.roundedLg,
-                    ),
-                    side: BorderSide(
-                      color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: data));
-                    HapticFeedback.lightImpact();
-                    FiloToast.show(context, message: 'Vault key token copied', type: FiloToastType.success);
-                  },
-                  icon: Icon(
-                    Icons.copy_rounded,
-                    size: 16,
-                    color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                  ),
-                  label: Text(
-                    'copy token',
-                    style: FiloTypography.caption.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                    ),
+              // Grab handle
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : Colors.black.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    Share.share(
-                      data,
-                      subject: 'Filo Encrypted Vault Pairing Token',
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: FiloColors.brandGradient,
+
+              // Title Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  title,
+                  style: FiloTypography.title1.copyWith(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontFamily: FiloTypography.fontFamily,
+                    fontSize: 13,
+                    color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // High-contrast clean QR Code container
+              Center(
+                child: Container(
+                  width: size,
+                  height: size,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
                       ),
-                      borderRadius: FiloRadius.roundedLg,
-                    ),
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.share_rounded, size: 16, color: Colors.white),
-                          const SizedBox(width: 6),
-                          Text(
-                            'share',
-                            style: FiloTypography.caption.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
+                    ],
+                  ),
+                  child: CustomPaint(
+                    size: Size(size - 28, size - 28),
+                    painter: _QrCustomPainter(matrix: matrix),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Exactly 3 action blocks: Copy, Scan, Pair
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildActionBlock(
+                      context: context,
+                      icon: Icons.copy_rounded,
+                      label: 'Copy',
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: data));
+                        HapticFeedback.lightImpact();
+                        FiloToast.show(
+                          context,
+                          message: 'Pairing token copied',
+                          type: FiloToastType.success,
+                        );
+                      },
+                      isDark: isDark,
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildActionBlock(
+                      context: context,
+                      icon: Icons.qr_code_scanner_rounded,
+                      label: 'Scan',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        if (onScanPressed != null) onScanPressed!();
+                      },
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildActionBlock(
+                      context: context,
+                      icon: Icons.devices_rounded,
+                      label: 'Pair',
+                      isPrimary: true,
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        if (onPairPressed != null) {
+                          onPairPressed!();
+                        } else if (onScanPressed != null) {
+                          onScanPressed!();
+                        }
+                      },
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionBlock({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    required bool isDark,
+    bool isPrimary = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: isPrimary
+                ? FiloColors.primary
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.04)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isPrimary
+                  ? FiloColors.primary
+                  : (isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: 0.08)),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isPrimary
+                    ? Colors.white
+                    : (isDark ? Colors.white : FiloColors.lightTextPrimary),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: FiloTypography.fontFamily,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: isPrimary
+                      ? Colors.white
+                      : (isDark ? Colors.white : FiloColors.lightTextPrimary),
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -259,7 +351,7 @@ class _QrCustomPainter extends CustomPainter {
     final moduleWidth = size.width / dimension;
     final moduleHeight = size.height / dimension;
     final paint = Paint()
-      ..color = const Color(0xFF1C1C1E)
+      ..color = const Color(0xFF0F172A)
       ..isAntiAlias = true
       ..style = PaintingStyle.fill;
 
@@ -272,11 +364,8 @@ class _QrCustomPainter extends CustomPainter {
             moduleWidth,
             moduleHeight,
           );
-          // Draw subtle rounded squircle dot
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(rect, Radius.circular(moduleWidth * 0.28)),
-            paint,
-          );
+          // Clean standard crisp square modules
+          canvas.drawRect(rect, paint);
         }
       }
     }

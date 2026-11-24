@@ -236,7 +236,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                           });
                         },
                         child: Text(
-                          'use bot api',
+                          'Use Bot API',
                           style: FiloTypography.caption.copyWith(
                             color: isDark ? FiloColors.accentOrchid : FiloColors.primary,
                             fontWeight: FontWeight.w600,
@@ -284,7 +284,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'connect telegram',
+          'Connect Telegram',
           style: FiloTypography.editorial(
             fontSize: 36,
             fontWeight: FontWeight.w600,
@@ -295,8 +295,8 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         const SizedBox(height: 4),
         Text(
           _isQrMode
-              ? 'scan the code with your telegram mobile app'
-              : 'we will send a quick code to your telegram app',
+              ? 'Scan the code with your Telegram mobile app'
+              : 'We will send a quick code to your Telegram app',
           style: FiloTypography.body.copyWith(
             color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
             height: 1.4,
@@ -351,7 +351,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'phone number',
+                            'Phone Number',
                             style: FiloTypography.callout.copyWith(
                               fontWeight: !_isQrMode ? FontWeight.w700 : FontWeight.w500,
                               color: !_isQrMode
@@ -403,7 +403,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'qr code',
+                            'QR Code',
                             style: FiloTypography.callout.copyWith(
                               fontWeight: _isQrMode ? FontWeight.w700 : FontWeight.w500,
                               color: _isQrMode
@@ -492,7 +492,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
 
           // Action Button
           _buildActionButton(
-            label: 'continue',
+            label: 'Continue',
             isLoading: _isLoading,
             onPressed: _handleSendPhone,
             isDark: isDark,
@@ -572,7 +572,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'open telegram on your phone',
+                    'Open Telegram on your phone',
                     style: FiloTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w700,
                       color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
@@ -580,7 +580,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'settings > devices > link desktop device',
+                    'Settings > Devices > Link Desktop Device',
                     textAlign: TextAlign.center,
                     style: FiloTypography.caption.copyWith(
                       color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
@@ -597,7 +597,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                         borderRadius: BorderRadius.circular(100),
                       ),
                       child: Text(
-                        'tap to link instantly',
+                        'Tap to link instantly',
                         style: FiloTypography.caption.copyWith(
                           color: isDark ? FiloColors.accentOrchid : FiloColors.primary,
                           fontWeight: FontWeight.w700,
@@ -620,7 +620,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'verify code',
+          'Verify Code',
           style: FiloTypography.editorial(
             fontSize: 36,
             fontWeight: FontWeight.w600,
@@ -630,7 +630,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'enter the code sent to your telegram app',
+          'Enter the code sent to your Telegram app',
           style: FiloTypography.body.copyWith(
             color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
           ),
@@ -665,7 +665,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'change',
+                  'Change',
                   style: FiloTypography.caption.copyWith(
                     color: FiloColors.primary,
                     fontWeight: FontWeight.w700,
@@ -706,7 +706,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
                 LengthLimitingTextInputFormatter(6),
               ],
               decoration: InputDecoration(
-                hintText: 'enter code',
+                hintText: 'Enter code',
                 hintStyle: FiloTypography.title3.copyWith(
                   letterSpacing: 2,
                   color: isDark
@@ -735,7 +735,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         const SizedBox(height: FiloSpacing.xxl),
 
         _buildActionButton(
-          label: 'confirm code',
+          label: 'Confirm Code',
           isLoading: _isLoading,
           onPressed: () => _handleSubmitCode(),
           isDark: isDark,
@@ -747,7 +747,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
           child: TextButton(
             onPressed: _isLoading ? null : _handleSendPhone,
             child: Text(
-              'resend code',
+              'Resend Code',
               style: FiloTypography.callout.copyWith(
                 color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
               ),
@@ -776,7 +776,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         ),
         const SizedBox(height: FiloSpacing.lg),
         Text(
-          'cloud password',
+          'Cloud Password',
           style: FiloTypography.editorial(
             fontSize: 36,
             fontWeight: FontWeight.w600,
@@ -786,7 +786,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'your telegram account is protected by two-step verification',
+          'Your Telegram account is protected by two-step verification',
           style: FiloTypography.body.copyWith(
             color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
           ),
@@ -806,7 +806,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
             decoration: InputDecoration(
               filled: false,
               fillColor: Colors.transparent,
-              hintText: 'enter your password',
+              hintText: 'Enter your password',
               hintStyle: FiloTypography.title3.copyWith(
                 color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
               ),
@@ -821,7 +821,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         const SizedBox(height: FiloSpacing.xxl),
 
         _buildActionButton(
-          label: 'unlock account',
+          label: 'Unlock Account',
           isLoading: _isLoading,
           onPressed: _handleSubmitPassword,
           isDark: isDark,
@@ -836,7 +836,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'bot api connect',
+          'Bot API Connect',
           style: FiloTypography.editorial(
             fontSize: 36,
             fontWeight: FontWeight.w600,
@@ -846,7 +846,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'use a free bot from @BotFather to store files in a private channel.',
+          'Use a free bot from @BotFather to store files in a private channel.',
           style: FiloTypography.body.copyWith(
             color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
           ),
@@ -864,7 +864,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
             decoration: InputDecoration(
               filled: false,
               fillColor: Colors.transparent,
-              hintText: 'bot token (e.g. 12345:ABC-DEF...)',
+              hintText: 'Bot token (e.g. 12345:ABC-DEF...)',
               hintStyle: FiloTypography.bodyMedium.copyWith(
                 color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
               ),
@@ -886,7 +886,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
             decoration: InputDecoration(
               filled: false,
               fillColor: Colors.transparent,
-              hintText: 'channel or chat id',
+              hintText: 'Channel or Chat ID',
               hintStyle: FiloTypography.bodyMedium.copyWith(
                 color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
               ),
@@ -900,7 +900,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         const SizedBox(height: FiloSpacing.xxl),
 
         _buildActionButton(
-          label: 'connect bot',
+          label: 'Connect Bot',
           isLoading: _isLoading,
           onPressed: () {
             FiloToast.show(context, message: 'Bot connected successfully', type: FiloToastType.success);

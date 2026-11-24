@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:filo/core/config/app_config.dart';
 import 'package:filo/core/crypto/crypto_engine.dart';
 import 'package:filo/core/crypto/hash_utils.dart';
@@ -15,6 +16,7 @@ void main() {
     late FakeStorageBackend sharedTelegramCloud;
 
     setUp(() async {
+      FlutterSecureStorage.setMockInitialValues({});
       sharedTelegramCloud = FakeStorageBackend();
       await sharedTelegramCloud.initialize();
       sharedTelegramCloud.setAuthenticated();
@@ -30,7 +32,7 @@ void main() {
 
       const passphrase = 'UltraSecureMasterPassphrase2026!';
       final recoveryKey = await authRepoA.setupNewVault(passphrase: passphrase);
-      expect(recoveryKey.split('-').length, 4);
+      expect(recoveryKey.split('-').length, 8);
 
       final masterKeyA = await authRepoA.unlockWithPassphrase(passphrase);
       expect(masterKeyA.length, 32);
@@ -76,6 +78,7 @@ void main() {
       // -------------------------------------------------------------
       // DEVICE B: Fresh App Installation / Cross-Device Reinstall
       // -------------------------------------------------------------
+      FlutterSecureStorage.setMockInitialValues({});
       final dbB = FiloDatabase.openInMemory();
       final authRepoB = AuthRepository(storageBackend: sharedTelegramCloud);
       final syncServiceB = IndexSyncService(
@@ -194,8 +197,8 @@ void main() {
       var pinned = await sharedTelegramCloud.getPinnedMessage(channelId: channel.channelId);
       expect(pinned, isNull);
 
-      // Wait for debounce duration
-      await Future<void>.delayed(const Duration(milliseconds: 150));
+      // Wait for debounce duration and async backup execution
+      await Future<void>.delayed(const Duration(milliseconds: 600));
 
       // Now it should be pinned
       pinned = await sharedTelegramCloud.getPinnedMessage(channelId: channel.channelId);

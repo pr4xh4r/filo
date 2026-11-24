@@ -8,6 +8,7 @@ import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
 import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_glass.dart';
+import '../../../../shared/components/filo_qr_scanner_screen.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../providers/auth_provider.dart';
 
@@ -116,7 +117,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
       if (found) {
         FiloToast.show(context, message: 'Existing vault detected! Please enter your passphrase.', type: FiloToastType.success);
       } else {
-        FiloToast.show(context, message: 'No existing vault found in Telegram channel "filo".', type: FiloToastType.info);
+        FiloToast.show(context, message: 'No existing backup found in Telegram.', type: FiloToastType.info);
       }
     } catch (e) {
       if (mounted) {
@@ -130,68 +131,77 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
   }
 
   Future<void> _handlePastePairingToken() async {
-    final tokenController = TextEditingController();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scanned = await FiloQrScannerScreen.open(
+      context,
+      title: 'Scan Pairing QR',
+      hint: 'Scan the QR code from your existing device to pair',
+    );
+    if (!mounted || scanned == null) return;
 
-    final token = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? FiloColors.darkSurface : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          'Pair Vault with Token',
-          style: FiloTypography.title3.copyWith(
-            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Paste the pairing token or QR payload exported from your other device:',
-              style: FiloTypography.caption.copyWith(
-                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-              ),
+    String? token = scanned;
+    if (scanned == 'MANUAL_ENTRY') {
+      final tokenController = TextEditingController();
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      token = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: isDark ? FiloColors.darkSurface : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(
+            'Pair Vault with Token',
+            style: FiloTypography.title3.copyWith(
+              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: isDark ? FiloColors.darkSurfaceSecondary : const Color(0xFFF5F5F7),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isDark ? FiloColors.darkBorder : const Color(0xFFE5E5EA),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Paste the pairing token or QR payload exported from your other device:',
+                style: FiloTypography.caption.copyWith(
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                 ),
               ),
-              child: TextField(
-                controller: tokenController,
-                maxLines: 3,
-                style: FiloTypography.monospace.copyWith(fontSize: 12),
-                decoration: const InputDecoration(
-                  hintText: 'filo://vault?bundle=... or JSON bundle',
-                  border: InputBorder.none,
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? FiloColors.darkSurfaceSecondary : const Color(0xFFF5F5F7),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? FiloColors.darkBorder : const Color(0xFFE5E5EA),
+                  ),
+                ),
+                child: TextField(
+                  controller: tokenController,
+                  maxLines: 3,
+                  style: FiloTypography.monospace.copyWith(fontSize: 12),
+                  decoration: const InputDecoration(
+                    hintText: 'Paste pairing code here',
+                    border: InputBorder.none,
+                  ),
                 ),
               ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(tokenController.text.trim()),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: FiloColors.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Import', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(tokenController.text.trim()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: FiloColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Import', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+      );
+    }
 
     if (token == null || token.isEmpty) return;
 
@@ -253,7 +263,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'emergency recovery key',
+                'Emergency Recovery Key',
                 style: FiloTypography.editorial(
                   fontSize: 28,
                   fontWeight: FontWeight.w600,
@@ -263,7 +273,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'save this in a secure place. if you ever forget your vault key, this is the only way to recover your files.',
+                'Save this in a secure place. If you ever forget your vault key, this is the only way to recover your files.',
                 style: FiloTypography.body.copyWith(
                   color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                 ),
@@ -307,7 +317,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                         FiloToast.show(context, message: 'Recovery key copied', type: FiloToastType.success);
                       },
                       child: Text(
-                        'copy key',
+                        'Copy Key',
                         style: FiloTypography.callout.copyWith(
                           fontWeight: FontWeight.w700,
                           color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
@@ -332,7 +342,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                         ),
                         child: Center(
                           child: Text(
-                            'done',
+                            'Done',
                             style: FiloTypography.callout.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -372,7 +382,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                 const SizedBox(height: FiloSpacing.sm),
 
                 Text(
-                  'create vault key',
+                  'Create Vault Key',
                   style: FiloTypography.editorial(
                     fontSize: 36,
                     fontWeight: FontWeight.w600,
@@ -382,7 +392,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'choose a secret key only you know. it protects every file on your phone.',
+                  'Choose a secret key only you know. It protects every file on your phone.',
                   style: FiloTypography.body.copyWith(
                     color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                   ),
@@ -403,7 +413,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                     decoration: InputDecoration(
                       filled: false,
                       fillColor: Colors.transparent,
-                      hintText: 'choose your key (min 8 chars)',
+                      hintText: 'Choose your key (min 8 chars)',
                       hintStyle: FiloTypography.body.copyWith(
                         color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                       ),
@@ -463,7 +473,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                     decoration: InputDecoration(
                       filled: false,
                       fillColor: Colors.transparent,
-                      hintText: 'confirm your key',
+                      hintText: 'Confirm your key',
                       hintStyle: FiloTypography.body.copyWith(
                         color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                       ),
@@ -493,7 +503,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'i understand nobody can recover my files if i lose this key.',
+                          'I understand nobody can recover my files if I lose this key.',
                           style: FiloTypography.caption.copyWith(
                             color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                             height: 1.35,
@@ -542,7 +552,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  'create vault',
+                                  'Create Vault',
                                   style: FiloTypography.title3.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
@@ -572,7 +582,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                       color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                     ),
                     label: Text(
-                      'already have a vault? restore from telegram',
+                      'Already have a vault? Restore from Telegram',
                       style: FiloTypography.caption.copyWith(
                         color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                         fontWeight: FontWeight.w600,
@@ -590,7 +600,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                       color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                     ),
                     label: Text(
-                      'pair with qr code / token from another phone',
+                      'Pair with QR Code / Token from another phone',
                       style: FiloTypography.caption.copyWith(
                         color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                       ),

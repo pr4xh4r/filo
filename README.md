@@ -7,7 +7,7 @@
 
 **Filo** is a production-grade, zero-knowledge mobile cloud storage and file management app for iOS and Android that uses your **own Telegram account** as the storage backend.
 
-Users upload, organize, preview, search, download, and share files. All files live inside the user's private Telegram channel container (`Filo Vault`). We run **zero servers**, store **zero user data**, collect **zero telemetry**, and hold **zero cryptographic keys**.
+Users upload, organize, preview, search, download, and share files. All files live inside the user's private Telegram channel container (`filo`). We run **zero servers**, store **zero user data**, collect **zero telemetry**, and hold **zero cryptographic keys**.
 
 ---
 
@@ -19,6 +19,9 @@ Users upload, organize, preview, search, download, and share files. All files li
 4. **Resumable Large-File Chunking:** Large files exceeding single upload thresholds are automatically chunked with individual cryptographic initialization vectors and HMAC tags, linked via an authenticated file manifest.
 5. **Decrypted Loopback Streaming:** Media playback (audio and video) is streamed on-demand via a 127.0.0.1 local decrypting HTTP proxy, supporting native Range requests and instant seeking without writing unencrypted multi-gigabyte files to disk.
 6. **Native Craft Design:** Follows Apple Design and Emil Kowalski design engineering principles — spring-based physics, 44pt minimum touch targets, haptics on meaningful interactions, and strict compliance with `prefers-reduced-motion`.
+7. **Cloud Snapshot & Re-Install Recovery:** The file catalog and wrapped key bundles are encrypted into a zero-knowledge snapshot envelope (`index.filo`) pinned directly to Telegram channel `filo`. When reinstalling or setting up a new device, Filo automatically discovers your vault and restores all files upon entering your passphrase or recovery key.
+8. **Native Background Resilience:** Native Android Foreground Data Sync Service (`FiloTransferService`) with keep-alive integration prevents OS battery managers from pausing or killing uploads and downloads when minimized.
+9. **Zero-Dependency 120fps QR Vault Pairing:** Effortlessly pair or migrate vaults between devices using a lightweight pure Dart visual QR code generator and pairing tokens.
 
 ---
 

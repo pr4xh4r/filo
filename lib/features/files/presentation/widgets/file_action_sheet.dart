@@ -134,7 +134,7 @@ class FileActionSheet extends StatelessWidget {
           _buildActionTile(
             icon: Icons.workspaces_outline,
             iconColor: FiloColors.primary,
-            title: 'Change Workspace',
+            title: 'Change Space',
             onTap: () {
               Navigator.of(context).pop();
               onChangeWorkspace!();

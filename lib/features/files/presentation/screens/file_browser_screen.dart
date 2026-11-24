@@ -240,7 +240,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                       autofocus: true,
                       style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                       decoration: InputDecoration(
-                        hintText: 'e.g. Clients, Travel, Archive',
+                        hintText: 'E.g. Work, Personal, Archive',
                         hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
@@ -772,7 +772,8 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     final notifier = ref.read(fileBrowserProvider.notifier);
 
     final tasks = ref.watch(transferQueueProvider);
-    final activeTasksCount = tasks.where((t) => t.status == TransferStatus.running).length;
+    final activeTasks = tasks.where((t) => t.status == TransferStatus.running).toList();
+    final activeTasksCount = activeTasks.length;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeWorkspace = Workspace.fromId(state.activeWorkspaceId, state.workspaces);
 
@@ -804,88 +805,79 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             onPressed: _navigateUp,
                           )
                         else
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'filo',
-                                style: FiloTypography.handwriting(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.w700,
+                          // Space Switcher Pill (Properly fitted, flexible, no overflow)
+                          Flexible(
+                            child: GestureDetector(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                WorkspaceSwitcherSheet.show(
+                                  context,
+                                  activeWorkspaceId: state.activeWorkspaceId,
+                                  workspaces: state.workspaces,
+                                  onWorkspaceSelected: (wsId) {
+                                    notifier.setActiveWorkspace(wsId);
+                                  },
+                                  onAddWorkspace: () {
+                                    _showCreateWorkspaceDialog();
+                                  },
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7.5),
+                                decoration: BoxDecoration(
                                   color: isDark
-                                      ? Colors.white
-                                      : FiloColors.lightTextPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              // Workspace Switcher Pill
-                              GestureDetector(
-                                onTap: () {
-                                  HapticFeedback.lightImpact();
-                                  WorkspaceSwitcherSheet.show(
-                                    context,
-                                    activeWorkspaceId: state.activeWorkspaceId,
-                                    workspaces: state.workspaces,
-                                    onWorkspaceSelected: (wsId) {
-                                      notifier.setActiveWorkspace(wsId);
-                                    },
-                                    onAddWorkspace: () {
-                                      _showCreateWorkspaceDialog();
-                                    },
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
+                                      ? Colors.white.withValues(alpha: 0.08)
+                                      : Colors.white.withValues(alpha: 0.85),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(
                                     color: isDark
-                                        ? Colors.white.withValues(alpha: 0.08)
-                                        : Colors.white.withValues(alpha: 0.75),
-                                    borderRadius: BorderRadius.circular(100),
-                                    border: Border.all(
-                                      color: isDark
-                                          ? Colors.white.withValues(alpha: 0.12)
-                                          : Colors.black.withValues(alpha: 0.07),
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
+                                        ? Colors.white.withValues(alpha: 0.15)
+                                        : Colors.black.withValues(alpha: 0.08),
+                                    width: 1.2,
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        activeWorkspace.icon,
-                                        size: 13,
-                                        color: isDark ? Colors.white70 : FiloColors.lightTextPrimary,
-                                      ),
-                                      const SizedBox(width: 5),
-                                      Text(
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      activeWorkspace.icon,
+                                      size: 16,
+                                      color: isDark ? Colors.white : FiloColors.primary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
                                         activeWorkspace.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          fontSize: 11.5,
-                                          fontWeight: FontWeight.w600,
+                                          fontFamily: FiloTypography.fontFamily,
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
                                           color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                                           letterSpacing: -0.2,
                                         ),
                                       ),
-                                      const SizedBox(width: 3),
-                                      Icon(
-                                        Icons.keyboard_arrow_down_rounded,
-                                        size: 14,
-                                        color: isDark ? Colors.white38 : Colors.black38,
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      size: 16,
+                                      color: isDark ? Colors.white70 : Colors.black45,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
+                            ),
                           ),
+                        const SizedBox(width: 8),
                         Row(
                           children: [
                             _buildHeaderIconButton(
@@ -895,7 +887,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                 try {
                                   await notifier.syncNow();
                                   if (mounted) {
-                                    FiloToast.show(context, message: 'Snapshot synced & pinned to Telegram', type: FiloToastType.success);
+                                    FiloToast.show(context, message: 'All files synced with Telegram', type: FiloToastType.success);
                                   }
                                 } catch (e) {
                                   if (mounted) {
@@ -904,7 +896,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                 }
                               },
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             _buildHeaderIconButton(
                               icon: _isSearchActive ? Icons.close_rounded : Icons.search_rounded,
                               onTap: () {
@@ -917,13 +909,13 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                 });
                               },
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             _buildHeaderIconButton(
                               icon: Icons.notifications_none_rounded,
                               onTap: () => TransferQueueSheet.show(context),
                               badgeCount: activeTasksCount > 0 ? activeTasksCount : null,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             _buildHeaderIconButton(
                               icon: Icons.delete_outline_rounded,
                               onTap: () {
@@ -968,7 +960,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                           decoration: InputDecoration(
                             filled: false,
                             fillColor: Colors.transparent,
-                            hintText: 'search your vault...',
+                            hintText: 'Search files and folders...',
                             hintStyle: FiloTypography.body.copyWith(
                               color: Theme.of(context).brightness == Brightness.dark
                                   ? FiloColors.darkTextTertiary
@@ -1259,6 +1251,15 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               ],
             ),
 
+            // 4. Dynamic Island Active Transfer Pill
+            if (activeTasks.isNotEmpty)
+              Positioned(
+                top: 10,
+                left: 0,
+                right: 0,
+                child: _buildDynamicIsland(activeTasks, isDark),
+              ),
+
             // 5. Full Transparent Liquid Glass Bottom Navbar (Exact 5 Options, Black Filled Icons)
             Positioned(
               left: 20,
@@ -1271,6 +1272,120 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
       ),
     ),
   );
+  }
+
+  // Dynamic Island Floating Transfer Pill
+  Widget _buildDynamicIsland(List<TransferTask> activeTasks, bool isDark) {
+    if (activeTasks.isEmpty) return const SizedBox.shrink();
+
+    final task = activeTasks.first;
+    final totalBytes = activeTasks.fold<int>(0, (sum, t) => sum + t.totalBytes);
+    final transferredBytes = activeTasks.fold<int>(0, (sum, t) => sum + t.transferredBytes);
+    final progress = totalBytes > 0 ? (transferredBytes / totalBytes).clamp(0.0, 1.0) : 0.0;
+    final pct = (progress * 100).toInt();
+
+    return Center(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          TransferQueueSheet.show(context);
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E22).withValues(alpha: 0.95) : Colors.black,
+            borderRadius: BorderRadius.circular(100),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+            border: Border.all(
+              color: Colors.white.withValues(alpha: isDark ? 0.15 : 0.2),
+              width: 0.8,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.arrow_upward_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activeTasks.length == 1
+                          ? task.fileName
+                          : 'Syncing ${activeTasks.length} files',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 60,
+                          height: 3,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              backgroundColor: Colors.white24,
+                              valueColor: const AlwaysStoppedAnimation<Color>(FiloColors.accentCoral),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$pct%',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: Colors.white.withValues(alpha: 0.5),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // Unique Artistic Empty State (Editorial Monoline & Frosted Glass)
@@ -1475,8 +1590,8 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
         clipBehavior: Clip.none,
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
@@ -1493,7 +1608,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             ),
             child: Icon(
               icon,
-              size: 19,
+              size: 18,
               color: FiloColors.lightTextPrimary,
             ),
           ),

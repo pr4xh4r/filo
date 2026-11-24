@@ -46,7 +46,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
         await ref.read(authNotifierProvider.notifier).unlockWithBiometrics();
     if (success && mounted) {
       HapticFeedback.mediumImpact();
-      FiloToast.show(context, message: 'vault unlocked', type: FiloToastType.success);
+      FiloToast.show(context, message: 'Vault Unlocked', type: FiloToastType.success);
     } else if (!success && userInitiated && mounted) {
       HapticFeedback.heavyImpact();
       final err = ref.read(authNotifierProvider).errorMessage;
@@ -60,7 +60,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
     final pwd = _passphraseController.text;
     if (pwd.isEmpty) {
       HapticFeedback.selectionClick();
-      FiloToast.show(context, message: 'enter your vault key', type: FiloToastType.error);
+      FiloToast.show(context, message: 'Please enter your key', type: FiloToastType.error);
       return;
     }
 
@@ -75,7 +75,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
       if (mounted) {
         HapticFeedback.heavyImpact();
         setState(() => _isLoading = false);
-        FiloToast.show(context, message: 'incorrect key', type: FiloToastType.error);
+        FiloToast.show(context, message: 'Incorrect key', type: FiloToastType.error);
       }
     }
   }
@@ -114,7 +114,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                   color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'e.g. A1B2-C3D4-...',
+                  hintText: 'E.g. A1B2-C3D4-...',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
@@ -181,7 +181,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
 
                 // Editorial Title
                 Text(
-                  'vault locked',
+                  'Vault Locked',
                   textAlign: TextAlign.center,
                   style: FiloTypography.editorial(
                     fontSize: 38,
@@ -194,7 +194,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'enter your key to view your files',
+                  'Enter your key to view your files',
                   textAlign: TextAlign.center,
                   style: FiloTypography.body.copyWith(
                     color: isDark
@@ -222,7 +222,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                     decoration: InputDecoration(
                       filled: false,
                       fillColor: Colors.transparent,
-                      hintText: 'enter your key',
+                      hintText: 'Enter your key',
                       hintStyle: FiloTypography.body.copyWith(
                         color: isDark
                             ? FiloColors.darkTextTertiary
@@ -273,7 +273,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                               ),
                             )
                           : Text(
-                              'unlock',
+                              'Unlock',
                               style: FiloTypography.title3.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
@@ -307,7 +307,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'use biometrics',
+                              'Use Biometrics',
                               style: FiloTypography.callout.copyWith(
                                 fontWeight: FontWeight.w700,
                                 color: isDark
@@ -327,7 +327,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                   child: TextButton(
                     onPressed: _showRecoveryKeyDialog,
                     child: Text(
-                      'forgot key? use recovery key',
+                      'Forgot key? Use Recovery Key',
                       style: FiloTypography.caption.copyWith(
                         color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                       ),

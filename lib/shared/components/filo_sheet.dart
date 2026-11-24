@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/filo_colors.dart';
 import '../../core/theme/filo_motion.dart';
 import '../../core/theme/filo_spacing.dart';
+import '../../core/theme/filo_typography.dart';
 
 /// Adaptive, spring-driven bottom sheet modal following Ethereal Dawn frosted glass standards.
 ///
@@ -119,6 +120,7 @@ class FiloSheet extends StatelessWidget {
                             child: Text(
                               title!,
                               style: const TextStyle(
+                                fontFamily: FiloTypography.fontFamily,
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.4,

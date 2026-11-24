@@ -4,6 +4,7 @@ import '../../../../core/crypto/hash_utils.dart';
 import '../../../../core/database/transfer_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
+import '../../../../core/theme/filo_typography.dart';
 import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_progress_ring.dart';
 import '../../../../shared/components/filo_sheet.dart';
@@ -40,8 +41,9 @@ class TransferQueueSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               const Text(
-                'no active transfers',
+                'No Active Transfers',
                 style: TextStyle(
+                  fontFamily: FiloTypography.fontFamily,
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: FiloColors.lightTextPrimary,
@@ -49,8 +51,9 @@ class TransferQueueSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               const Text(
-                'uploads and downloads will stream here in real time',
+                'Uploads and downloads will stream here in real time',
                 style: TextStyle(
+                  fontFamily: FiloTypography.fontFamily,
                   fontSize: 13,
                   color: FiloColors.lightTextSecondary,
                 ),
