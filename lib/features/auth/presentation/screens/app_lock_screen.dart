@@ -107,7 +107,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
 
                 // Editorial Title
                 Text(
-                  'vault locked.',
+                  'vault locked',
                   textAlign: TextAlign.center,
                   style: FiloTypography.editorial(
                     fontSize: 38,
@@ -120,7 +120,7 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'enter your key to view your files.',
+                  'enter your key to view your files',
                   textAlign: TextAlign.center,
                   style: FiloTypography.body.copyWith(
                     color: isDark
@@ -172,16 +172,18 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen> {
                   child: Container(
                     height: 58,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: FiloColors.brandGradient,
-                      ),
+                      color: FiloColors.primary,
                       borderRadius: FiloRadius.roundedXl,
                       boxShadow: [
                         BoxShadow(
-                          color: FiloColors.brandIndigo
-                              .withValues(alpha: isDark ? 0.45 : 0.35),
-                          blurRadius: 24,
+                          color: const Color(0xFFFFD7CA).withValues(alpha: 0.4),
+                          blurRadius: 20,
                           offset: const Offset(0, 8),
+                        ),
+                        BoxShadow(
+                          color: FiloColors.primary.withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),

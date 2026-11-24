@@ -1,11 +1,14 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../core/theme/filo_colors.dart';
 
-/// Distinctive, Apple-grade app logo badge for Filo.
+/// Distinctive, Apple-grade app logo badge for Filo (Ethereal Dawn Frosted Glass Aesthetic).
 ///
 /// Features:
-/// - iOS continuous squircle curvature with multi-stop radial & linear gradients.
-/// - Custom-painted geometric "F" vault emblem with cloud-safe aperture.
-/// - Specular glass highlight reflection & diffused primary drop glow.
+/// - iOS continuous squircle curvature with frosted glass refraction and multi-stop pastel mesh.
+/// - Custom-painted architectural "F" vault emblem in Deep Midnight Ink (#0F172A).
+/// - Luminous coral peach (#FF6B4A) cryptographic eye.
+/// - Specular glass highlight reflection & diffused peach drop glow.
 class FiloLogoBadge extends StatelessWidget {
   final double size;
   final bool showGlow;
@@ -18,7 +21,7 @@ class FiloLogoBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(size * 0.26);
+    final borderRadius = BorderRadius.circular(size * 0.28);
 
     return RepaintBoundary(
       child: Container(
@@ -29,73 +32,82 @@ class FiloLogoBadge extends StatelessWidget {
           boxShadow: showGlow
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
+                    color: const Color(0xFFFFD7CA).withValues(alpha: 0.55),
                     blurRadius: size * 0.35,
                     offset: Offset(0, size * 0.12),
-                    spreadRadius: -2,
+                    spreadRadius: 2,
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                    blurRadius: size * 0.2,
+                    offset: Offset(0, size * 0.08),
                   ),
                 ]
               : null,
         ),
         child: ClipRRect(
           borderRadius: borderRadius,
-          child: Stack(
-            children: [
-              // 1. Deep Obsidian Titanium Monogram Background
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF0F0F12), // Deep Obsidian
-                      Color(0xFF1E1E24), // Midnight Charcoal
-                      Color(0xFF2B2B34), // Brushed Titanium
-                    ],
-                    stops: [0.0, 0.55, 1.0],
-                  ),
-                ),
-              ),
-
-              // 2. Liquid Glass Ambient Sheen / Specular Arc
-              Positioned(
-                top: -size * 0.2,
-                left: -size * 0.2,
-                right: -size * 0.2,
-                height: size * 0.75,
-                child: Container(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: Stack(
+              children: [
+                // 1. Ethereal Dawn Frosted Glass Monogram Background
+                Container(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+                    borderRadius: borderRadius,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withValues(alpha: 0.32),
-                        Colors.white.withValues(alpha: 0.05),
-                        Colors.transparent,
+                        Color(0xFFFFE8DF), // Warm Apricot Glow
+                        Color(0xFFFFF7F2), // Champagne Silk
+                        Color(0xFFEFEAFF), // Arctic Lavender Refraction
                       ],
+                      stops: [0.0, 0.45, 1.0],
                     ),
                   ),
                 ),
-              ),
 
-              // 3. Custom-Painted Geometric Vault Monogram ("F" Emblem)
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _FiloLogoPainter(size: size),
-                ),
-              ),
-
-              // 4. Subtle Specular Border Outline
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: borderRadius,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    width: 1.2,
+                // 2. Liquid Glass Ambient Sheen / Specular Arc
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: size * 0.52,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.75),
+                          Colors.white.withValues(alpha: 0.15),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+
+                // 3. Custom-Painted Geometric Vault Monogram ("F" Emblem)
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _FiloLogoPainter(size: size),
+                  ),
+                ),
+
+                // 4. Crisp Specular Glass Border Outline
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: borderRadius,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      width: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -103,7 +115,7 @@ class FiloLogoBadge extends StatelessWidget {
   }
 }
 
-/// Custom painter rendering the precision geometric Filo vault monogram.
+/// Custom painter rendering the precision architectural Filo vault monogram.
 class _FiloLogoPainter extends CustomPainter {
   final double size;
 
@@ -114,71 +126,73 @@ class _FiloLogoPainter extends CustomPainter {
     final w = canvasSize.width;
     final h = canvasSize.height;
 
-    // Paint for the primary white architectural glyph
+    // Paint for the primary Deep Midnight Ink architectural glyph
     final glyphPaint = Paint()
-      ..color = Colors.white
+      ..color = FiloColors.primary
       ..style = PaintingStyle.fill;
 
-    // Subtle shadow behind glyph for 3D depth
+    // Soft shadow behind glyph for frosted tactile depth
     final shadowPaint = Paint()
-      ..color = const Color(0xFF0F172A).withValues(alpha: 0.35)
+      ..color = const Color(0xFF0F172A).withValues(alpha: 0.14)
       ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
 
-    // Accent paint for the cyan vault beam
-    final accentPaint = Paint()
+    // Coral peach accent paint for the cryptographic lock eye
+    final coralPaint = Paint()
       ..shader = const LinearGradient(
-        colors: [Color(0xFF67E8F9), Color(0xFF38BDF8)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFFF8566), Color(0xFFFF5233)],
       ).createShader(Rect.fromLTWH(0, 0, w, h))
       ..style = PaintingStyle.fill;
 
-    // Draw Vault Geometry:
+    // Draw Architectural Vault "F" Geometry:
     // Vertical spine of "F" (rounded bar)
     final spineRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.27, h * 0.24, w * 0.15, h * 0.52),
+      Rect.fromLTWH(w * 0.27, h * 0.23, w * 0.15, h * 0.53),
       Radius.circular(w * 0.075),
     );
 
     // Top horizontal bar of "F" (vault roof extending right)
     final topBarRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.27, h * 0.24, w * 0.46, h * 0.14),
+      Rect.fromLTWH(w * 0.27, h * 0.23, w * 0.46, h * 0.14),
       Radius.circular(w * 0.07),
     );
 
     // Middle horizontal bar of "F" (shield key bar)
     final midBarRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.27, h * 0.44, w * 0.33, h * 0.13),
+      Rect.fromLTWH(w * 0.27, h * 0.43, w * 0.33, h * 0.13),
       Radius.circular(w * 0.065),
     );
 
-    // Subtle drop shadow under bars
-    canvas.drawRRect(spineRect.shift(Offset(0, h * 0.02)), shadowPaint);
-    canvas.drawRRect(topBarRect.shift(Offset(0, h * 0.02)), shadowPaint);
-    canvas.drawRRect(midBarRect.shift(Offset(0, h * 0.02)), shadowPaint);
+    // Soft drop shadow under bars
+    canvas.drawRRect(spineRect.shift(Offset(0, h * 0.015)), shadowPaint);
+    canvas.drawRRect(topBarRect.shift(Offset(0, h * 0.015)), shadowPaint);
+    canvas.drawRRect(midBarRect.shift(Offset(0, h * 0.015)), shadowPaint);
 
     // Primary glyph fill
     canvas.drawRRect(spineRect, glyphPaint);
     canvas.drawRRect(topBarRect, glyphPaint);
     canvas.drawRRect(midBarRect, glyphPaint);
 
-    // Luminous vault eye / cryptographic dot (representing zero-knowledge vault lock)
+    // Luminous vault eye / cryptographic dot (zero-knowledge vault lock)
     final dotCenter = Offset(w * 0.64, h * 0.65);
     final dotRadius = w * 0.075;
 
-    // Outer cyan glow
+    // Outer coral glow
     final glowPaint = Paint()
-      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.5)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+      ..color = const Color(0xFFFF6B4A).withValues(alpha: 0.35)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.5);
     canvas.drawCircle(dotCenter, dotRadius * 1.5, glowPaint);
 
-    // Center radiant cyan dot
-    canvas.drawCircle(dotCenter, dotRadius, accentPaint);
+    // Center radiant coral dot
+    canvas.drawCircle(dotCenter, dotRadius, coralPaint);
 
     // Inner bright white pinpoint
     final whitePin = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(dotCenter, dotRadius * 0.45, whitePin);
+    canvas.drawCircle(dotCenter, dotRadius * 0.4, whitePin);
   }
 
   @override

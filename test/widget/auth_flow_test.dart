@@ -20,8 +20,8 @@ void main() {
       await tester.pumpWidget(wrapWithScope(const WelcomeScreen()));
       await tester.pumpAndSettle();
 
-      expect(find.text('welcome to filo.'), findsOneWidget);
-      expect(find.text('your unlimited cloud.'), findsOneWidget);
+      expect(find.text('welcome to filo'), findsOneWidget);
+      expect(find.textContaining('your unlimited cloud'), findsOneWidget);
       expect(find.text('get started'), findsOneWidget);
     });
   });
@@ -31,7 +31,7 @@ void main() {
       await tester.pumpWidget(wrapWithScope(const PassphraseSetupScreen()));
       await tester.pumpAndSettle();
 
-      expect(find.text('create vault key.'), findsOneWidget);
+      expect(find.text('create vault key'), findsOneWidget);
 
       final submitButtonFinder = find.text('create vault');
       expect(submitButtonFinder, findsOneWidget);

@@ -1,17 +1,20 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/theme/filo_colors.dart';
 import '../../core/theme/filo_radius.dart';
 
-/// Apple iOS 18 / visionOS-inspired Liquid Glass surface.
+import 'filo_background.dart';
+
+/// Backward-compatible alias for full-screen Ethereal Dawn mesh gradient.
+typedef FiloAmbientBackground = FiloBackground;
+
 ///
 /// Features:
-/// - 24px Gaussian blur via `BackdropFilter`
-/// - Multi-layered specular highlights (top-left light reflection, bottom-right ambient tint)
-/// - Adaptive translucency in light (milk-glass) and dark (CRED obsidian-glass) modes
-/// - Responsive press feedback (Emil Kowalski spring scale 0.98x) with haptics
-/// - RepaintBoundary for 60/120fps GPU performance
+/// - 20px Gaussian blur via `BackdropFilter`
+/// - Multi-layered specular highlights (crisp semi-translucent white rim)
+/// - Translucent milky optical glass over ethereal gradients
+/// - Responsive Emil Kowalski spring scale (0.98x) with subtle haptic tap
+/// - RepaintBoundary for silky 60/120fps performance
 class FiloGlass extends StatefulWidget {
   final Widget child;
   final BorderRadius? borderRadius;
@@ -30,7 +33,7 @@ class FiloGlass extends StatefulWidget {
     this.padding,
     this.margin,
     this.color,
-    this.blur = 24.0,
+    this.blur = 20.0,
     this.border,
     this.boxShadow,
     this.onTap,
@@ -45,25 +48,25 @@ class _FiloGlassState extends State<FiloGlass> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final r = widget.borderRadius ?? FiloRadius.roundedXl;
 
     final defaultBorder = widget.border ??
         Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.12)
-              : Colors.white.withValues(alpha: 0.65),
-          width: 1.0,
+          color: Colors.white.withValues(alpha: 0.85),
+          width: 1.2,
         );
 
     final defaultShadow = widget.boxShadow ??
         [
           BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.45)
-                : const Color(0xFF5E6CE7).withValues(alpha: 0.08),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: const Color(0xFFFFD7CA).withValues(alpha: 0.08),
+            blurRadius: 30,
+            offset: const Offset(0, 12),
           ),
         ];
 
@@ -83,20 +86,15 @@ class _FiloGlassState extends State<FiloGlass> {
               decoration: BoxDecoration(
                 borderRadius: r,
                 border: defaultBorder,
-                color: widget.color,
+                color: widget.color ?? Colors.white.withValues(alpha: 0.72),
                 gradient: widget.color == null
                     ? LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: isDark
-                            ? [
-                                Colors.white.withValues(alpha: 0.08),
-                                Colors.white.withValues(alpha: 0.02),
-                              ]
-                            : [
-                                Colors.white.withValues(alpha: 0.95),
-                                Colors.white.withValues(alpha: 0.70),
-                              ],
+                        colors: [
+                          Colors.white.withValues(alpha: 0.88),
+                          Colors.white.withValues(alpha: 0.65),
+                        ],
                       )
                     : null,
               ),
@@ -110,8 +108,8 @@ class _FiloGlassState extends State<FiloGlass> {
     if (widget.onTap != null) {
       return GestureDetector(
         onTapDown: (_) {
+          HapticFeedback.selectionClick();
           setState(() => _isPressed = true);
-          HapticFeedback.lightImpact();
         },
         onTapUp: (_) => setState(() => _isPressed = false),
         onTapCancel: () => setState(() => _isPressed = false),
@@ -126,20 +124,5 @@ class _FiloGlassState extends State<FiloGlass> {
     }
 
     return content;
-  }
-}
-
-/// Ambient Clean Canvas Background (Monochrome Luxury)
-class FiloAmbientBackground extends StatelessWidget {
-  final Widget child;
-
-  const FiloAmbientBackground({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: FiloColors.lightBackground,
-      child: child,
-    );
   }
 }

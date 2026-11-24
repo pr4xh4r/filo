@@ -4,7 +4,6 @@ import '../../../../core/crypto/hash_utils.dart';
 import '../../../../core/database/transfer_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
-import '../../../../shared/components/filo_empty_state.dart';
 import '../../../../shared/components/filo_progress_ring.dart';
 import '../../../../shared/components/filo_sheet.dart';
 import '../providers/transfer_provider.dart';
@@ -27,12 +26,36 @@ class TransferQueueSheet extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (tasks.isEmpty) {
-      return const SizedBox(
-        height: 220,
-        child: FiloEmptyState(
-          icon: Icons.sync_alt_rounded,
-          title: 'No Active Transfers',
-          description: 'Uploads and downloads will appear here in real time.',
+      return SizedBox(
+        height: 250,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/illustrations/transfer_upload_stream.png',
+                height: 120,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'no active transfers',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: FiloColors.lightTextPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'uploads and downloads will stream here in real time',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: FiloColors.lightTextSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }

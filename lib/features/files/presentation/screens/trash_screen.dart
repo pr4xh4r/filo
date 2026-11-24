@@ -5,8 +5,10 @@ import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
+import '../../../../core/theme/persona_provider.dart';
+import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
-import '../../../../shared/components/filo_empty_state.dart';
+import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../providers/file_browser_provider.dart';
 
@@ -78,7 +80,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final persona = ref.watch(personaProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -94,46 +96,77 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          // 30-Day Policy Banner
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: FiloSpacing.lg,
-              vertical: FiloSpacing.md,
-            ),
-            color: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 20,
-                  color: FiloColors.info,
-                ),
-                SizedBox(width: FiloSpacing.md),
-                Expanded(
-                  child: Text(
-                    'Items in Trash are permanently deleted after 30 days.',
-                    style: TextStyle(fontSize: 13, height: 1.3),
+      body: FiloBackground(
+        child: Column(
+          children: [
+            // 30-Day Policy Banner
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: FiloSpacing.lg,
+                vertical: FiloSpacing.md,
+              ),
+              color: Colors.white.withValues(alpha: 0.6),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 20,
+                    color: FiloColors.info,
                   ),
-                ),
-              ],
+                  SizedBox(width: FiloSpacing.md),
+                  Expanded(
+                    child: Text(
+                      'Items in Trash are permanently deleted after 30 days.',
+                      style: TextStyle(fontSize: 13, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _trashedNodes.isEmpty
-                    ? const FiloEmptyState(
-                        icon: Icons.delete_outline_rounded,
-                        title: 'Trash is Empty',
-                        description: 'Items moved to trash will appear here.',
-                      )
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _trashedNodes.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FiloGlass(
+                                borderRadius: BorderRadius.circular(28),
+                                padding: const EdgeInsets.all(20),
+                                child: Container(
+                                  constraints: const BoxConstraints(maxHeight: 180, maxWidth: 220),
+                                  child: Image.asset(
+                                    FiloIllustrations.trash(persona),
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: FiloSpacing.lg),
+                              const Text(
+                                'trash is empty',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: FiloColors.lightTextPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'items moved to trash will appear here',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: FiloColors.lightTextSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
                     : ListView.separated(
                         itemCount: _trashedNodes.length,
-                        separatorBuilder: (context, index) => Divider(
-                          color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
+                        separatorBuilder: (context, index) => const Divider(
+                          color: FiloColors.lightBorder,
                           height: 1,
                         ),
                         itemBuilder: (context, index) {
@@ -169,8 +202,9 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                           );
                         },
                       ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

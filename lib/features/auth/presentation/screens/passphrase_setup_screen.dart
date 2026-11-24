@@ -132,9 +132,20 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
+              Center(
+                child: Container(
+                  height: 100,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: Image.asset(
+                    'assets/illustrations/recovery_phrase_capsule.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               Text(
-                'emergency recovery key.',
+                'emergency recovery key',
                 style: FiloTypography.editorial(
                   fontSize: 28,
                   fontWeight: FontWeight.w600,
@@ -253,7 +264,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                 const SizedBox(height: FiloSpacing.sm),
 
                 Text(
-                  'create vault key.',
+                  'create vault key',
                   style: FiloTypography.editorial(
                     fontSize: 36,
                     fontWeight: FontWeight.w600,
@@ -394,15 +405,18 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                   child: Container(
                     height: 60,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: FiloColors.brandGradient,
-                      ),
+                      color: FiloColors.primary,
                       borderRadius: FiloRadius.roundedXl,
                       boxShadow: [
                         BoxShadow(
-                          color: FiloColors.brandIndigo.withValues(alpha: isDark ? 0.45 : 0.35),
-                          blurRadius: 24,
+                          color: const Color(0xFFFFD7CA).withValues(alpha: 0.4),
+                          blurRadius: 20,
                           offset: const Offset(0, 8),
+                        ),
+                        BoxShadow(
+                          color: FiloColors.primary.withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),

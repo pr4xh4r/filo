@@ -283,7 +283,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'connect telegram.',
+          'connect telegram',
           style: FiloTypography.editorial(
             fontSize: 36,
             fontWeight: FontWeight.w600,
@@ -294,8 +294,8 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         const SizedBox(height: 4),
         Text(
           _isQrMode
-              ? 'scan the code with your telegram mobile app.'
-              : 'we will send a quick code to your telegram app.',
+              ? 'scan the code with your telegram mobile app'
+              : 'we will send a quick code to your telegram app',
           style: FiloTypography.body.copyWith(
             color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
             height: 1.4,
@@ -619,7 +619,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'verify code.',
+          'verify code',
           style: FiloTypography.editorial(
             fontSize: 36,
             fontWeight: FontWeight.w600,
@@ -629,7 +629,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'enter the code sent to your telegram app.',
+          'enter the code sent to your telegram app',
           style: FiloTypography.body.copyWith(
             color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
           ),
@@ -762,8 +762,20 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Center(
+          child: FiloGlass(
+            borderRadius: BorderRadius.circular(24),
+            padding: const EdgeInsets.all(16),
+            child: Image.asset(
+              'assets/illustrations/security_ethereal_lineart.png',
+              height: 140,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+        const SizedBox(height: FiloSpacing.lg),
         Text(
-          'cloud password.',
+          'cloud password',
           style: FiloTypography.editorial(
             fontSize: 36,
             fontWeight: FontWeight.w600,
@@ -773,7 +785,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'your telegram account is protected by two-step verification.',
+          'your telegram account is protected by two-step verification',
           style: FiloTypography.body.copyWith(
             color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
           ),
@@ -823,7 +835,7 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'bot api connect.',
+          'bot api connect',
           style: FiloTypography.editorial(
             fontSize: 36,
             fontWeight: FontWeight.w600,

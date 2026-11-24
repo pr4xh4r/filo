@@ -14,7 +14,10 @@ import '../../../../core/database/filo_database.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../core/theme/persona_provider.dart';
+import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
+import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
@@ -359,7 +362,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final authState = ref.watch(authNotifierProvider);
 
     return Scaffold(
-      backgroundColor: FiloColors.lightBackground,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -389,7 +392,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
       ),
-      body: ListView(
+      body: FiloBackground(
+        child: SafeArea(
+          child: ListView(
         padding: const EdgeInsets.symmetric(
           horizontal: FiloSpacing.xl,
           vertical: FiloSpacing.sm,
@@ -507,7 +512,137 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const SizedBox(height: FiloSpacing.lg),
 
-          // 3. Security & Vault Preferences
+          // 3. Persona Switcher (Feminine / Masculine)
+          FiloGlass(
+            borderRadius: BorderRadius.circular(22),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: FiloColors.primary.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.person_outline_rounded, size: 20, color: FiloColors.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Illustration Persona',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: FiloColors.lightTextPrimary),
+                        ),
+                        Text(
+                          'Choose character artwork style',
+                          style: TextStyle(fontSize: 12, color: FiloColors.lightTextSecondary),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            ref.read(personaProvider.notifier).setPersona(FiloPersona.female);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            decoration: BoxDecoration(
+                              color: ref.watch(personaProvider) == FiloPersona.female
+                                  ? Colors.white
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(100),
+                              boxShadow: ref.watch(personaProvider) == FiloPersona.female
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.06),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Feminine',
+                                style: TextStyle(
+                                  fontWeight: ref.watch(personaProvider) == FiloPersona.female
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  fontSize: 13,
+                                  color: FiloColors.lightTextPrimary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            ref.read(personaProvider.notifier).setPersona(FiloPersona.male);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 9),
+                            decoration: BoxDecoration(
+                              color: ref.watch(personaProvider) == FiloPersona.male
+                                  ? Colors.white
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(100),
+                              boxShadow: ref.watch(personaProvider) == FiloPersona.male
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.06),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Masculine',
+                                style: TextStyle(
+                                  fontWeight: ref.watch(personaProvider) == FiloPersona.male
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  fontSize: 13,
+                                  color: FiloColors.lightTextPrimary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: FiloSpacing.lg),
+
+          // 4. Security & Vault Preferences
           Text(
             'Security & Vault Preferences',
             style: FiloTypography.title3.copyWith(
@@ -653,7 +788,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: FiloSpacing.xxl),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildSettingsTile({
@@ -669,21 +806,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: Colors.black.withValues(alpha: 0.05),
-          ),
-        ),
+      child: FiloGlass(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
         child: ListTile(
-          onTap: onTap != null
-              ? () {
-                  HapticFeedback.selectionClick();
-                  onTap();
-                }
-              : null,
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           leading: Container(
             width: 40,

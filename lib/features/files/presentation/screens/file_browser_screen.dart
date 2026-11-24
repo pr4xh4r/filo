@@ -6,6 +6,8 @@ import '../../../../core/database/transfer_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../core/theme/persona_provider.dart';
+import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_toast.dart';
@@ -178,10 +180,10 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     final activeTasksCount = tasks.where((t) => t.status == TransferStatus.running).length;
 
     return Scaffold(
-      backgroundColor: FiloColors.lightBackground,
-      body: SafeArea(
-        bottom: false,
-        child: Stack(
+      body: FiloBackground(
+        child: SafeArea(
+          bottom: false,
+          child: Stack(
           children: [
             CustomScrollView(
               physics: const BouncingScrollPhysics(),
@@ -504,38 +506,39 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
-  // Unique Artistic Empty State (Clean space/cloud theme, NO button block)
+  // Unique Artistic Empty State (Editorial Monoline & Frosted Glass)
   Widget _buildUniqueEmptySpace(bool isFavoritesOnly) {
+    final persona = ref.watch(personaProvider);
+    final illustrationAsset = isFavoritesOnly
+        ? FiloIllustrations.starred
+        : FiloIllustrations.emptyVault(persona);
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: FiloColors.primary.withValues(alpha: 0.06),
-              border: Border.all(
-                color: FiloColors.primary.withValues(alpha: 0.15),
-                width: 1.5,
+          FiloGlass(
+            borderRadius: BorderRadius.circular(28),
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 180, maxWidth: 220),
+              child: Image.asset(
+                illustrationAsset,
+                fit: BoxFit.contain,
               ),
             ),
-            child: Icon(
-              isFavoritesOnly ? Icons.star_border_rounded : Icons.cloud_queue_rounded,
-              size: 38,
-              color: FiloColors.primary,
-            ),
           ),
-          const SizedBox(height: FiloSpacing.md),
+          const SizedBox(height: FiloSpacing.lg),
           Text(
-            isFavoritesOnly ? 'no starred files' : 'empty space',
+            isFavoritesOnly ? 'no starred files' : 'your vault is clear',
             style: FiloTypography.title2.copyWith(
               fontWeight: FontWeight.w700,
-              fontSize: 20,
+              fontSize: 22,
+              letterSpacing: -0.5,
               color: FiloColors.lightTextPrimary,
             ),
           ),
@@ -544,8 +547,8 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               isFavoritesOnly
-                  ? 'star your favorite files to view them here.'
-                  : 'your encrypted telegram vault is quiet and ready.\ntap + below to store files.',
+                  ? 'star files to keep them one tap away'
+                  : 'your encrypted telegram vault is peaceful and ready.\ntap + below to store your first file',
               textAlign: TextAlign.center,
               style: FiloTypography.body.copyWith(
                 color: FiloColors.lightTextSecondary,

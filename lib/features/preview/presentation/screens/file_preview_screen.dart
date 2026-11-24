@@ -10,6 +10,7 @@ import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
@@ -330,7 +331,7 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: content,
+      body: FiloBackground(child: content),
     );
   }
 }
