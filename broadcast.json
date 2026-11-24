@@ -1,0 +1,25 @@
+{
+  "broadcast": {
+    "id": "broadcast_welcome_01",
+    "title": "Welcome to Filo Vault!",
+    "message": "Your personal zero-knowledge cloud storage is ready. All your files are encrypted on-device with AES-256-GCM and safely stored in your private Telegram channel 'filo'.",
+    "action_title": "Project on GitHub",
+    "action_url": "https://github.com/pr4xh4r/filo",
+    "is_dismissible": true,
+    "priority": "normal",
+    "published_at": 1732500000000
+  },
+  "update": {
+    "latest_version": "1.0.1",
+    "title": "Filo v1.0.1 • Fast Chunk Streaming & QR Pairing",
+    "changelog": [
+      "⚡ 2x faster parallel chunk streaming and uploads",
+      "🛡️ Automatic zero-knowledge cloud snapshot sync in channel 'filo'",
+      "📲 Hardware-accelerated camera QR code vault pairing",
+      "🔄 Background transfer resilience with native Android data sync service",
+      "📱 Apple Dynamic Island real-time upload progress pill"
+    ],
+    "download_url": "https://github.com/pr4xh4r/filo/releases",
+    "is_mandatory": false
+  }
+}

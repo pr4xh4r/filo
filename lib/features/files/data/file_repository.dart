@@ -134,6 +134,10 @@ class FileRepository {
     return _database.updateNodeHash(id, contentHash);
   }
 
+  Future<void> markNodeSynced(String id) {
+    return _database.updateNodeSyncState(id, SyncState.synced);
+  }
+
   Future<List<FileNode>> getFolders() async {
     final allNodes = await _database.listNodes(includeTrashed: false);
     return allNodes.where((n) => n.isFolder).toList();

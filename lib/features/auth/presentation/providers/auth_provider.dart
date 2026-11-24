@@ -38,17 +38,28 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
   final AuthRepository _repository;
   final FiloDatabase _database;
   final LocalAuthentication _localAuth;
+  final IndexSyncService? _syncService;
 
   AuthNotifier({
     required AuthRepository repository,
     required FiloDatabase database,
     LocalAuthentication? localAuth,
+    IndexSyncService? syncService,
   })  : _repository = repository,
         _database = database,
         _localAuth = localAuth ?? LocalAuthentication(),
+        _syncService = syncService,
         super(const FiloAuthState(isLoading: true)) {
     initialize();
   }
+
+  IndexSyncService get _effectiveSyncService =>
+      _syncService ??
+      IndexSyncService(
+        database: _database,
+        storageBackend: _repository.storageBackend,
+        authRepository: _repository,
+      );
 
   Future<void> initialize() async {
     state = state.copyWith(isLoading: true, errorMessage: null);
@@ -205,25 +216,25 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         await _repository.storeBiometricMasterKey(masterKey);
       }
 
+      // Check for existing backup BEFORE publishing initial empty snapshot
+      final restored = await _maybeAutoRestore(masterKey);
+      if (!restored) {
+        try {
+          final syncService = IndexSyncService(
+            database: _database,
+            storageBackend: _repository.storageBackend,
+            authRepository: _repository,
+          );
+          await syncService.backupIndexToCloud(masterKey: masterKey);
+        } catch (_) {}
+      }
+
       state = state.copyWith(
         vaultStatus: VaultSetupStatus.ready,
         lockStatus: AppLockStatus.unlocked,
         masterKey: masterKey,
         isLoading: false,
       );
-
-      // Immediately back up initial vault envelope to Telegram channel 'filo'
-      try {
-        final syncService = IndexSyncService(
-          database: _database,
-          storageBackend: _repository.storageBackend,
-          authRepository: _repository,
-        );
-        await syncService.backupIndexToCloud(masterKey: masterKey);
-      } catch (_) {}
-
-      // Auto-restore check in case user is re-setting up existing account on new device
-      await _maybeAutoRestore(masterKey);
 
       return recoveryKey;
     } catch (e) {
@@ -239,13 +250,13 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       if (state.isBiometricEnabled) {
         await _repository.storeBiometricMasterKey(masterKey);
       }
+      await _maybeAutoRestore(masterKey);
       state = state.copyWith(
         vaultStatus: VaultSetupStatus.ready,
         lockStatus: AppLockStatus.unlocked,
         masterKey: masterKey,
         isLoading: false,
       );
-      await _maybeAutoRestore(masterKey);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -263,13 +274,13 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       if (state.isBiometricEnabled) {
         await _repository.storeBiometricMasterKey(masterKey);
       }
+      await _maybeAutoRestore(masterKey);
       state = state.copyWith(
         vaultStatus: VaultSetupStatus.ready,
         lockStatus: AppLockStatus.unlocked,
         masterKey: masterKey,
         isLoading: false,
       );
-      await _maybeAutoRestore(masterKey);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -302,13 +313,15 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       if (authenticated) {
         final masterKey = await _repository.getBiometricMasterKey();
         if (masterKey != null) {
+          state = state.copyWith(isLoading: true, errorMessage: null);
+          await _maybeAutoRestore(masterKey);
           state = state.copyWith(
             vaultStatus: VaultSetupStatus.ready,
             lockStatus: AppLockStatus.unlocked,
             masterKey: masterKey,
+            isLoading: false,
             errorMessage: null,
           );
-          await _maybeAutoRestore(masterKey);
           return true;
         } else {
           state = state.copyWith(
@@ -325,17 +338,20 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
   }
 
   /// Checks if local database is empty and automatically downloads & restores
-  /// the encrypted index snapshot pinned in the Telegram channel 'filo'.
-  Future<void> _maybeAutoRestore(Uint8List masterKey) async {
+  /// the encrypted backup pinned in the Telegram channel 'filo'.
+  /// When local DB already has data, checks for updates asynchronously so unlock is instant.
+  Future<bool> _maybeAutoRestore(Uint8List masterKey) async {
     try {
-      final syncService = IndexSyncService(
-        database: _database,
-        storageBackend: _repository.storageBackend,
-        authRepository: _repository,
-      );
-      await syncService.checkAndAutoRestore(masterKey: masterKey);
+      final count = await _database.getNodeCount();
+      if (count == 0) {
+        return await _effectiveSyncService.checkAndAutoRestore(masterKey: masterKey);
+      }
+      // Non-blocking remote check & dirty push for existing local databases
+      Future<void>.microtask(() => _effectiveSyncService.checkRemoteUpdates(masterKey: masterKey));
+      return false;
     } catch (_) {
       // Non-fatal if offline or no remote index exists yet
+      return false;
     }
   }
 
@@ -369,6 +385,7 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
 
   void lockVault() {
     // Zero out master key in memory for security
+    _syncService?.clearSessionKey();
     state = state.copyWith(
       lockStatus: AppLockStatus.locked,
       masterKey: null,
@@ -428,6 +445,7 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
   Future<void> logoutAndWipe(FiloDatabase database) async {
     state = state.copyWith(isLoading: true);
     try {
+      _syncService?.clearSessionKey();
       await _repository.wipeLocalSecurity();
       await database.wipeAllLocalData();
       state = const FiloAuthState(
@@ -447,5 +465,6 @@ final authNotifierProvider =
     StateNotifierProvider<AuthNotifier, FiloAuthState>((ref) {
   final repo = ref.watch(authRepositoryProvider);
   final db = ref.watch(databaseProvider);
-  return AuthNotifier(repository: repo, database: db);
+  final syncService = ref.watch(indexSyncServiceProvider);
+  return AuthNotifier(repository: repo, database: db, syncService: syncService);
 });

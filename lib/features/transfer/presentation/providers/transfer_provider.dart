@@ -89,6 +89,9 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
       workspaceId: workspaceId,
       tags: tags,
       onTaskCreated: onTaskCreated,
+      onFileUploaded: (_) {
+        _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: authState.masterKey!);
+      },
     );
 
     if (uploadedList.isNotEmpty) {
@@ -149,6 +152,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
           onTaskCreated: onTaskCreated,
         );
         uploadedList.add(node);
+        _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: authState.masterKey!);
         await Future.delayed(const Duration(milliseconds: 350));
       } catch (e) {
         // Continue uploading remaining files

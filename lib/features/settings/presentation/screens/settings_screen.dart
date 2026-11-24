@@ -23,6 +23,8 @@ import '../../../../shared/components/filo_qr_scanner_screen.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
+import '../../../broadcast/domain/broadcast_service.dart';
+import '../../../sync/domain/index_sync_service.dart';
 
 /// Application Settings & Account Details (Pure Light Theme).
 ///
@@ -185,6 +187,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           try {
                             final repo = ref.read(authRepositoryProvider);
                             await repo.changePassphrase(currentPassphrase: oldPwd, newPassphrase: newPwd);
+                            final masterKey = ref.read(authNotifierProvider).masterKey;
+                            if (masterKey != null) {
+                              ref.read(indexSyncServiceProvider).triggerAutoSync(
+                                    masterKey: masterKey,
+                                    delay: const Duration(milliseconds: 200),
+                                  );
+                            }
                             if (ctx.mounted) {
                               Navigator.of(ctx).pop();
                               FiloToast.show(
@@ -1037,6 +1046,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: 'Show encrypted QR code to pair a new device',
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: _showQrPairingModal,
+          ),
+
+          _buildSettingsTile(
+            icon: Icons.system_update_rounded,
+            title: 'Check for Updates',
+            subtitle: 'Filo v${AppConfig.appVersion} • Tap to check',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              FiloToast.show(context, message: 'Checking for updates...', type: FiloToastType.info);
+              await ref.read(broadcastNotifierProvider.notifier).refresh();
+              final update = ref.read(broadcastNotifierProvider).update;
+              if (mounted) {
+                if (update != null) {
+                  FiloToast.show(context, message: 'Update available: v${update.latestVersion}', type: FiloToastType.success);
+                } else {
+                  FiloToast.show(context, message: 'Filo is up to date (v${AppConfig.appVersion})', type: FiloToastType.success);
+                }
+              }
+            },
+          ),
+
+          _buildSettingsTile(
+            icon: Icons.campaign_outlined,
+            title: 'Verify Test Broadcast & Update',
+            subtitle: 'Simulate admin announcement card & update reminder',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () async {
+              HapticFeedback.mediumImpact();
+              await ref.read(broadcastNotifierProvider.notifier).refresh(forceTest: true);
+              if (mounted) {
+                Navigator.of(context).pop();
+                FiloToast.show(context, message: 'Test update & broadcast activated! Returning to home...', type: FiloToastType.success);
+              }
+            },
           ),
 
           _buildSettingsTile(

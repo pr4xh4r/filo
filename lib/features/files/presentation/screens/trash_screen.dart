@@ -41,11 +41,10 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
   }
 
   Future<void> _handleRestore(String id, String name) async {
-    final repo = ref.read(fileRepositoryProvider);
-    await repo.restoreFromTrash(id);
+    await ref.read(fileBrowserProvider.notifier).restoreFromTrash(id);
+    if (!mounted) return;
     FiloToast.show(context, message: '$name restored', type: FiloToastType.success);
     await _loadTrash();
-    ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
   }
 
   Future<void> _handleEmptyTrash() async {
@@ -70,11 +69,10 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
     );
 
     if (confirm == true) {
-      final repo = ref.read(fileRepositoryProvider);
-      await repo.emptyTrash();
+      await ref.read(fileBrowserProvider.notifier).emptyTrash();
+      if (!mounted) return;
       FiloToast.show(context, message: 'Trash emptied', type: FiloToastType.info);
       await _loadTrash();
-      ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
     }
   }
 

@@ -207,6 +207,11 @@ class FiloDatabase {
         icon_code INTEGER NOT NULL,
         created_at INTEGER NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS sync_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     ''');
 
     // Backward-compatible schema migrations
@@ -442,6 +447,33 @@ class FiloDatabase {
       'UPDATE nodes SET content_hash = ?, modified_at = ? WHERE id = ?',
       [contentHash, DateTime.now().millisecondsSinceEpoch, id],
     );
+  }
+
+  Future<void> updateNodeSyncState(String id, SyncState state) async {
+    _db.execute(
+      'UPDATE nodes SET sync_state = ? WHERE id = ?',
+      [state.name, id],
+    );
+  }
+
+  Future<String?> getSyncMeta(String key) async {
+    final ResultSet result = _db.select(
+      'SELECT value FROM sync_meta WHERE key = ? LIMIT 1',
+      [key],
+    );
+    if (result.isEmpty) return null;
+    return result.first['value'] as String?;
+  }
+
+  Future<void> setSyncMeta(String key, String value) async {
+    _db.execute(
+      'INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)',
+      [key, value],
+    );
+  }
+
+  Future<void> markSyncDirty() async {
+    await setSyncMeta('sync_dirty', '1');
   }
 
   Future<void> renameNode(String id, String newName) async {
@@ -710,11 +742,12 @@ class FiloDatabase {
   // Cloud Snapshot Serialization & Disaster Recovery
   // -------------------------------------------------------------
 
-  /// Exports the entire virtual index (nodes + chunks) to a serialized JSON string.
+  /// Exports the entire virtual index (nodes + chunks + workspaces) to a serialized JSON string.
   /// Ready to be encrypted on-device with the Master Key and pinned to Telegram.
   Future<String> exportSnapshotJson() async {
     final ResultSet allNodes = _db.select('SELECT * FROM nodes');
     final ResultSet allChunks = _db.select('SELECT * FROM chunks');
+    final ResultSet allWorkspaces = _db.select('SELECT * FROM workspaces ORDER BY created_at ASC');
 
     final nodesList = allNodes.map((r) => _rowToNode(r).toJson()).toList();
     final chunksList = allChunks.map((r) {
@@ -729,12 +762,22 @@ class FiloDatabase {
         'ivHex': r['iv_hex'],
       };
     }).toList();
+    final workspacesList = allWorkspaces.map((r) {
+      return {
+        'id': r['id'],
+        'name': r['name'],
+        'description': r['description'],
+        'iconCode': r['icon_code'],
+        'createdAt': r['created_at'],
+      };
+    }).toList();
 
     final payload = {
       'version': 1,
       'exportedAt': DateTime.now().millisecondsSinceEpoch,
       'nodes': nodesList,
       'chunks': chunksList,
+      'workspaces': workspacesList,
     };
 
     return json.encode(payload);
@@ -746,11 +789,30 @@ class FiloDatabase {
     final Map<String, dynamic> data = json.decode(jsonStr) as Map<String, dynamic>;
     final nodesRaw = data['nodes'] as List<dynamic>? ?? [];
     final chunksRaw = data['chunks'] as List<dynamic>? ?? [];
+    final workspacesRaw = data['workspaces'] as List<dynamic>?;
+    final exportedAt = (data['exportedAt'] as num?)?.toInt();
 
     _db.execute('BEGIN TRANSACTION');
     try {
       _db.execute('DELETE FROM chunks');
       _db.execute('DELETE FROM nodes');
+
+      if (workspacesRaw != null && workspacesRaw.isNotEmpty) {
+        _db.execute('DELETE FROM workspaces');
+        for (final item in workspacesRaw) {
+          final w = item as Map<String, dynamic>;
+          _db.execute(
+            'INSERT OR REPLACE INTO workspaces (id, name, description, icon_code, created_at) VALUES (?, ?, ?, ?, ?)',
+            [
+              w['id'] as String,
+              w['name'] as String,
+              w['description'] as String? ?? 'Personal space',
+              (w['iconCode'] as num?)?.toInt() ?? Icons.folder_outlined.codePoint,
+              (w['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
+            ],
+          );
+        }
+      }
 
       for (final item in nodesRaw) {
         final node = FileNode.fromJson(item as Map<String, dynamic>);
@@ -772,6 +834,16 @@ class FiloDatabase {
       }).toList();
 
       await insertChunks(chunks, inTransaction: true);
+      if (exportedAt != null) {
+        _db.execute(
+          'INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)',
+          ['last_synced_at', exportedAt.toString()],
+        );
+      }
+      _db.execute(
+        'INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)',
+        ['sync_dirty', '0'],
+      );
       _db.execute('COMMIT');
     } catch (_) {
       _db.execute('ROLLBACK');
@@ -784,6 +856,8 @@ class FiloDatabase {
     _db.execute('DELETE FROM transfer_tasks');
     _db.execute('DELETE FROM chunks');
     _db.execute('DELETE FROM nodes');
+    _db.execute('DELETE FROM workspaces');
+    _db.execute('DELETE FROM sync_meta');
   }
 
   void close() {

@@ -61,6 +61,16 @@ class MainActivity : FlutterFragmentActivity() {
                     startService(intent)
                     result.success(true)
                 }
+                "openUrl" -> {
+                    val url = call.argument<String>("url") ?: ""
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("URL_FAILED", e.message, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

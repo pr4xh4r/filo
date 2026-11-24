@@ -23,6 +23,10 @@ class AppConfig {
   static const String appVersion = '1.0.0';
   static const int buildNumber = 1;
 
+  /// URL to fetch the official admin broadcast & version updates manifest
+  static const String broadcastManifestUrl =
+      'https://raw.githubusercontent.com/pr4xh4r/filo/master/broadcast.json';
+
   /// Telegram API credentials.
   /// In production, inject via `--dart-define-from-file=config.json`
   /// or `--dart-define=TG_API_ID=xxx --dart-define=TG_API_HASH=yyy`

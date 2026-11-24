@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:filo/core/config/app_config.dart';
@@ -7,6 +8,7 @@ import 'package:filo/core/database/chunk_model.dart';
 import 'package:filo/core/database/filo_database.dart';
 import 'package:filo/features/auth/data/auth_repository.dart';
 import 'package:filo/features/files/data/file_repository.dart';
+import 'package:filo/features/files/domain/workspace.dart';
 import 'package:filo/features/storage/data/fake_storage_backend.dart';
 import 'package:filo/features/sync/domain/index_sync_service.dart';
 
@@ -206,6 +208,135 @@ void main() {
 
       syncService.dispose();
       db.close();
+    });
+
+    test('Workspaces (Spaces) and tags survive backup and cross-device restore', () async {
+      final dbA = FiloDatabase.openInMemory();
+      final repoA = FileRepository(database: dbA);
+      final masterKey = CryptoEngine.generateMasterKey();
+      final syncServiceA = IndexSyncService(
+        database: dbA,
+        storageBackend: sharedTelegramCloud,
+      );
+
+      // Ensure default spaces exist and create a custom space + folder inside it
+      await repoA.getWorkspaces();
+      const customSpace = Workspace(
+        id: 'travel_2026',
+        name: 'Travel 2026',
+        description: 'Tickets and visas',
+        icon: Icons.folder_outlined,
+      );
+      await repoA.createWorkspace(customSpace);
+      await repoA.createFolder(
+        name: 'Boarding Passes',
+        workspaceId: 'travel_2026',
+        tags: const ['important', 'travel'],
+      );
+
+      await syncServiceA.backupIndexToCloud(masterKey: masterKey);
+
+      // Restore on fresh Device B
+      final dbB = FiloDatabase.openInMemory();
+      final repoB = FileRepository(database: dbB);
+      final syncServiceB = IndexSyncService(
+        database: dbB,
+        storageBackend: sharedTelegramCloud,
+      );
+
+      final restored = await syncServiceB.checkAndAutoRestore(masterKey: masterKey);
+      expect(restored, isTrue);
+
+      final workspacesB = await repoB.getWorkspaces();
+      expect(workspacesB.any((w) => w.id == 'travel_2026' && w.name == 'Travel 2026'), isTrue);
+
+      final foldersB = await repoB.getNodes(workspaceId: 'travel_2026');
+      expect(foldersB.length, 1);
+      expect(foldersB.first.name, 'Boarding Passes');
+      expect(foldersB.first.tags, ['important', 'travel']);
+
+      syncServiceA.dispose();
+      syncServiceB.dispose();
+      dbA.close();
+      dbB.close();
+    });
+
+    test('flushPendingSync pushes changes immediately without waiting for debounce', () async {
+      final db = FiloDatabase.openInMemory();
+      final repo = FileRepository(database: db);
+      final masterKey = CryptoEngine.generateMasterKey();
+      final syncService = IndexSyncService(
+        database: db,
+        storageBackend: sharedTelegramCloud,
+      );
+
+      await repo.createFolder(name: 'Instant Flush');
+      // Schedule with long 10-second debounce, then flush immediately
+      syncService.triggerAutoSync(
+        masterKey: masterKey,
+        delay: const Duration(seconds: 10),
+      );
+      await syncService.flushPendingSync();
+
+      final channel = await sharedTelegramCloud.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
+      final pinned = await sharedTelegramCloud.getPinnedMessage(channelId: channel.channelId);
+      expect(pinned, isNotNull);
+
+      // Clean DB should pull that flushed folder
+      final db2 = FiloDatabase.openInMemory();
+      final syncService2 = IndexSyncService(
+        database: db2,
+        storageBackend: sharedTelegramCloud,
+      );
+      final restored = await syncService2.checkAndAutoRestore(masterKey: masterKey);
+      expect(restored, isTrue);
+      expect((await db2.listNodes()).first.name, 'Instant Flush');
+
+      syncService.dispose();
+      syncService2.dispose();
+      db.close();
+      db2.close();
+    });
+
+    test('Auto-sync pushes dirty local edits and second device automatically pulls newer snapshot', () async {
+      final masterKey = CryptoEngine.generateMasterKey();
+
+      // Device A creates initial state and backs up
+      final dbA = FiloDatabase.openInMemory();
+      final repoA = FileRepository(database: dbA);
+      final syncA = IndexSyncService(database: dbA, storageBackend: sharedTelegramCloud);
+      await repoA.createFolder(name: 'Initial Folder');
+      await syncA.backupIndexToCloud(masterKey: masterKey);
+
+      // Device B restores initial state
+      final dbB = FiloDatabase.openInMemory();
+      final syncB = IndexSyncService(database: dbB, storageBackend: sharedTelegramCloud);
+      expect(await syncB.checkAndAutoRestore(masterKey: masterKey), isTrue);
+      expect((await dbB.listNodes()).length, 1);
+
+      // Device A adds a second folder and syncs
+      await repoA.createFolder(name: 'From Device A');
+      await syncA.backupIndexToCloud(masterKey: masterKey);
+
+      // Device B runs checkAndAutoRestore with clean local state -> pulls Device A update
+      expect(await syncB.checkAndAutoRestore(masterKey: masterKey), isTrue);
+      final nodesB = await dbB.listNodes();
+      expect(nodesB.map((n) => n.name), containsAll(['Initial Folder', 'From Device A']));
+
+      // Now Device B makes an offline dirty edit -> checkAndAutoRestore pushes instead of overwriting
+      await FileRepository(database: dbB).createFolder(name: 'Offline Local');
+      syncB.triggerAutoSync(masterKey: masterKey, delay: const Duration(seconds: 30));
+      expect(await syncB.checkAndAutoRestore(masterKey: masterKey), isFalse);
+      await syncB.flushPendingSync();
+
+      // Device A pulls Device B's pushed change
+      expect(await syncA.checkAndAutoRestore(masterKey: masterKey), isTrue);
+      expect((await dbA.listNodes()).map((n) => n.name), contains('Offline Local'));
+
+      syncA.dispose();
+      syncB.dispose();
+      dbA.close();
+      dbB.close();
     });
   });
 }

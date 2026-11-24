@@ -7,13 +7,16 @@ import '../../../../core/database/transfer_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_button.dart';
 import '../../../../shared/components/filo_glass.dart';
+import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../preview/presentation/screens/file_preview_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
+import '../../../broadcast/presentation/widgets/broadcast_and_update_banner.dart';
 import '../../../transfer/presentation/providers/transfer_provider.dart';
 import '../../../transfer/presentation/screens/transfer_queue_sheet.dart';
 import '../providers/file_browser_provider.dart';
@@ -195,90 +198,150 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         return Dialog(
           backgroundColor: Colors.transparent,
+          elevation: 0,
           insetPadding: const EdgeInsets.symmetric(horizontal: 24),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
-            child: Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: isDark ? Colors.white12 : Colors.black12,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  gradient: isDark
+                      ? const LinearGradient(
+                          colors: [Color(0xFF1E1E2C), Color(0xFF26263A)],
+                        )
+                      : const LinearGradient(
+                          colors: [Color(0xFFFFF9F7), Color(0xFFFBF4FF)],
+                        ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.85),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'New Space',
-                    style: FiloTypography.title3.copyWith(
-                      color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: FiloColors.primary.withValues(alpha: 0.1),
+                            borderRadius: FiloRadius.roundedMd,
+                          ),
+                          child: const Icon(
+                            Icons.workspaces_outlined,
+                            color: FiloColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'New Space',
+                          style: FiloTypography.title3.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontFamily: FiloTypography.fontFamily,
+                            color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Create an isolated space with dedicated encryption tags.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Create an isolated space with dedicated encryption tags.',
+                      style: FiloTypography.caption.copyWith(
+                        fontFamily: FiloTypography.fontFamily,
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                        fontSize: 12,
                       ),
                     ),
-                    child: TextField(
-                      controller: controller,
-                      autofocus: true,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      decoration: InputDecoration(
-                        hintText: 'E.g. Work, Personal, Archive',
-                        hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.white.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.black.withValues(alpha: 0.08),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: FiloColors.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      child: TextField(
+                        controller: controller,
+                        autofocus: true,
+                        textCapitalization: TextCapitalization.words,
+                        style: TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
+                          fontSize: 15,
+                          color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                         ),
-                        onPressed: () {
-                          final name = controller.text.trim();
+                        decoration: InputDecoration(
+                          hintText: 'E.g. Work, Personal, Archive',
+                          hintStyle: TextStyle(
+                            fontFamily: FiloTypography.fontFamily,
+                            color: isDark ? Colors.white38 : FiloColors.lightTextTertiary,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
+                        onSubmitted: (val) {
+                          final name = val.trim();
                           if (name.isNotEmpty) {
                             Navigator.of(ctx).pop();
                             ref.read(fileBrowserProvider.notifier).addWorkspace(name);
                             FiloToast.show(context, message: 'Created & switched to $name', type: FiloToastType.success);
                           }
                         },
-                        child: const Text('Create', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontFamily: FiloTypography.fontFamily,
+                              color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FiloButton(
+                          label: 'Create',
+                          size: FiloButtonSize.small,
+                          onPressed: () {
+                            final name = controller.text.trim();
+                            if (name.isNotEmpty) {
+                              Navigator.of(ctx).pop();
+                              ref.read(fileBrowserProvider.notifier).addWorkspace(name);
+                              FiloToast.show(context, message: 'Created & switched to $name', type: FiloToastType.success);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -289,210 +352,325 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
 
   void _showTagManagerDialog(FileNode node) {
     final currentTags = List<String>.from(node.tags);
-    showDialog(
+    FiloSheet.show(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.4),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            final isDark = Theme.of(ctx).brightness == Brightness.dark;
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: isDark ? Colors.white12 : Colors.black12,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Smart Tags',
-                        style: FiloTypography.title3.copyWith(
-                          color: isDark ? Colors.white : FiloColors.lightTextPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Tag "${node.name}" for fast categorized access.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: SmartTag.defaultTags.map((tag) {
-                          final isTagged = currentTags.contains(tag.id);
-                          return FilterChip(
-                            label: Text(tag.name),
-                            avatar: isTagged
-                                ? Icon(
-                                    tag.icon,
-                                    size: 14,
-                                    color: isDark ? Colors.black : Colors.white,
-                                  )
-                                : Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: tag.color,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                            selected: isTagged,
-                            selectedColor: isDark ? Colors.white : FiloColors.primary,
-                            checkmarkColor: isDark ? Colors.black : Colors.white,
-                            backgroundColor: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
-                            side: BorderSide(
-                              color: isTagged
-                                  ? (isDark ? Colors.white : FiloColors.primary)
-                                  : (isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08)),
-                            ),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-                            labelStyle: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isTagged
-                                  ? (isDark ? Colors.black : Colors.white)
-                                  : (isDark ? Colors.white : FiloColors.lightTextPrimary),
-                            ),
-                            onSelected: (selected) {
-                              setDialogState(() {
-                                if (selected) {
-                                  currentTags.add(tag.id);
-                                } else {
-                                  currentTags.remove(tag.id);
-                                }
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: FiloColors.primary,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                            ),
-                            onPressed: () {
-                              Navigator.of(ctx).pop();
-                              ref.read(fileBrowserProvider.notifier).updateNodeTags(node.id, currentTags);
-                              FiloToast.show(context, message: 'Tags updated', type: FiloToastType.success);
-                            },
-                            child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+      title: 'Smart Tags',
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          node.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: FiloTypography.fontFamily,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: FiloColors.lightTextSecondary,
+          ),
+        ),
+      ),
+      child: StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Assign smart tags to organize "${node.name}" for instant access.',
+                style: FiloTypography.caption.copyWith(
+                  fontFamily: FiloTypography.fontFamily,
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                  fontSize: 12.5,
                 ),
               ),
-            );
-          },
-        );
-      },
+              const SizedBox(height: 16),
+              ...SmartTag.defaultTags.map((tag) {
+                final isTagged = currentTags.contains(tag.id);
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color: isTagged
+                        ? (isDark
+                            ? tag.color.withValues(alpha: 0.18)
+                            : tag.bgColor)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.white.withValues(alpha: 0.72)),
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setSheetState(() {
+                          if (isTagged) {
+                            currentTags.remove(tag.id);
+                          } else {
+                            currentTags.add(tag.id);
+                          }
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isTagged
+                                ? tag.color.withValues(alpha: 0.6)
+                                : (isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Colors.black.withValues(alpha: 0.05)),
+                            width: isTagged ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: tag.color.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                tag.icon,
+                                color: tag.color,
+                                size: 17,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                tag.name,
+                                style: TextStyle(
+                                  fontFamily: FiloTypography.fontFamily,
+                                  fontSize: 14.5,
+                                  fontWeight: isTagged ? FontWeight.w700 : FontWeight.w600,
+                                  color: isTagged
+                                      ? (isDark ? Colors.white : FiloColors.lightTextPrimary)
+                                      : (isDark ? Colors.white70 : FiloColors.lightTextPrimary),
+                                ),
+                              ),
+                            ),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: isTagged ? tag.color : Colors.transparent,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isTagged
+                                      ? tag.color
+                                      : (isDark ? Colors.white30 : Colors.black26),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: isTagged
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      color: Colors.white,
+                                      size: 15,
+                                    )
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
+                        color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FiloButton(
+                    label: 'Save Tags',
+                    size: FiloButtonSize.small,
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      ref.read(fileBrowserProvider.notifier).updateNodeTags(node.id, currentTags);
+                      FiloToast.show(context, message: 'Tags updated', type: FiloToastType.success);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
   void _showChangeWorkspaceDialog(FileNode node) {
-    showDialog(
+    final workspaces = ref.read(fileBrowserProvider).workspaces;
+    FiloSheet.show(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.4),
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: isDark ? Colors.white12 : Colors.black12,
+      title: 'Move to Space',
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          node.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: FiloTypography.fontFamily,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: FiloColors.lightTextSecondary,
+          ),
+        ),
+      ),
+      child: Builder(
+        builder: (ctx) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose a space to relocate "${node.name}".',
+                style: FiloTypography.caption.copyWith(
+                  fontFamily: FiloTypography.fontFamily,
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                  fontSize: 12.5,
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Move to Space',
-                    style: FiloTypography.title3.copyWith(
-                      color: isDark ? Colors.white : FiloColors.lightTextPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Select the vault space for "${node.name}".',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  ...ref.read(fileBrowserProvider).workspaces.map((ws) {
-                    final isCurrent = node.workspaceId == ws.id;
-                    return ListTile(
-                      dense: true,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      leading: Icon(
-                        ws.icon,
-                        color: isDark ? Colors.white : FiloColors.primary,
-                      ),
-                      title: Text(
-                        ws.name,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(ws.description, style: const TextStyle(fontSize: 11)),
-                      trailing: isCurrent
-                          ? Icon(
-                              Icons.check_circle_rounded,
-                              color: isDark ? Colors.white : FiloColors.primary,
-                              size: 18,
-                            )
-                          : null,
+              const SizedBox(height: 16),
+              ...workspaces.map((ws) {
+                final isCurrent = node.workspaceId == ws.id;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color: isCurrent
+                        ? (isDark
+                            ? FiloColors.primary.withValues(alpha: 0.15)
+                            : FiloColors.primary.withValues(alpha: 0.06))
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.white.withValues(alpha: 0.72)),
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
                       onTap: () {
+                        HapticFeedback.selectionClick();
                         Navigator.of(ctx).pop();
                         ref.read(fileBrowserProvider.notifier).updateNodeWorkspace(node.id, ws.id);
                         FiloToast.show(context, message: 'Moved to ${ws.name}', type: FiloToastType.success);
                       },
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: isCurrent
+                                ? FiloColors.primary.withValues(alpha: 0.5)
+                                : (isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Colors.black.withValues(alpha: 0.05)),
+                            width: isCurrent ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: isCurrent
+                                    ? FiloColors.primary.withValues(alpha: 0.15)
+                                    : (isDark
+                                        ? Colors.white.withValues(alpha: 0.08)
+                                        : Colors.black.withValues(alpha: 0.04)),
+                                borderRadius: FiloRadius.roundedMd,
+                              ),
+                              child: Icon(
+                                ws.icon,
+                                color: isCurrent
+                                    ? FiloColors.primary
+                                    : (isDark ? Colors.white70 : FiloColors.lightTextPrimary),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    ws.name,
+                                    style: TextStyle(
+                                      fontFamily: FiloTypography.fontFamily,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    ws.description,
+                                    style: TextStyle(
+                                      fontFamily: FiloTypography.fontFamily,
+                                      fontSize: 11.5,
+                                      color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isCurrent)
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: FiloColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              )
+                            else
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 20,
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.3)
+                                    : Colors.black.withValues(alpha: 0.2),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -552,97 +730,163 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.4),
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFF9F7), Color(0xFFFBF4FF)],
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  gradient: isDark
+                      ? const LinearGradient(
+                          colors: [Color(0xFF1E1E2C), Color(0xFF26263A)],
+                        )
+                      : const LinearGradient(
+                          colors: [Color(0xFFFFF9F7), Color(0xFFFBF4FF)],
+                        ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.85),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    node.isFolder ? 'Rename Folder' : 'Rename File',
-                    style: FiloTypography.title3.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: FiloColors.lightTextPrimary,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: FiloColors.primary.withValues(alpha: 0.1),
+                            borderRadius: FiloRadius.roundedMd,
+                          ),
+                          child: Icon(
+                            node.isFolder ? Icons.folder_outlined : Icons.edit_outlined,
+                            color: FiloColors.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            node.isFolder ? 'Rename Folder' : 'Rename File',
+                            style: FiloTypography.title3.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontFamily: FiloTypography.fontFamily,
+                              color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
-                    ),
-                    child: TextField(
-                      controller: controller,
-                      autofocus: true,
-                      style: const TextStyle(fontSize: 15, color: FiloColors.lightTextPrimary),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        isDense: true,
+                    const SizedBox(height: 8),
+                    Text(
+                      node.isFolder
+                          ? 'Enter a new name for this folder.'
+                          : 'Enter a new name for this file.',
+                      style: FiloTypography.caption.copyWith(
+                        fontFamily: FiloTypography.fontFamily,
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                        fontSize: 12,
                       ),
-                      onSubmitted: (val) {
-                        final newName = val.trim();
-                        if (newName.isNotEmpty) {
-                          ref.read(fileBrowserProvider.notifier).renameNode(node.id, newName);
-                          Navigator.of(context).pop();
-                        }
-                      },
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancel', style: TextStyle(color: FiloColors.lightTextSecondary)),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.white.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.black.withValues(alpha: 0.08),
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      FiloButton(
-                        label: 'Save',
-                        size: FiloButtonSize.small,
-                        onPressed: () {
-                          final newName = controller.text.trim();
+                      child: TextField(
+                        controller: controller,
+                        autofocus: true,
+                        textCapitalization: TextCapitalization.sentences,
+                        style: TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
+                          fontSize: 15,
+                          color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: node.isFolder ? 'Folder name' : 'File name',
+                          hintStyle: TextStyle(
+                            fontFamily: FiloTypography.fontFamily,
+                            color: isDark ? Colors.white38 : FiloColors.lightTextTertiary,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
+                        onSubmitted: (val) {
+                          final newName = val.trim();
                           if (newName.isNotEmpty) {
                             ref.read(fileBrowserProvider.notifier).renameNode(node.id, newName);
-                            Navigator.of(context).pop();
+                            Navigator.of(ctx).pop();
+                            FiloToast.show(context, message: 'Renamed successfully', type: FiloToastType.success);
                           }
                         },
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontFamily: FiloTypography.fontFamily,
+                              color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FiloButton(
+                          label: 'Save',
+                          size: FiloButtonSize.small,
+                          onPressed: () {
+                            final newName = controller.text.trim();
+                            if (newName.isNotEmpty) {
+                              ref.read(fileBrowserProvider.notifier).renameNode(node.id, newName);
+                              Navigator.of(ctx).pop();
+                              FiloToast.show(context, message: 'Renamed successfully', type: FiloToastType.success);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -653,94 +897,224 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
 
     if (!mounted) return;
 
-    showModalBottomSheet(
+    FiloSheet.show(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return Container(
-          decoration: BoxDecoration(
-            color: isDark ? FiloColors.darkSurface : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      title: 'Move to Folder',
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          node.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: FiloTypography.fontFamily,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: FiloColors.lightTextSecondary,
           ),
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text(
-                    'Move "${node.name}"',
-                    style: FiloTypography.title3.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                    ),
-                  ),
+        ),
+      ),
+      child: Builder(
+        builder: (ctx) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select a destination folder for "${node.name}".',
+                style: FiloTypography.caption.copyWith(
+                  fontFamily: FiloTypography.fontFamily,
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                  fontSize: 12.5,
                 ),
-                const SizedBox(height: 8),
-                ListTile(
-                  leading: const Icon(Icons.cloud_outlined, color: FiloColors.primary),
-                  title: Text(
-                    'Vault Root',
-                    style: TextStyle(
-                      color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    ref.read(fileBrowserProvider.notifier).moveNode(node.id, null);
-                    FiloToast.show(context, message: 'Moved to Vault Root', type: FiloToastType.success);
-                  },
-                ),
-                const Divider(),
-                if (candidateFolders.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      'No subfolders created yet',
-                      style: TextStyle(
-                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+              ),
+              const SizedBox(height: 16),
+              // Vault Root Destination Option
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: isDark
+                      ? const Color(0xFF222234)
+                      : Colors.white.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.of(ctx).pop();
+                      ref.read(fileBrowserProvider.notifier).moveNode(node.id, null);
+                      FiloToast.show(context, message: 'Moved to Vault Root', type: FiloToastType.success);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Colors.black.withValues(alpha: 0.05),
+                          width: 1,
+                        ),
                       ),
-                    ),
-                  )
-                else
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 250),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: candidateFolders.length,
-                      itemBuilder: (c, idx) {
-                        final folder = candidateFolders[idx];
-                        return ListTile(
-                          leading: const Icon(Icons.folder_outlined, color: FiloColors.primary),
-                          title: Text(
-                            folder.name,
-                            style: TextStyle(
-                              color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: FiloColors.primary.withValues(alpha: 0.1),
+                              borderRadius: FiloRadius.roundedMd,
+                            ),
+                            child: const Icon(
+                              Icons.cloud_outlined,
+                              color: FiloColors.primary,
+                              size: 20,
                             ),
                           ),
-                          onTap: () {
-                            Navigator.of(ctx).pop();
-                            ref.read(fileBrowserProvider.notifier).moveNode(node.id, folder.id);
-                            FiloToast.show(
-                              context,
-                              message: 'Moved to ${folder.name}',
-                              type: FiloToastType.success,
-                            );
-                          },
-                        );
-                      },
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Vault Root',
+                                  style: TextStyle(
+                                    fontFamily: FiloTypography.fontFamily,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Top-level space directory',
+                                  style: TextStyle(
+                                    fontFamily: FiloTypography.fontFamily,
+                                    fontSize: 11.5,
+                                    color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.3)
+                                : Colors.black.withValues(alpha: 0.2),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+                ),
+              ),
+              if (candidateFolders.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Folders',
+                    style: TextStyle(
+                      fontFamily: FiloTypography.fontFamily,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                    ),
+                  ),
+                ),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.32,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: candidateFolders.length,
+                    itemBuilder: (c, idx) {
+                      final folder = candidateFolders[idx];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: isDark
+                              ? const Color(0xFF222234)
+                              : Colors.white.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(18),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              Navigator.of(ctx).pop();
+                              ref.read(fileBrowserProvider.notifier).moveNode(node.id, folder.id);
+                              FiloToast.show(
+                                context,
+                                message: 'Moved to ${folder.name}',
+                                type: FiloToastType.success,
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.08)
+                                      : Colors.black.withValues(alpha: 0.05),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: FiloColors.accentCoral.withValues(alpha: 0.12),
+                                      borderRadius: FiloRadius.roundedMd,
+                                    ),
+                                    child: const Icon(
+                                      Icons.folder_outlined,
+                                      color: FiloColors.accentCoral,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Text(
+                                      folder.name,
+                                      style: TextStyle(
+                                        fontFamily: FiloTypography.fontFamily,
+                                        fontSize: 14.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.chevron_right_rounded,
+                                    size: 20,
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.3)
+                                        : Colors.black.withValues(alpha: 0.2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ],
-            ),
-          ),
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -881,23 +1255,6 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                         Row(
                           children: [
                             _buildHeaderIconButton(
-                              icon: Icons.sync_rounded,
-                              onTap: () async {
-                                FiloToast.show(context, message: 'Syncing with Telegram...', type: FiloToastType.info);
-                                try {
-                                  await notifier.syncNow();
-                                  if (mounted) {
-                                    FiloToast.show(context, message: 'All files synced with Telegram', type: FiloToastType.success);
-                                  }
-                                } catch (e) {
-                                  if (mounted) {
-                                    FiloToast.show(context, message: 'Sync failed: $e', type: FiloToastType.error);
-                                  }
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 6),
-                            _buildHeaderIconButton(
                               icon: _isSearchActive ? Icons.close_rounded : Icons.search_rounded,
                               onTap: () {
                                 setState(() {
@@ -929,6 +1286,11 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                       ],
                     ),
                   ),
+                ),
+
+                // 1.2 Admin Broadcast & Update Banner (Theme-synced, persistent, polite)
+                const SliverToBoxAdapter(
+                  child: BroadcastAndUpdateBanner(),
                 ),
 
                 // Search Bar if Active
@@ -1280,7 +1642,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
 
     final task = activeTasks.first;
     final totalBytes = activeTasks.fold<int>(0, (sum, t) => sum + t.totalBytes);
-    final transferredBytes = activeTasks.fold<int>(0, (sum, t) => sum + t.transferredBytes);
+    final transferredBytes = activeTasks.fold<int>(0, (sum, t) => sum + t.bytesTransferred);
     final progress = totalBytes > 0 ? (transferredBytes / totalBytes).clamp(0.0, 1.0) : 0.0;
     final pct = (progress * 100).toInt();
 

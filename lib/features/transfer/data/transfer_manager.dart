@@ -46,6 +46,7 @@ class TransferManager {
     String workspaceId = 'personal',
     List<String> tags = const [],
     void Function(FileNode node)? onTaskCreated,
+    void Function(FileNode node)? onFileUploaded,
   }) async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -72,6 +73,7 @@ class TransferManager {
           onTaskCreated: onTaskCreated,
         );
         uploadedNodes.add(node);
+        onFileUploaded?.call(node);
 
         // Telegram channel rate limiting pacing:
         // Add 350ms delay between consecutive files to stay well within
@@ -94,6 +96,7 @@ class TransferManager {
               onTaskCreated: onTaskCreated,
             );
             uploadedNodes.add(node);
+            onFileUploaded?.call(node);
           } catch (_) {
             // Failed after retry
           }
@@ -186,8 +189,9 @@ class TransferManager {
               ))
           .toList();
       await _fileRepository.saveFileChunks(relinkedChunks);
-      // Also record the content hash on the new node
+      // Also record the content hash and mark node synced
       await _fileRepository.updateNodeHash(node.id, contentHash);
+      await _fileRepository.markNodeSynced(node.id);
 
       _tasks[taskId] = _tasks[taskId]!.copyWith(
         status: TransferStatus.completed,
@@ -219,8 +223,9 @@ class TransferManager {
         },
       );
 
-      // Save chunks to SQLite
+      // Save chunks to SQLite and mark node synced
       await _fileRepository.saveFileChunks(chunks);
+      await _fileRepository.markNodeSynced(node.id);
 
       _tasks[taskId] = _tasks[taskId]!.copyWith(
         status: TransferStatus.completed,

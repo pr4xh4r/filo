@@ -131,6 +131,7 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
       isMultiSelect: false,
     );
     await loadCurrentFolder();
+    _triggerAutoSync();
   }
 
   void _triggerAutoSync() {
@@ -176,7 +177,10 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
   }
 
   void setSelectedTag(String? tagId) {
-    if (state.selectedTagId == tagId) {
+    if (tagId == null || tagId.isEmpty) {
+      // Explicitly clearing tag (e.g. tapping "All")
+      state = state.copyWith(clearTag: true);
+    } else if (state.selectedTagId == tagId) {
       // Toggle off if tapping already selected tag
       state = state.copyWith(clearTag: true);
     } else {
@@ -301,12 +305,21 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
     _triggerAutoSync();
   }
 
-  /// Manually triggers immediate cloud backup
-  Future<void> syncNow() async {
-    final masterKey = _ref.read(authNotifierProvider).masterKey;
-    if (masterKey != null) {
-      await _ref.read(indexSyncServiceProvider).backupIndexToCloud(masterKey: masterKey);
-    }
+  Future<void> restoreFromTrash(String id) async {
+    await _repository.restoreFromTrash(id);
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> emptyTrash() async {
+    await _repository.emptyTrash();
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> reloadAll() async {
+    await loadWorkspaces();
+    await loadCurrentFolder();
   }
 }
 

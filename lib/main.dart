@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,8 @@ import 'core/theme/theme_provider.dart';
 import 'features/auth/domain/auth_state.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/auth_gate.dart';
+import 'features/files/presentation/providers/file_browser_provider.dart';
+import 'features/sync/domain/index_sync_service.dart';
 import 'features/transfer/domain/transfer_foreground_controller.dart';
 import 'features/transfer/presentation/providers/transfer_provider.dart';
 
@@ -110,6 +113,9 @@ class _FiloAppState extends ConsumerState<FiloApp> with WidgetsBindingObserver {
     // Lock on background when timeout == 0 (immediate lock),
     // but keep session active if files are actively uploading/downloading in background
     if (state == AppLifecycleState.paused) {
+      // Immediately flush any pending background cloud backup before pausing/locking
+      unawaited(ref.read(indexSyncServiceProvider).flushPendingSync());
+
       final activeTransfers = ref.read(activeTransfersProvider);
       final hasActiveTransfers = activeTransfers.isNotEmpty;
 
@@ -121,9 +127,20 @@ class _FiloAppState extends ConsumerState<FiloApp> with WidgetsBindingObserver {
       }
     }
 
-    // Reset activity timer on resume so we don't lock instantly after foregrounding
+    // Reset activity timer on resume and check for remote cloud updates automatically
     if (state == AppLifecycleState.resumed) {
       _lastActiveTime = DateTime.now();
+      final authState = ref.read(authNotifierProvider);
+      if (authState.lockStatus == AppLockStatus.unlocked && authState.masterKey != null) {
+        ref
+            .read(indexSyncServiceProvider)
+            .checkRemoteUpdates(masterKey: authState.masterKey!)
+            .then((restored) {
+          if (restored && mounted) {
+            ref.read(fileBrowserProvider.notifier).reloadAll();
+          }
+        });
+      }
     }
   }
 

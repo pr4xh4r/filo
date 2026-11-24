@@ -4,6 +4,7 @@ import '../../../../core/crypto/hash_utils.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
+import '../../../../core/theme/filo_typography.dart';
 import '../../../../shared/components/filo_sheet.dart';
 
 /// Bottom action sheet for single file/folder management matching Ethereal Dawn design.
@@ -59,6 +60,7 @@ class FileActionSheet extends StatelessWidget {
         child: Text(
           subtitle,
           style: const TextStyle(
+            fontFamily: FiloTypography.fontFamily,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             color: FiloColors.lightTextSecondary,
@@ -84,8 +86,9 @@ class FileActionSheet extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Star / Favorite (using signature illustration accent color)
+        // Star / Favorite
         _buildActionTile(
+          context: context,
           icon: node.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
           iconColor: node.isFavorite ? FiloColors.accentCoral : FiloColors.primary,
           title: node.isFavorite ? 'Remove from Starred' : 'Add to Starred',
@@ -97,17 +100,19 @@ class FileActionSheet extends StatelessWidget {
 
         // Rename
         _buildActionTile(
+          context: context,
           icon: Icons.edit_outlined,
           iconColor: FiloColors.primary,
-          title: 'Rename',
+          title: node.isFolder ? 'Rename Folder' : 'Rename File',
           onTap: () {
             Navigator.of(context).pop();
             onRename();
           },
         ),
 
-        // Move
+        // Move to Folder
         _buildActionTile(
+          context: context,
           icon: Icons.drive_file_move_outlined,
           iconColor: FiloColors.primary,
           title: 'Move to Folder',
@@ -120,6 +125,7 @@ class FileActionSheet extends StatelessWidget {
         // Manage Smart Tags
         if (onManageTags != null)
           _buildActionTile(
+            context: context,
             icon: Icons.label_outline_rounded,
             iconColor: FiloColors.primary,
             title: 'Smart Tags',
@@ -129,12 +135,13 @@ class FileActionSheet extends StatelessWidget {
             },
           ),
 
-        // Move to Workspace
+        // Move to Workspace / Space
         if (onChangeWorkspace != null)
           _buildActionTile(
+            context: context,
             icon: Icons.workspaces_outline,
             iconColor: FiloColors.primary,
-            title: 'Change Space',
+            title: 'Move to Space',
             onTap: () {
               Navigator.of(context).pop();
               onChangeWorkspace!();
@@ -144,6 +151,7 @@ class FileActionSheet extends StatelessWidget {
         // Share (Files only)
         if (node.isFile)
           _buildActionTile(
+            context: context,
             icon: Icons.share_outlined,
             iconColor: FiloColors.primary,
             title: 'Share Decrypted Copy',
@@ -156,6 +164,7 @@ class FileActionSheet extends StatelessWidget {
         // Download to Device (Files only)
         if (node.isFile && onDownload != null)
           _buildActionTile(
+            context: context,
             icon: Icons.file_download_outlined,
             iconColor: FiloColors.primary,
             title: 'Save to Downloads',
@@ -165,11 +174,12 @@ class FileActionSheet extends StatelessWidget {
             },
           ),
 
-        // Delete to Trash (Destructive red preserved)
+        // Delete to Trash
         _buildActionTile(
+          context: context,
           icon: Icons.delete_outline_rounded,
           iconColor: FiloColors.destructive,
-          title: 'Move to Trash',
+          title: node.isFolder ? 'Delete Folder' : 'Move to Trash',
           isDestructive: true,
           onTap: () {
             Navigator.of(context).pop();
@@ -181,16 +191,21 @@ class FileActionSheet extends StatelessWidget {
   }
 
   Widget _buildActionTile({
+    required BuildContext context,
     required IconData icon,
     required Color iconColor,
     required String title,
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: Colors.white.withValues(alpha: 0.72),
+        color: isDark
+            ? const Color(0xFF222234)
+            : Colors.white.withValues(alpha: 0.82),
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
@@ -202,8 +217,17 @@ class FileActionSheet extends StatelessWidget {
             }
             onTap();
           },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.05),
+                width: 1,
+              ),
+            ),
             child: Row(
               children: [
                 Container(
@@ -211,8 +235,10 @@ class FileActionSheet extends StatelessWidget {
                   height: 38,
                   decoration: BoxDecoration(
                     color: isDestructive
-                        ? FiloColors.destructive.withValues(alpha: 0.1)
-                        : Colors.black.withValues(alpha: 0.04),
+                        ? FiloColors.destructive.withValues(alpha: 0.12)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.04)),
                     borderRadius: FiloRadius.roundedMd,
                   ),
                   child: Icon(icon, color: iconColor, size: 20),
@@ -222,19 +248,22 @@ class FileActionSheet extends StatelessWidget {
                   child: Text(
                     title,
                     style: TextStyle(
-                      fontSize: 15,
+                      fontFamily: FiloTypography.fontFamily,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: -0.3,
+                      letterSpacing: -0.2,
                       color: isDestructive
                           ? FiloColors.destructive
-                          : FiloColors.lightTextPrimary,
+                          : (isDark ? Colors.white : FiloColors.lightTextPrimary),
                     ),
                   ),
                 ),
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
-                  color: Colors.black.withValues(alpha: 0.2),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.3)
+                      : Colors.black.withValues(alpha: 0.2),
                 ),
               ],
             ),
@@ -243,4 +272,5 @@ class FileActionSheet extends StatelessWidget {
       ),
     );
   }
+}
 }
