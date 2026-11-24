@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,16 +53,33 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     final transferNotifier = ref.read(transferQueueProvider.notifier);
     final browserState = ref.read(fileBrowserProvider);
 
-    await transferNotifier.pickAndUploadFile(
-      parentId: browserState.currentFolderId,
-      onTaskCreated: (node) {
-        if (mounted) {
-          ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+    try {
+      final nodes = await transferNotifier.pickAndUploadFiles(
+        parentId: browserState.currentFolderId,
+        onTaskCreated: (node) {
+          if (mounted) {
+            ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+          }
+        },
+      );
+      if (mounted) {
+        ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+        if (nodes.isNotEmpty) {
+          FiloToast.show(
+            context,
+            message: '${nodes.length} file${nodes.length > 1 ? 's' : ''} queued for upload',
+            type: FiloToastType.success,
+          );
         }
-      },
-    );
-    if (mounted) {
-      ref.read(fileBrowserProvider.notifier).loadCurrentFolder();
+      }
+    } catch (e) {
+      if (mounted) {
+        FiloToast.show(
+          context,
+          message: 'Upload error: $e',
+          type: FiloToastType.error,
+        );
+      }
     }
   }
 
@@ -128,26 +146,97 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     final controller = TextEditingController(text: node.name);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+      barrierColor: Colors.black.withValues(alpha: 0.4),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFF9F7), Color(0xFFFBF4FF)],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    node.isFolder ? 'Rename Folder' : 'Rename File',
+                    style: FiloTypography.title3.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: FiloColors.lightTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
+                    ),
+                    child: TextField(
+                      controller: controller,
+                      autofocus: true,
+                      style: const TextStyle(fontSize: 15, color: FiloColors.lightTextPrimary),
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
+                      onSubmitted: (val) {
+                        final newName = val.trim();
+                        if (newName.isNotEmpty) {
+                          ref.read(fileBrowserProvider.notifier).renameNode(node.id, newName);
+                          Navigator.of(context).pop();
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel', style: TextStyle(color: FiloColors.lightTextSecondary)),
+                      ),
+                      const SizedBox(width: 8),
+                      FiloButton(
+                        label: 'Save',
+                        size: FiloButtonSize.small,
+                        onPressed: () {
+                          final newName = controller.text.trim();
+                          if (newName.isNotEmpty) {
+                            ref.read(fileBrowserProvider.notifier).renameNode(node.id, newName);
+                            Navigator.of(context).pop();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-          FiloButton(
-            label: 'Rename',
-            size: FiloButtonSize.small,
-            onPressed: () {
-              final newName = controller.text.trim();
-              if (newName.isNotEmpty) {
-                ref.read(fileBrowserProvider.notifier).renameNode(node.id, newName);
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -278,25 +279,203 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _handleDeleteAllData() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Delete ALL Remote & Local Data?'),
-        content: const Text(
-          'DANGER: This will permanently delete all encrypted files from your Telegram Vault channel, wipe your local database, and clear all keys. THIS CANNOT BE UNDONE.',
+      barrierColor: Colors.black.withValues(alpha: 0.4),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFFF9F7),
+                    Color(0xFFFBF4FF),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: FiloColors.destructive.withValues(alpha: 0.1),
+                    blurRadius: 32,
+                    offset: const Offset(0, 12),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Warning Shield Icon with glowing ring
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: FiloColors.destructive.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: FiloColors.destructive.withValues(alpha: 0.25),
+                        width: 2,
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.delete_forever_rounded,
+                        color: FiloColors.destructive,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Title
+                  Text(
+                    'Wipe All Vault Data?',
+                    textAlign: TextAlign.center,
+                    style: FiloTypography.title2.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 20,
+                      letterSpacing: -0.5,
+                      color: FiloColors.lightTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Warning Explanation Card
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: FiloColors.destructive.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              size: 18,
+                              color: FiloColors.destructive,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'This will permanently delete all encrypted files from your Telegram Vault channel, wipe your local database, and clear all keys.',
+                                style: FiloTypography.caption.copyWith(
+                                  color: FiloColors.lightTextSecondary,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'THIS CANNOT BE UNDONE.',
+                          style: FiloTypography.caption.copyWith(
+                            color: FiloColors.destructive,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+
+                  // Actions: Keep Vault vs Wipe Everything
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.of(context).pop(false);
+                          },
+                          child: Container(
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: Colors.black.withValues(alpha: 0.08),
+                              ),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'Keep Vault',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: FiloColors.lightTextPrimary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.heavyImpact();
+                            Navigator.of(context).pop(true);
+                          },
+                          child: Container(
+                            height: 48,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFF4D4D), Color(0xFFFF2A6D)],
+                              ),
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFF2A6D).withValues(alpha: 0.35),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'Wipe Everything',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FiloButton(
-            label: 'Wipe Everything',
-            variant: FiloButtonVariant.destructive,
-            size: FiloButtonSize.small,
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-        ],
       ),
     );
 
@@ -315,43 +494,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: FiloSpacing.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(2),
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (context) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFCFFF8F5), Color(0xFCF8F4FF)],
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              border: Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: 0.95), width: 1.5),
+              ),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: FiloSpacing.md),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4.5,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2C243B).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const Text(
+                      'Auto-Lock Timeout',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+                    ),
+                    const SizedBox(height: FiloSpacing.sm),
+                    ...options.map(
+                      (mins) => ListTile(
+                        title: Text(
+                          mins == 0 ? 'Immediately on exit' : '$mins minutes',
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
+                        trailing: mins == currentTimeout
+                            ? const Icon(Icons.check_circle_rounded, color: FiloColors.primary)
+                            : null,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          ref.read(authNotifierProvider.notifier).setAutoLockTimeout(mins);
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Text(
-                'Auto-Lock Timeout',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: FiloSpacing.sm),
-              ...options.map(
-                (mins) => ListTile(
-                  title: Text(mins == 0 ? 'Immediately on exit' : '$mins minutes'),
-                  trailing: mins == currentTimeout
-                      ? const Icon(Icons.check, color: FiloColors.primary)
-                      : null,
-                  onTap: () {
-                    ref.read(authNotifierProvider.notifier).setAutoLockTimeout(mins);
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -521,163 +721,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const SizedBox(height: FiloSpacing.md),
 
-          // 3. Theme & Appearance Switcher (Light: Ethereal Dawn / Dark: Midnight Aurora)
-          FiloGlass(
-            borderRadius: BorderRadius.circular(22),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: (isDark ? FiloColors.accentLavender : FiloColors.primary).withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                        size: 20,
-                        color: isDark ? FiloColors.accentLavender : FiloColors.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Theme & Appearance',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                          ),
-                        ),
-                        Text(
-                          isDark ? 'Midnight Aurora (Dark)' : 'Ethereal Dawn (Light)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 9),
-                            decoration: BoxDecoration(
-                              color: !isDark ? Colors.white : Colors.transparent,
-                              borderRadius: BorderRadius.circular(100),
-                              boxShadow: !isDark
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.06),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.wb_sunny_outlined,
-                                    size: 15,
-                                    color: !isDark ? Colors.black : Colors.white60,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Ethereal Light',
-                                    style: TextStyle(
-                                      fontWeight: !isDark ? FontWeight.w700 : FontWeight.w500,
-                                      fontSize: 13,
-                                      color: !isDark ? Colors.black : Colors.white60,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 9),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E1438) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(100),
-                              border: isDark ? Border.all(color: Colors.white.withValues(alpha: 0.15)) : null,
-                              boxShadow: isDark
-                                  ? [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.4),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.nightlight_round,
-                                    size: 15,
-                                    color: isDark ? Colors.white : Colors.black54,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Midnight Dark',
-                                    style: TextStyle(
-                                      fontWeight: isDark ? FontWeight.w700 : FontWeight.w500,
-                                      fontSize: 13,
-                                      color: isDark ? Colors.white : Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: FiloSpacing.md),
-
-          // 4. Persona Switcher (Feminine / Masculine)
+          // 3. Persona Switcher (Feminine / Masculine)
           FiloGlass(
             borderRadius: BorderRadius.circular(22),
             padding: const EdgeInsets.all(16),

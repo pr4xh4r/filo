@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../core/crypto/hash_utils.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
-import '../../../../core/theme/filo_spacing.dart';
 import '../../../../shared/components/filo_sheet.dart';
 
-/// Bottom action sheet for single file/folder management.
+/// Bottom action sheet for single file/folder management matching Ethereal Dawn design.
 class FileActionSheet extends StatelessWidget {
   final FileNode node;
   final VoidCallback onToggleFavorite;
@@ -37,9 +37,28 @@ class FileActionSheet extends StatelessWidget {
     VoidCallback? onDownload,
     required VoidCallback onDelete,
   }) {
+    final subtitle = node.isFolder
+        ? 'Folder'
+        : '${HashUtils.formatBytes(node.sizeBytes)}${node.mimeType != null ? " • ${node.mimeType!.split('/').last.toUpperCase()}" : ""}';
+
     return FiloSheet.show(
       context: context,
       title: node.name,
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          subtitle,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: FiloColors.lightTextSecondary,
+          ),
+        ),
+      ),
       child: FileActionSheet(
         node: node,
         onToggleFavorite: onToggleFavorite,
@@ -54,71 +73,64 @@ class FileActionSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         // Star / Favorite
         _buildActionTile(
           icon: node.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-          iconColor: FiloColors.warning,
-          title: node.isFavorite ? 'Remove from Favorites' : 'Add to Favorites',
+          iconColor: const Color(0xFFFFB300),
+          title: node.isFavorite ? 'Remove from Starred' : 'Add to Starred',
           onTap: () {
             Navigator.of(context).pop();
             onToggleFavorite();
           },
-          isDark: isDark,
         ),
 
         // Rename
         _buildActionTile(
-          icon: Icons.edit_rounded,
+          icon: Icons.edit_outlined,
           iconColor: FiloColors.primary,
           title: 'Rename',
           onTap: () {
             Navigator.of(context).pop();
             onRename();
           },
-          isDark: isDark,
         ),
 
         // Move
         _buildActionTile(
-          icon: Icons.drive_file_move_rounded,
-          iconColor: FiloColors.info,
+          icon: Icons.drive_file_move_outlined,
+          iconColor: const Color(0xFF5E5CE6),
           title: 'Move to Folder',
           onTap: () {
             Navigator.of(context).pop();
             onMove();
           },
-          isDark: isDark,
         ),
 
         // Share (Files only)
         if (node.isFile)
           _buildActionTile(
-            icon: Icons.share_rounded,
-            iconColor: FiloColors.success,
+            icon: Icons.share_outlined,
+            iconColor: const Color(0xFF34C759),
             title: 'Share Decrypted Copy',
             onTap: () {
               Navigator.of(context).pop();
               onShare();
             },
-            isDark: isDark,
           ),
 
         // Download to Device (Files only)
         if (node.isFile && onDownload != null)
           _buildActionTile(
-            icon: Icons.download_rounded,
-            iconColor: FiloColors.info,
-            title: 'Download to Device',
+            icon: Icons.download_outlined,
+            iconColor: const Color(0xFF007AFF),
+            title: 'Save to Downloads',
             onTap: () {
               Navigator.of(context).pop();
               onDownload!();
             },
-            isDark: isDark,
           ),
 
         // Delete to Trash
@@ -131,7 +143,6 @@ class FileActionSheet extends StatelessWidget {
             Navigator.of(context).pop();
             onDelete();
           },
-          isDark: isDark,
         ),
       ],
     );
@@ -142,38 +153,60 @@ class FileActionSheet extends StatelessWidget {
     required Color iconColor,
     required String title,
     required VoidCallback onTap,
-    required bool isDark,
     bool isDestructive = false,
   }) {
-    return ListTile(
-      leading: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: iconColor.withValues(alpha: 0.12),
-          borderRadius: FiloRadius.roundedMd,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () {
+            if (isDestructive) {
+              HapticFeedback.mediumImpact();
+            } else {
+              HapticFeedback.selectionClick();
+            }
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.12),
+                    borderRadius: FiloRadius.roundedMd,
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.3,
+                      color: isDestructive
+                          ? FiloColors.destructive
+                          : FiloColors.lightTextPrimary,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Colors.black.withValues(alpha: 0.2),
+                ),
+              ],
+            ),
+          ),
         ),
-        child: Icon(icon, color: iconColor, size: 20),
       ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-          color: isDestructive
-              ? FiloColors.destructive
-              : (isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary),
-        ),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: FiloSpacing.xs, vertical: 2),
-      onTap: () {
-        if (isDestructive) {
-          HapticFeedback.mediumImpact();
-        } else {
-          HapticFeedback.selectionClick();
-        }
-        onTap();
-      },
     );
   }
 }

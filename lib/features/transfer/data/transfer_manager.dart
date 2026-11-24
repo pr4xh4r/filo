@@ -37,29 +37,78 @@ class TransferManager {
   Stream<List<TransferTask>> get tasksStream => _taskStreamController.stream;
   List<TransferTask> get currentTasks => _tasks.values.toList();
 
-  /// Picks a file from device and uploads it to the vault.
-  Future<FileNode?> pickAndUploadFile({
+  /// Picks one or more files from device and uploads them sequentially to the vault,
+  /// honoring Telegram channel rate limits (FloodWait handling) and chunk size boundaries.
+  Future<List<FileNode>> pickAndUploadFiles({
     required Uint8List masterKey,
     String? parentId,
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
+      allowMultiple: true,
       withReadStream: false,
     );
 
-    if (result == null || result.files.isEmpty) return null;
-    final picked = result.files.first;
-    if (picked.path == null) return null;
+    if (result == null || result.files.isEmpty) return [];
 
-    final file = File(picked.path!);
-    return uploadLocalFile(
-      file: file,
+    final uploadedNodes = <FileNode>[];
+
+    for (final picked in result.files) {
+      if (picked.path == null) continue;
+      final file = File(picked.path!);
+      if (!file.existsSync()) continue;
+
+      try {
+        final node = await uploadLocalFile(
+          file: file,
+          masterKey: masterKey,
+          parentId: parentId,
+          customName: picked.name,
+          onTaskCreated: onTaskCreated,
+        );
+        uploadedNodes.add(node);
+
+        // Telegram channel rate limiting pacing:
+        // Add 350ms delay between consecutive files to stay well within
+        // Telegram's ~20-30 messages/minute broadcast rate limits.
+        await Future.delayed(const Duration(milliseconds: 350));
+      } catch (e) {
+        // If Telegram API returns FLOOD_WAIT_X, honor the cooldown and retry once
+        if (e.toString().contains('FLOOD_WAIT_')) {
+          final match = RegExp(r'FLOOD_WAIT_(\d+)').firstMatch(e.toString());
+          final waitSeconds = match != null ? int.parse(match.group(1)!) : 10;
+          await Future.delayed(Duration(seconds: waitSeconds + 1));
+          try {
+            final node = await uploadLocalFile(
+              file: file,
+              masterKey: masterKey,
+              parentId: parentId,
+              customName: picked.name,
+              onTaskCreated: onTaskCreated,
+            );
+            uploadedNodes.add(node);
+          } catch (_) {
+            // Failed after retry
+          }
+        }
+      }
+    }
+
+    return uploadedNodes;
+  }
+
+  /// Picks a single or multiple files from device and uploads to the vault.
+  Future<FileNode?> pickAndUploadFile({
+    required Uint8List masterKey,
+    String? parentId,
+    void Function(FileNode node)? onTaskCreated,
+  }) async {
+    final nodes = await pickAndUploadFiles(
       masterKey: masterKey,
       parentId: parentId,
-      customName: picked.name,
       onTaskCreated: onTaskCreated,
     );
+    return nodes.isNotEmpty ? nodes.first : null;
   }
 
   /// Uploads a local file with duplicate detection and chunked encryption.

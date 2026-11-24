@@ -30,7 +30,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     });
   }
 
-  Future<FileNode?> pickAndUploadFile({
+  Future<List<FileNode>> pickAndUploadFiles({
     String? parentId,
     void Function(FileNode node)? onTaskCreated,
   }) async {
@@ -39,11 +39,22 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
       throw Exception('Vault is locked. Unlock vault before uploading.');
     }
 
-    return _manager.pickAndUploadFile(
+    return _manager.pickAndUploadFiles(
       masterKey: authState.masterKey!,
       parentId: parentId,
       onTaskCreated: onTaskCreated,
     );
+  }
+
+  Future<FileNode?> pickAndUploadFile({
+    String? parentId,
+    void Function(FileNode node)? onTaskCreated,
+  }) async {
+    final nodes = await pickAndUploadFiles(
+      parentId: parentId,
+      onTaskCreated: onTaskCreated,
+    );
+    return nodes.isNotEmpty ? nodes.first : null;
   }
 
   Future<void> shareDecryptedCopy(FileNode node) async {
