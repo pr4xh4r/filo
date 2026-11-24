@@ -1,4 +1,4 @@
 {
-  "TG_API_ID": 12345678,
-  "TG_API_HASH": "your_api_hash_here"
+  "TG_API_ID": "YOUR_TELEGRAM_API_ID",
+  "TG_API_HASH": "YOUR_TELEGRAM_API_HASH"
 }
