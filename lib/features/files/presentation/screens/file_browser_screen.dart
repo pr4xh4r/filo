@@ -1925,6 +1925,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
             Text(
               label,
               style: TextStyle(
+                fontFamily: FiloTypography.fontFamily,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected

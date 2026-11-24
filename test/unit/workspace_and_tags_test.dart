@@ -126,5 +126,22 @@ void main() {
       expect(updated.length, 4);
       expect(updated.any((w) => w.id == 'crypto'), isTrue);
     });
+
+    test('FileBrowserState tag selection allows clearing to All directly from any tag', () {
+      const state0 = FileBrowserState();
+      expect(state0.selectedTagId, isNull);
+
+      // Select 'personal' tag
+      final statePersonal = state0.copyWith(selectedTagId: 'personal');
+      expect(statePersonal.selectedTagId, 'personal');
+
+      // Tapping "All" clears tag to null
+      final stateAll = statePersonal.copyWith(clearTag: true);
+      expect(stateAll.selectedTagId, isNull);
+
+      // Verify toggling off returns to null
+      final stateToggled = statePersonal.copyWith(clearTag: true);
+      expect(stateToggled.selectedTagId, isNull);
+    });
   });
 }

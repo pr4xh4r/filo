@@ -62,7 +62,7 @@ class BroadcastNotifier extends StateNotifier<BroadcastState> {
 
     if (forceTest) {
       state = state.copyWith(
-        broadcast: const AdminBroadcast(
+        broadcast: AdminBroadcast(
           id: 'test_announcement_101',
           title: '📢 Admin Announcement: Welcome to Filo!',
           message:
