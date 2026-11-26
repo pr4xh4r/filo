@@ -683,6 +683,25 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
+  bool _isMediaNode(FileNode n) {
+    if (n.isFolder) return false;
+    final name = n.name.toLowerCase();
+    final mime = n.mimeType?.toLowerCase() ?? '';
+    return mime.startsWith('image/') ||
+        mime.startsWith('video/') ||
+        name.endsWith('.jpg') ||
+        name.endsWith('.jpeg') ||
+        name.endsWith('.png') ||
+        name.endsWith('.webp') ||
+        name.endsWith('.gif') ||
+        name.endsWith('.bmp') ||
+        name.endsWith('.mp4') ||
+        name.endsWith('.mkv') ||
+        name.endsWith('.mov') ||
+        name.endsWith('.avi') ||
+        name.endsWith('.webm');
+  }
+
   void _handleFileTap(FileNode node) {
     final notifier = ref.read(fileBrowserProvider.notifier);
     final state = ref.read(fileBrowserProvider);
@@ -692,9 +711,19 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     } else if (node.isFolder) {
       notifier.navigateToFolder(node.id);
     } else {
+      final isMedia = _isMediaNode(node);
+      final siblingCandidates = isMedia
+          ? state.items.where((n) => _isMediaNode(n)).toList()
+          : state.items.where((n) => n.isFile).toList();
+      final initialIdx = siblingCandidates.indexWhere((n) => n.id == node.id);
+
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => FilePreviewScreen(node: node),
+          builder: (context) => FilePreviewScreen(
+            node: node,
+            siblingNodes: siblingCandidates.isNotEmpty ? siblingCandidates : [node],
+            initialIndex: initialIdx >= 0 ? initialIdx : 0,
+          ),
         ),
       );
     }

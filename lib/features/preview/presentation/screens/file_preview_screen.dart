@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/cache/session_cache_service.dart';
 import '../../../../core/config/app_config.dart';
@@ -40,16 +40,228 @@ Future<Uint8List> _previewDecryptInIsolate(
 }
 
 /// Previews decrypted media, text, documents, or shows a rich metadata fallback viewer.
+/// Supports uninterrupted horizontal swiping across sibling photos, videos, and documents.
 class FilePreviewScreen extends ConsumerStatefulWidget {
-  final FileNode node;
+  final FileNode? node;
+  final List<FileNode>? siblingNodes;
+  final int initialIndex;
 
-  const FilePreviewScreen({super.key, required this.node});
+  const FilePreviewScreen({
+    super.key,
+    this.node,
+    this.siblingNodes,
+    this.initialIndex = 0,
+  });
 
   @override
   ConsumerState<FilePreviewScreen> createState() => _FilePreviewScreenState();
 }
 
 class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
+  late final List<FileNode> _nodes;
+  late final PageController _pageController;
+  late int _currentIndex;
+  bool _isZoomed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.siblingNodes != null && widget.siblingNodes!.isNotEmpty) {
+      _nodes = List<FileNode>.from(widget.siblingNodes!);
+      _currentIndex = widget.initialIndex.clamp(0, _nodes.length - 1);
+    } else if (widget.node != null) {
+      _nodes = [widget.node!];
+      _currentIndex = 0;
+    } else {
+      _nodes = [];
+      _currentIndex = 0;
+    }
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_nodes.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('No file to preview')),
+      );
+    }
+
+    final currentNode = _nodes[_currentIndex];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF14141F) : FiloColors.lightBackground,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF222234) : Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 14,
+              color: isDark ? Colors.white : Colors.black,
+            ),
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              currentNode.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: FiloTypography.title3.copyWith(
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+              ),
+            ),
+            if (_nodes.length > 1) ...[
+              const SizedBox(height: 2),
+              Text(
+                '${_currentIndex + 1} of ${_nodes.length}',
+                style: TextStyle(
+                  fontFamily: FiloTypography.fontFamily,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          // Favorite Toggle
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF222234) : Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+                ),
+              ),
+              child: Icon(
+                currentNode.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                size: 16,
+                color: currentNode.isFavorite ? FiloColors.accentCoral : (isDark ? Colors.white : Colors.black),
+              ),
+            ),
+            tooltip: currentNode.isFavorite ? 'Remove from Starred' : 'Add to Starred',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              ref.read(fileBrowserProvider.notifier).toggleFavorite(
+                    currentNode.id,
+                    !currentNode.isFavorite,
+                  );
+              setState(() {
+                _nodes[_currentIndex] = currentNode.copyWith(
+                  isFavorite: !currentNode.isFavorite,
+                );
+              });
+            },
+          ),
+          const SizedBox(width: 4),
+
+          // Share Decrypted Copy
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF222234) : Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+                ),
+              ),
+              child: Icon(
+                Icons.share_rounded,
+                size: 16,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+            tooltip: 'Share Decrypted Copy',
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              ref
+                  .read(transferQueueProvider.notifier)
+                  .shareDecryptedCopy(currentNode);
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: FiloBackground(
+        child: _nodes.length == 1
+            ? SingleFilePreviewWidget(node: _nodes.first)
+            : PageView.builder(
+                controller: _pageController,
+                itemCount: _nodes.length,
+                physics: _isZoomed
+                    ? const NeverScrollableScrollPhysics()
+                    : const BouncingScrollPhysics(),
+                onPageChanged: (index) {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _currentIndex = index;
+                    _isZoomed = false;
+                  });
+                },
+                itemBuilder: (context, index) {
+                  return SingleFilePreviewWidget(
+                    key: ValueKey(_nodes[index].id),
+                    node: _nodes[index],
+                    isActive: _currentIndex == index,
+                    onZoomChanged: (zoomed) {
+                      if (_isZoomed != zoomed) {
+                        setState(() => _isZoomed = zoomed);
+                      }
+                    },
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+/// Standalone preview page for an individual decrypted file node.
+class SingleFilePreviewWidget extends ConsumerStatefulWidget {
+  final FileNode node;
+  final ValueChanged<bool>? onZoomChanged;
+  final bool isActive;
+
+  const SingleFilePreviewWidget({
+    super.key,
+    required this.node,
+    this.onZoomChanged,
+    this.isActive = true,
+  });
+
+  @override
+  ConsumerState<SingleFilePreviewWidget> createState() => _SingleFilePreviewWidgetState();
+}
+
+class _SingleFilePreviewWidgetState extends ConsumerState<SingleFilePreviewWidget>
+    with AutomaticKeepAliveClientMixin {
+  late final TransformationController _transformationController;
   bool _isLoading = true;
   Uint8List? _decryptedBytes;
   File? _videoFile;
@@ -60,16 +272,18 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
   double _loadProgress = 0.0;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
+    _transformationController = TransformationController();
     _loadAndDecryptFile();
   }
 
   @override
   void dispose() {
-    // Session Cache rule: Decrypted files remain in SessionCacheService for 0ms instant
-    // re-opening when moving between folders during the active unlocked session.
-    // The session cache is automatically wiped when Filo is locked.
+    _transformationController.dispose();
     super.dispose();
   }
 
@@ -244,10 +458,14 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+
     final name = widget.node.name.toLowerCase();
     final mime = widget.node.mimeType?.toLowerCase() ?? '';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Widget content;
+
     if (_isLoading) {
       content = Center(
         child: Column(
@@ -304,12 +522,17 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
             name.endsWith('.gif') ||
             name.endsWith('.bmp')) &&
         (_imageFile != null || _decryptedBytes != null)) {
-      // 1. Interactive Zoomable Image Preview (Streamed from disk file for minimal RAM)
+      // 1. Interactive Zoomable Image Preview with Pan/Zoom detection for PageView
       content = InteractiveViewer(
+        transformationController: _transformationController,
         panEnabled: true,
         boundaryMargin: const EdgeInsets.all(20),
-        minScale: 0.5,
+        minScale: 1.0,
         maxScale: 4.0,
+        onInteractionEnd: (_) {
+          final scale = _transformationController.value.getMaxScaleOnAxis();
+          widget.onZoomChanged?.call(scale > 1.05);
+        },
         child: Center(
           child: _imageFile != null
               ? Image.file(
@@ -332,7 +555,7 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
       );
     } else if ((mime == 'application/pdf' || name.endsWith('.pdf')) &&
         (_pdfFile != null || _decryptedBytes != null)) {
-      // 2. Native Multi-Page PDF Viewer (Disk-backed for minimal RAM)
+      // 2. Native Multi-Page PDF Viewer
       content = PdfViewerWidget(
         file: _pdfFile,
         bytes: _decryptedBytes,
@@ -345,7 +568,7 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
             name.endsWith('.avi') ||
             name.endsWith('.webm')) &&
         (_videoFile != null || _decryptedBytes != null)) {
-      // 3. Hardware-Accelerated Video Player (Disk-streamed to prevent OOM)
+      // 3. Hardware-Accelerated Video Player
       content = VideoPlayerWidget(
         file: _videoFile,
         bytes: _decryptedBytes,
@@ -380,7 +603,7 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
         fileName: widget.node.name,
       );
     } else if (_textContent != null) {
-      // 7. Interactive Code & Text Viewer (Line Numbers, Copy, Wrap)
+      // 7. Interactive Code & Text Viewer
       content = CodeTextViewerWidget(
         text: _textContent!,
         fileName: widget.node.name,
@@ -391,19 +614,20 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
         child: Padding(
           padding: const EdgeInsets.all(FiloSpacing.xxl),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: FiloColors.primary.withValues(alpha: 0.1),
+                  color: isDark ? Colors.white.withValues(alpha: 0.08) : FiloColors.primary.withValues(alpha: 0.1),
                   borderRadius: FiloRadius.roundedXl,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.insert_drive_file_rounded,
                   size: 40,
-                  color: FiloColors.primary,
+                  color: isDark ? Colors.white : FiloColors.primary,
                 ),
               ),
               const SizedBox(height: FiloSpacing.lg),
@@ -415,8 +639,8 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
               const SizedBox(height: FiloSpacing.xs),
               Text(
                 '${HashUtils.formatBytes(widget.node.sizeBytes)} • ${widget.node.mimeType ?? 'Binary Document'}',
-                style: const TextStyle(
-                  color: FiloColors.lightTextSecondary,
+                style: TextStyle(
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -436,60 +660,6 @@ class _FilePreviewScreenState extends ConsumerState<FilePreviewScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: FiloColors.lightBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-            ),
-            child: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              size: 14,
-              color: Colors.black,
-            ),
-          ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          widget.node.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: FiloTypography.title3.copyWith(fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-              ),
-              child: const Icon(
-                Icons.share_rounded,
-                size: 16,
-                color: Colors.black,
-              ),
-            ),
-            tooltip: 'Share Decrypted Copy',
-            onPressed: () {
-              ref
-                  .read(transferQueueProvider.notifier)
-                  .shareDecryptedCopy(widget.node);
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: FiloBackground(child: content),
-    );
+    return content;
   }
 }
