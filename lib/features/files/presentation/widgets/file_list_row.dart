@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/crypto/hash_utils.dart';
 import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
@@ -17,6 +18,8 @@ class FileListRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final VoidCallback onMoreTap;
+  final VoidCallback? onSwipeMove;
+  final VoidCallback? onSwipeStar;
 
   const FileListRow({
     super.key,
@@ -28,6 +31,8 @@ class FileListRow extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.onMoreTap,
+    this.onSwipeMove,
+    this.onSwipeStar,
   });
 
   IconData _getIconForNode() {
@@ -48,7 +53,7 @@ class FileListRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return InkWell(
+    Widget rowContent = InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
@@ -210,6 +215,75 @@ class FileListRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (isSelectionMode || (onSwipeMove == null && onSwipeStar == null)) {
+      return rowContent;
+    }
+
+    return Dismissible(
+      key: ValueKey('swipe_${node.id}'),
+      direction: DismissDirection.horizontal,
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        color: const Color(0xFFFFB800),
+        child: Row(
+          children: [
+            Icon(
+              node.isFavorite ? Icons.star_border_rounded : Icons.star_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              node.isFavorite ? 'Unstar' : 'Star',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+      secondaryBackground: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: isDark ? const Color(0xFF33334D) : const Color(0xFF1E1E2C),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              'Move',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+            SizedBox(width: 8),
+            Icon(
+              Icons.drive_file_move_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
+          ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.endToStart) {
+          HapticFeedback.mediumImpact();
+          onSwipeMove?.call();
+          return false;
+        } else if (direction == DismissDirection.startToEnd) {
+          HapticFeedback.lightImpact();
+          onSwipeStar?.call();
+          return false;
+        }
+        return false;
+      },
+      child: rowContent,
     );
   }
 }

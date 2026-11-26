@@ -87,11 +87,9 @@ class FileActionSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         // Star / Favorite
         _buildActionTile(
           context: context,
@@ -206,9 +204,8 @@ class FileActionSheet extends StatelessWidget {
           },
         ),
       ],
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildActionTile({
     required BuildContext context,

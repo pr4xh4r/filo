@@ -1293,21 +1293,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           _buildSettingsTile(
-            icon: Icons.campaign_outlined,
-            title: 'Verify Test Broadcast & Update',
-            subtitle: 'Simulate admin announcement card & update reminder',
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () async {
-              HapticFeedback.mediumImpact();
-              await ref.read(broadcastNotifierProvider.notifier).refresh(forceTest: true);
-              if (mounted) {
-                Navigator.of(context).pop();
-                FiloToast.show(context, message: 'Test update & broadcast activated! Returning to home...', type: FiloToastType.success);
-              }
-            },
-          ),
-
-          _buildSettingsTile(
             icon: Icons.lock_outline_rounded,
             title: 'Lock Vault Now',
             subtitle: 'Clear master keys from device memory',

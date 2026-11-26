@@ -134,6 +134,8 @@ class FiloSheet extends StatelessWidget {
                           Expanded(
                             child: Text(
                               title!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontFamily: FiloTypography.fontFamily,
                                 fontSize: 17,

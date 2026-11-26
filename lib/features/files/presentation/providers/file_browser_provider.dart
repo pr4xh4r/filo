@@ -210,7 +210,9 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
       onlyFavorites: state.isFavoritesOnly,
       searchQuery: state.searchQuery,
       mimePrefix: state.filterMimePrefix,
-      workspaceId: state.currentFolderId == null ? state.activeWorkspaceId : null,
+      workspaceId: (state.currentFolderId == null || state.isFavoritesOnly)
+          ? state.activeWorkspaceId
+          : null,
       tag: state.selectedTagId,
     );
 
@@ -372,6 +374,36 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
     // BUG 11 FIX: Batch delete in a single database transaction
     final ids = state.selectedIds.toList();
     await _repository.trashNodes(ids);
+    clearSelection();
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> batchStar(bool isFavorite) async {
+    final ids = state.selectedIds.toList();
+    for (final id in ids) {
+      await _repository.toggleFavorite(id, isFavorite);
+    }
+    clearSelection();
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> batchMove(String? newParentId) async {
+    final ids = state.selectedIds.toList();
+    for (final id in ids) {
+      await _repository.moveNode(id, newParentId);
+    }
+    clearSelection();
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> batchChangeWorkspace(String workspaceId) async {
+    final ids = state.selectedIds.toList();
+    for (final id in ids) {
+      await _repository.updateNodeWorkspace(id, workspaceId);
+    }
     clearSelection();
     await loadCurrentFolder();
     _triggerAutoSync();

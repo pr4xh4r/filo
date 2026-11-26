@@ -174,6 +174,26 @@ void main() {
       final favorites = await db.listNodes(onlyFavorites: true);
       expect(favorites.length, 1);
       expect(favorites.first.id, '1');
+
+      // Test workspace isolation for favorites
+      final workNode = FileNode(
+        id: 'work_fav_1',
+        name: 'Quarterly_Report.pdf',
+        type: NodeType.file,
+        workspaceId: 'work',
+        isFavorite: true,
+        createdAt: now,
+        modifiedAt: now,
+      );
+      await db.insertNode(workNode);
+
+      final personalFavorites = await db.listNodes(onlyFavorites: true, workspaceId: 'personal');
+      expect(personalFavorites.any((n) => n.id == 'work_fav_1'), isFalse);
+      expect(personalFavorites.any((n) => n.id == '1'), isTrue);
+
+      final workFavorites = await db.listNodes(onlyFavorites: true, workspaceId: 'work');
+      expect(workFavorites.length, 1);
+      expect(workFavorites.first.id, 'work_fav_1');
     });
   });
 

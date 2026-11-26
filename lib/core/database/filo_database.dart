@@ -428,17 +428,29 @@ class FiloDatabase {
 
     if (onlyFavorites) {
       conditions.add('is_favorite = 1');
-    }
-
-    if (parentId != null) {
+      if (workspaceId != null && workspaceId.isNotEmpty) {
+        if (workspaceId == 'personal' || workspaceId == 'default') {
+          conditions.add('(workspace_id = ? OR workspace_id IS NULL OR workspace_id = \'personal\' OR workspace_id = \'default\')');
+          params.add(workspaceId);
+        } else {
+          conditions.add('workspace_id = ?');
+          params.add(workspaceId);
+        }
+      }
+    } else if (parentId != null) {
       conditions.add('parent_id = ?');
       params.add(parentId);
-    } else if (!onlyFavorites && searchQuery == null) {
+    } else if (searchQuery == null) {
       // Root folder listing: optionally filter by workspace
       conditions.add('parent_id IS NULL');
       if (workspaceId != null && workspaceId.isNotEmpty) {
-        conditions.add('(workspace_id = ? OR workspace_id IS NULL)');
-        params.add(workspaceId);
+        if (workspaceId == 'personal' || workspaceId == 'default') {
+          conditions.add('(workspace_id = ? OR workspace_id IS NULL OR workspace_id = \'personal\' OR workspace_id = \'default\')');
+          params.add(workspaceId);
+        } else {
+          conditions.add('workspace_id = ?');
+          params.add(workspaceId);
+        }
       }
     }
 

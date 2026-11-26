@@ -16,6 +16,7 @@ import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../preview/presentation/screens/file_preview_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
+import '../../../sync/domain/index_sync_service.dart';
 import '../../../transfer/presentation/providers/transfer_provider.dart';
 import '../../../transfer/presentation/screens/transfer_queue_sheet.dart';
 import '../providers/file_browser_provider.dart';
@@ -1174,9 +1175,20 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
           bottom: false,
           child: Stack(
           children: [
-            CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
+            RefreshIndicator(
+              color: isDark ? Colors.white : Colors.black,
+              backgroundColor: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+              onRefresh: () async {
+                HapticFeedback.lightImpact();
+                await ref.read(fileBrowserProvider.notifier).reloadAll();
+                try {
+                  await ref.read(indexSyncServiceProvider).flushPendingSync();
+                } catch (_) {}
+                HapticFeedback.selectionClick();
+              },
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                slivers: [
                 // 1. Top Header: Handwritten "cloud" with Cloud Outline Icon
                 SliverToBoxAdapter(
                   child: Padding(
@@ -1615,6 +1627,8 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                               onTap: () => _handleFileTap(node),
                               onLongPress: () => _showFileActions(node),
                               onMoreTap: () => _showFileActions(node),
+                              onSwipeMove: () => _showMoveDialog(node),
+                              onSwipeStar: () => notifier.toggleFavorite(node.id, !node.isFavorite),
                             ),
                           );
                         },
@@ -1624,6 +1638,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                   ),
               ],
             ),
+          ),
 
             // 4. Dynamic Island Active Transfer Pill
             if (activeTasks.isNotEmpty)
@@ -1639,7 +1654,9 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               left: 20,
               right: 20,
               bottom: 24,
-              child: _buildTransparentNavbar(state.isFavoritesOnly, activeTasksCount),
+              child: state.isMultiSelect && state.selectedIds.isNotEmpty
+                  ? _buildBatchActionBar(state)
+                  : _buildTransparentNavbar(state.isFavoritesOnly, activeTasksCount),
             ),
           ],
         ),
@@ -2174,6 +2191,329 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  // Multi-File Batch Action Floating Bar
+  Widget _buildBatchActionBar(FileBrowserState state) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final count = state.selectedIds.length;
+    final notifier = ref.read(fileBrowserProvider.notifier);
+
+    return FiloGlass(
+      borderRadius: BorderRadius.circular(40),
+      blur: 32.0,
+      color: isDark ? FiloColors.darkSurfaceSecondary.withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.88),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      border: Border.all(
+        color: isDark ? FiloColors.darkBorder : Colors.white.withValues(alpha: 0.9),
+        width: 1.5,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+          blurRadius: 28,
+          offset: const Offset(0, 10),
+        ),
+      ],
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$count selected',
+              style: TextStyle(
+                fontFamily: FiloTypography.fontFamily,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+                color: isDark ? Colors.white : Colors.black,
+              ),
+            ),
+          ),
+          const Spacer(),
+
+          // Star / Favorite
+          IconButton(
+            tooltip: 'Star',
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            icon: const Icon(Icons.star_rounded, size: 22, color: Color(0xFFFFB800)),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              notifier.batchStar(true);
+              FiloToast.show(context, message: 'Added $count items to Starred', type: FiloToastType.success);
+            },
+          ),
+          const SizedBox(width: 8),
+
+          // Move to Folder
+          IconButton(
+            tooltip: 'Move to Folder',
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            icon: Icon(Icons.drive_file_move_outlined, size: 21, color: isDark ? Colors.white : Colors.black),
+            onPressed: () => _showBatchMoveDialog(),
+          ),
+          const SizedBox(width: 8),
+
+          // Move to Space
+          IconButton(
+            tooltip: 'Move to Space',
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            icon: Icon(Icons.workspaces_outline, size: 21, color: isDark ? Colors.white : Colors.black),
+            onPressed: () => _showBatchChangeWorkspaceDialog(),
+          ),
+          const SizedBox(width: 8),
+
+          // Delete to Trash
+          IconButton(
+            tooltip: 'Delete',
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            icon: const Icon(Icons.delete_outline_rounded, size: 21, color: FiloColors.destructive),
+            onPressed: () => _confirmBatchDelete(count),
+          ),
+          const SizedBox(width: 8),
+
+          // Cancel Selection
+          IconButton(
+            tooltip: 'Cancel',
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(),
+            icon: Icon(Icons.close_rounded, size: 20, color: isDark ? Colors.white70 : Colors.black54),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              notifier.clearSelection();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBatchMoveDialog() async {
+    final repo = ref.read(fileRepositoryProvider);
+    final folders = await repo.getFolders();
+    final selectedIds = ref.read(fileBrowserProvider).selectedIds;
+    final candidateFolders = folders.where((f) => !selectedIds.contains(f.id)).toList();
+
+    if (!mounted) return;
+
+    FiloSheet.show(
+      context: context,
+      title: 'Move Selected Items',
+      child: Builder(
+        builder: (ctx) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select destination for ${selectedIds.length} items.',
+                style: FiloTypography.caption.copyWith(
+                  fontFamily: FiloTypography.fontFamily,
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 14),
+              // Root option
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: isDark ? const Color(0xFF222234) : Colors.white.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.of(ctx).pop();
+                      ref.read(fileBrowserProvider.notifier).batchMove(null);
+                      FiloToast.show(context, message: 'Moved items to Root', type: FiloToastType.success);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.home_outlined, size: 22, color: Colors.black),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Vault Root',
+                            style: TextStyle(
+                              fontFamily: FiloTypography.fontFamily,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white : Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              ...candidateFolders.map((f) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: isDark ? const Color(0xFF222234) : Colors.white.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.of(ctx).pop();
+                      ref.read(fileBrowserProvider.notifier).batchMove(f.id);
+                      FiloToast.show(context, message: 'Moved items to ${f.name}', type: FiloToastType.success);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.folder_rounded, size: 22, color: Colors.black),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              f.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: FiloTypography.fontFamily,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              )),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showBatchChangeWorkspaceDialog() {
+    final workspaces = ref.read(fileBrowserProvider).workspaces;
+    final selectedCount = ref.read(fileBrowserProvider).selectedIds.length;
+
+    FiloSheet.show(
+      context: context,
+      title: 'Move to Space',
+      child: Builder(
+        builder: (ctx) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose a space to relocate $selectedCount items.',
+                style: FiloTypography.caption.copyWith(
+                  fontFamily: FiloTypography.fontFamily,
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 14),
+              ...workspaces.map((ws) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      Navigator.of(ctx).pop();
+                      ref.read(fileBrowserProvider.notifier).batchChangeWorkspace(ws.id);
+                      FiloToast.show(context, message: 'Moved $selectedCount items to ${ws.name}', type: FiloToastType.success);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.workspaces_outline, size: 22, color: isDark ? Colors.white : Colors.black),
+                          const SizedBox(width: 12),
+                          Text(
+                            ws.name,
+                            style: TextStyle(
+                              fontFamily: FiloTypography.fontFamily,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white : Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              )),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _confirmBatchDelete(int count) {
+    FiloSheet.show(
+      context: context,
+      title: 'Move to Trash',
+      child: Builder(
+        builder: (ctx) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Are you sure you want to move $count items to Trash?',
+                style: TextStyle(
+                  fontFamily: FiloTypography.fontFamily,
+                  fontSize: 14,
+                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: FiloButton(
+                      label: 'Cancel',
+                      variant: FiloButtonVariant.secondary,
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FiloButton(
+                      label: 'Move to Trash',
+                      variant: FiloButtonVariant.destructive,
+                      onPressed: () {
+                        HapticFeedback.mediumImpact();
+                        Navigator.of(ctx).pop();
+                        ref.read(fileBrowserProvider.notifier).deleteSelected();
+                        FiloToast.show(context, message: 'Moved $count items to Trash', type: FiloToastType.info);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
