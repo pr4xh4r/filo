@@ -5,7 +5,6 @@ import 'package:filo/features/auth/domain/auth_state.dart';
 import 'package:filo/features/auth/presentation/providers/auth_provider.dart';
 import 'package:filo/features/files/presentation/screens/file_browser_screen.dart';
 import 'app_lock_screen.dart';
-import 'passphrase_setup_screen.dart';
 import 'welcome_screen.dart';
 
 /// Central authentication gate routing between onboarding, login, unlock, and the main app.
@@ -26,23 +25,20 @@ class AuthGate extends ConsumerWidget {
       );
     }
 
-    // 1. User needs to connect Telegram
-    if (!authState.isTelegramAuthenticated) {
+    // 1. First-time or unconfigured space: ALWAYS start at WelcomeScreen!
+    // Flow: WelcomeScreen -> OnboardingCloudChoiceScreen -> Platform Login -> PassphraseSetupScreen -> FileBrowserScreen
+    if (authState.vaultStatus == VaultSetupStatus.unconfigured) {
       return const WelcomeScreen();
     }
 
-    // 2. Telegram connected, but zero-knowledge vault not yet set up
-    if (authState.vaultStatus == VaultSetupStatus.unconfigured) {
-      return const PassphraseSetupScreen();
-    }
-
-    // 3. Vault configured, but app is locked
+    // 2. Space configured, but app is locked or passphrase needed
     if (authState.lockStatus == AppLockStatus.locked ||
         authState.vaultStatus == VaultSetupStatus.passphraseNeeded) {
       return const AppLockScreen();
     }
 
-    // 4. Authenticated, configured, and unlocked -> Main File Browser
+    // 3. Authenticated, configured, and unlocked -> Main File Browser ("explore space")
     return const FileBrowserScreen();
   }
 }
+

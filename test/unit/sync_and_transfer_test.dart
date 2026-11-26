@@ -163,6 +163,80 @@ void main() {
 
       tempDir.deleteSync(recursive: true);
     });
+
+    test('Tier 1 Adaptive Chunking: files <= 32MB upload as 1 single encrypted file', () async {
+      final masterKey = CryptoEngine.generateMasterKey();
+      final tempDir = Directory.systemTemp.createTempSync('filo_tier1_test_');
+      final sourceFile = File('${tempDir.path}/photo.jpg');
+
+      // 2 MB test file (simulating a photo or document)
+      final photoBytes = Uint8List(2 * 1024 * 1024);
+      photoBytes[0] = 0xFF; // simulate JPEG magic bytes
+      photoBytes[1] = 0xD8;
+      photoBytes[photoBytes.length - 1] = 0xD9;
+      await sourceFile.writeAsBytes(photoBytes);
+
+      // Default chunk size triggers adaptive 3-tier chunking
+      final chunks = await chunkEngine.uploadFile(
+        file: sourceFile,
+        nodeId: 'node_photo_1',
+        masterKey: masterKey,
+        channelId: '-1009876543210',
+      );
+
+      // Exactly 1 chunk created, zero fragmentation
+      expect(chunks.length, 1);
+      expect(chunks.first.chunkIndex, 0);
+
+      // Decrypt and verify byte-for-byte fidelity
+      final downloadedFile = File('${tempDir.path}/photo_decrypted.jpg');
+      await chunkEngine.downloadAndDecryptFile(
+        chunks: chunks,
+        destinationFile: downloadedFile,
+        masterKey: masterKey,
+        channelId: '-1009876543210',
+      );
+
+      final decryptedBytes = await downloadedFile.readAsBytes();
+      expect(decryptedBytes.length, photoBytes.length);
+      expect(decryptedBytes[0], 0xFF);
+      expect(decryptedBytes[1], 0xD8);
+      expect(decryptedBytes[decryptedBytes.length - 1], 0xD9);
+
+      tempDir.deleteSync(recursive: true);
+    });
+
+    test('Viewable spaces upload as 1 single unencrypted file with authentic filename', () async {
+      final masterKey = CryptoEngine.generateMasterKey();
+      final tempDir = Directory.systemTemp.createTempSync('filo_viewable_test_');
+      final sourceFile = File('${tempDir.path}/vacation.mp4');
+      await sourceFile.writeAsString('Direct MP4 video binary simulation');
+
+      final chunks = await chunkEngine.uploadFile(
+        file: sourceFile,
+        nodeId: 'node_video_viewable',
+        masterKey: masterKey,
+        channelId: '-1009876543210',
+        customFileName: 'vacation.mp4',
+        isEncrypted: false,
+      );
+
+      expect(chunks.length, 1);
+      expect(chunks.first.ivHex, 'plain');
+
+      final downloadedFile = File('${tempDir.path}/vacation_downloaded.mp4');
+      await chunkEngine.downloadAndDecryptFile(
+        chunks: chunks,
+        destinationFile: downloadedFile,
+        masterKey: masterKey,
+        channelId: '-1009876543210',
+      );
+
+      final downloadedContent = await downloadedFile.readAsString();
+      expect(downloadedContent, 'Direct MP4 video binary simulation');
+
+      tempDir.deleteSync(recursive: true);
+    });
   });
 
   group('TransferManager & Duplicate Detection', () {

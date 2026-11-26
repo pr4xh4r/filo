@@ -13,6 +13,7 @@ import '../../../core/database/chunk_model.dart';
 import '../../../core/database/node_model.dart';
 import '../../../core/database/transfer_model.dart';
 import '../../files/data/file_repository.dart';
+import '../../files/domain/workspace.dart';
 import '../../storage/domain/storage_backend.dart';
 import '../domain/chunking_engine.dart';
 
@@ -45,6 +46,7 @@ class TransferManager {
     String? parentId,
     String workspaceId = 'personal',
     List<String> tags = const [],
+    bool? isEncrypted,
     void Function(FileNode node)? onTaskCreated,
     void Function(FileNode node)? onFileUploaded,
   }) async {
@@ -70,6 +72,7 @@ class TransferManager {
           workspaceId: workspaceId,
           tags: tags,
           customName: picked.name,
+          isEncrypted: isEncrypted,
           onTaskCreated: onTaskCreated,
         );
         uploadedNodes.add(node);
@@ -93,6 +96,7 @@ class TransferManager {
               workspaceId: workspaceId,
               tags: tags,
               customName: picked.name,
+              isEncrypted: isEncrypted,
               onTaskCreated: onTaskCreated,
             );
             uploadedNodes.add(node);
@@ -113,6 +117,7 @@ class TransferManager {
     String? parentId,
     String workspaceId = 'personal',
     List<String> tags = const [],
+    bool? isEncrypted,
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final nodes = await pickAndUploadFiles(
@@ -120,6 +125,7 @@ class TransferManager {
       parentId: parentId,
       workspaceId: workspaceId,
       tags: tags,
+      isEncrypted: isEncrypted,
       onTaskCreated: onTaskCreated,
     );
     return nodes.isNotEmpty ? nodes.first : null;
@@ -133,6 +139,7 @@ class TransferManager {
     String workspaceId = 'personal',
     List<String> tags = const [],
     String? customName,
+    bool? isEncrypted,
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final fileName = customName ?? p.basename(file.path);
@@ -206,20 +213,40 @@ class TransferManager {
 
     // 4. Execute Chunked Upload
     try {
-      final channelInfo = await _storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
+      // Determine encryption setting
+      bool effectiveIsEncrypted = true;
+      if (isEncrypted != null) {
+        effectiveIsEncrypted = isEncrypted;
+      } else {
+        try {
+          final workspaces = await _fileRepository.getWorkspaces();
+          final ws = workspaces.firstWhere(
+            (w) => w.id == workspaceId,
+            orElse: () => Workspace.fromId(workspaceId, workspaces),
+          );
+          effectiveIsEncrypted = ws.isEncrypted;
+        } catch (_) {
+          effectiveIsEncrypted = true;
+        }
+      }
+
+      final channelTitle = AppConfig.getChannelTitle(isEncrypted: effectiveIsEncrypted);
+      final channelInfo = await _storageBackend.getOrCreateVaultChannel(channelTitle);
 
       final chunks = await _chunkingEngine.uploadFile(
         file: file,
         nodeId: node.id,
         masterKey: masterKey,
         channelId: channelInfo.channelId,
+        customFileName: fileName,
+        isEncrypted: effectiveIsEncrypted,
         onProgress: (bytes, total, progress) {
           _tasks[taskId] = _tasks[taskId]!.copyWith(
             bytesTransferred: bytes,
             progress: progress,
             updatedAt: DateTime.now(),
           );
-          _notify();
+          _notify(immediate: false);
         },
       );
 
@@ -263,28 +290,43 @@ class TransferManager {
     _tasks[taskId] = task;
     _notify();
 
+    final safeName = FileNode.sanitizeNodeName(node.name);
     final tempDir = await getTemporaryDirectory();
-    final decryptedPath = p.join(tempDir.path, 'filo_share_${node.name}');
+    final decryptedPath = p.normalize(p.join(tempDir.path, 'filo_share_$safeName'));
+    if (!p.isWithin(tempDir.path, decryptedPath)) {
+      throw ArgumentError('Invalid node name path traversal: ${node.name}');
+    }
     final decryptedFile = File(decryptedPath);
 
     try {
-      final chunks = await _fileRepository.getChunksForNode(node.id);
-      final channelInfo = await _storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
+      final offlineFile = await _fileRepository.getOfflineFile(node.id);
+      if (offlineFile != null && offlineFile.existsSync() && offlineFile.lengthSync() > 0) {
+        await offlineFile.copy(decryptedFile.path);
+      } else {
+        final chunks = await _fileRepository.getChunksForNode(node.id);
+        final workspaces = await _fileRepository.getWorkspaces();
+        final ws = workspaces.firstWhere(
+          (w) => w.id == node.workspaceId,
+          orElse: () => Workspace.fromId(node.workspaceId, workspaces),
+        );
+        final channelTitle = AppConfig.getChannelTitle(isEncrypted: ws.isEncrypted);
+        final channelInfo = await _storageBackend.getOrCreateVaultChannel(channelTitle);
 
-      await _chunkingEngine.downloadAndDecryptFile(
-        chunks: chunks,
-        destinationFile: decryptedFile,
-        masterKey: masterKey,
-        channelId: channelInfo.channelId,
-        onProgress: (bytes, total, progress) {
-          _tasks[taskId] = _tasks[taskId]!.copyWith(
-            bytesTransferred: bytes,
-            progress: progress,
-            updatedAt: DateTime.now(),
-          );
-          _notify();
-        },
-      );
+        await _chunkingEngine.downloadAndDecryptFile(
+          chunks: chunks,
+          destinationFile: decryptedFile,
+          masterKey: masterKey,
+          channelId: channelInfo.channelId,
+          onProgress: (bytes, total, progress) {
+            _tasks[taskId] = _tasks[taskId]!.copyWith(
+              bytesTransferred: bytes,
+              progress: progress,
+              updatedAt: DateTime.now(),
+            );
+            _notify(immediate: false);
+          },
+        );
+      }
 
       _tasks[taskId] = _tasks[taskId]!.copyWith(
         status: TransferStatus.completed,
@@ -343,24 +385,40 @@ class TransferManager {
       }
       targetDir ??= await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
 
-      final targetFile = File(p.join(targetDir.path, node.name));
-      final chunks = await _fileRepository.getChunksForNode(node.id);
-      final channelInfo = await _storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
+      final safeName = FileNode.sanitizeNodeName(node.name);
+      final targetPath = p.normalize(p.join(targetDir.path, safeName));
+      if (!p.isWithin(targetDir.path, targetPath)) {
+        throw ArgumentError('Invalid destination path traversal: ${node.name}');
+      }
+      final targetFile = File(targetPath);
+      final offlineFile = await _fileRepository.getOfflineFile(node.id);
+      if (offlineFile != null && offlineFile.existsSync() && offlineFile.lengthSync() > 0) {
+        await offlineFile.copy(targetFile.path);
+      } else {
+        final chunks = await _fileRepository.getChunksForNode(node.id);
+        final workspaces = await _fileRepository.getWorkspaces();
+        final ws = workspaces.firstWhere(
+          (w) => w.id == node.workspaceId,
+          orElse: () => Workspace.fromId(node.workspaceId, workspaces),
+        );
+        final channelTitle = AppConfig.getChannelTitle(isEncrypted: ws.isEncrypted);
+        final channelInfo = await _storageBackend.getOrCreateVaultChannel(channelTitle);
 
-      await _chunkingEngine.downloadAndDecryptFile(
-        chunks: chunks,
-        destinationFile: targetFile,
-        masterKey: masterKey,
-        channelId: channelInfo.channelId,
-        onProgress: (bytes, total, progress) {
-          _tasks[taskId] = _tasks[taskId]!.copyWith(
-            bytesTransferred: bytes,
-            progress: progress,
-            updatedAt: DateTime.now(),
-          );
-          _notify();
-        },
-      );
+        await _chunkingEngine.downloadAndDecryptFile(
+          chunks: chunks,
+          destinationFile: targetFile,
+          masterKey: masterKey,
+          channelId: channelInfo.channelId,
+          onProgress: (bytes, total, progress) {
+            _tasks[taskId] = _tasks[taskId]!.copyWith(
+              bytesTransferred: bytes,
+              progress: progress,
+              updatedAt: DateTime.now(),
+            );
+            _notify(immediate: false);
+          },
+        );
+      }
 
       _tasks[taskId] = _tasks[taskId]!.copyWith(
         status: TransferStatus.completed,
@@ -382,12 +440,31 @@ class TransferManager {
     }
   }
 
-  void _notify() {
-    _taskStreamController.add(currentTasks);
+  DateTime _lastNotifyTime = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _throttleTimer;
+
+  void _notify({bool immediate = true}) {
+    if (_taskStreamController.isClosed) return;
+    final now = DateTime.now();
+    if (immediate || now.difference(_lastNotifyTime).inMilliseconds >= 120) {
+      _lastNotifyTime = now;
+      _throttleTimer?.cancel();
+      _throttleTimer = null;
+      _taskStreamController.add(currentTasks);
+    } else {
+      _throttleTimer ??= Timer(const Duration(milliseconds: 120), () {
+        if (_taskStreamController.isClosed) return;
+        _lastNotifyTime = DateTime.now();
+        _throttleTimer = null;
+        _taskStreamController.add(currentTasks);
+      });
+    }
   }
 
   /// BUG 28 FIX: Dispose the StreamController to prevent resource leaks.
   void dispose() {
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
     _taskStreamController.close();
   }
 }

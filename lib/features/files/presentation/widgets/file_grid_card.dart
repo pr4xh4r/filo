@@ -163,6 +163,18 @@ class FileGridCard extends StatelessWidget {
               ),
             ),
 
+          // Offline pinned badge
+          if (node.isPinnedOffline)
+            Positioned(
+              top: 0,
+              left: node.isFavorite ? 18 : 0,
+              child: Icon(
+                Icons.arrow_circle_down_rounded,
+                size: 15,
+                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+              ),
+            ),
+
           // Context menu button or selection checkbox
           Positioned(
             top: -4,

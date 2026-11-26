@@ -78,35 +78,39 @@ class _HandwritingTextState extends State<HandwritingText>
         final visibleText = widget.text.substring(0, currentCount);
         final isWriting = _controller.isAnimating && currentCount < totalLength;
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              visibleText,
-              style: effectiveStyle,
-            ),
-            if (isWriting)
-              Padding(
-                padding: const EdgeInsets.only(left: 2.0),
-                child: Container(
-                  width: 5,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: effectiveStyle.color ?? FiloColors.accentOrchid,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (effectiveStyle.color ?? FiloColors.accentOrchid).withValues(alpha: 0.6),
-                        blurRadius: 6,
-                        spreadRadius: 2,
-                      ),
-                    ],
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                visibleText,
+                style: effectiveStyle,
+              ),
+              if (isWriting)
+                Padding(
+                  padding: const EdgeInsets.only(left: 2.0),
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: effectiveStyle.color ?? FiloColors.accentOrchid,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: (effectiveStyle.color ?? FiloColors.accentOrchid).withValues(alpha: 0.6),
+                          blurRadius: 6,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );

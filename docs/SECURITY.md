@@ -16,11 +16,11 @@
   - Sifting through thumbnail caches or temporary folders.
   - Bypassing the app if unlocked.
 - **Mitigations**:
-  - **Encrypted Database**: Drift/SQLite is encrypted using SQLCipher with a 256-bit AES key.
-  - **Hardware Keystore Protection**: Wrapped Master Key and DB keys are stored in iOS Keychain / Android Keystore, gated behind biometric auth (FaceID / Fingerprint) or system device passcode.
-  - **Auto-Lock Timer**: App locks immediately on backgrounding or after a user-configured timeout (e.g. 1 min, 5 min).
-  - **Zero Unencrypted Temp Files**: Decrypted temporary files (created when sharing a file via the OS share sheet) are created with restricted permissions in private app cache directories and immediately scrubbed on share sheet dismissal or app exit.
-  - **Encrypted Thumbnails**: Thumbnail cache is stored encrypted in private sandbox directory and governed by an LRU eviction policy.
+  - **OS Sandbox & Backup Restrictions**: App data is sandboxed with `android:allowBackup="false"` and `android:fullBackupContent="false"` to prevent unauthorized physical ADB and cloud backup extractions.
+  - **Hardware Keystore Protection**: Wrapped Master Key bundles and biometric keys are stored in Android KeyStore-backed `encryptedSharedPreferences` (AES-256-GCM) and iOS Keychain.
+  - **Auto-Lock Timer**: App locks immediately on backgrounding or after a user-configured timeout (e.g. 1 min, 5 min), zeroing out in-memory session keys.
+  - **Zero Unencrypted Temp Files**: Decrypted temporary files (created during sharing, archive export, or media preview) are created in private cache directories and immediately scrubbed upon share dismissal, export completion, or screen exit.
+  - **Screen Capture Protection**: Native Android `FLAG_SECURE` window flag prevents unauthorized screenshots, screen recordings, and task-switcher previews.
 
 ### 2.2 Threat Vector: Compromised Telegram Session / Account Takeover
 - **Threat Actor**: Attacker who gains access to the user's Telegram session (e.g. SIM swap, unauthorized desktop Telegram login).
@@ -77,7 +77,15 @@
   - `WrappedMasterKey = AES-GCM(KEK, MasterKey, IV_wrap, Tag)`
   - When the user changes their passphrase, only the KEK is regenerated and the MasterKey re-wrapped. No files in Telegram require re-encryption.
 
-### 3.2 Secure Memory & Logging Guardrails
+### 3.2 Secure Memory & Lifecycle Guardrails
+- **Telegram Credential Obfuscation & Anti-Tamper Shield**: Built-in Telegram `api_id` and `api_hash` credentials are never stored as plaintext strings anywhere in Dart or Android bytecode. They are derived via mathematical formulas and dynamic multi-part bitwise XOR byte masks in `FiloSecurityManager.kt`, protected by anti-debugging hooks and debugger detection (`Debug.isDebuggerConnected()`).
+- **Memory Scrubbing**: Symmetric Master Key material (`Uint8List`) is explicitly wiped from volatile RAM (`masterKey.fillRange(0, masterKey.length, 0)`) immediately upon vault auto-lock or user lock.
+- **Navigator Stack Isolation**: Vault locking resets the root navigator stack (`filoNavigatorKey.currentState.popUntil(...)`), ensuring open previews, sheets, and sensitive views cannot linger above the lock screen.
+- **Unbypassable Lock Scope**: The lock screen enforces `PopScope(canPop: false)` to prevent system back-navigation or gesture-based bypasses.
+- **Path Traversal Defense**: All virtual file and folder node names are strictly sanitized against relative path traversal sequences (`../`, null bytes, absolute paths) prior to writing to the OS filesystem or cache.
+- **Integrity-First Cloud Restore**: Inbound cloud index envelopes verify AES-256-GCM AEAD authentication tags *before* mutating local keystore state (mitigating CWE-372).
+- **Authenticated Local Media Streaming**: Local HTTP proxy endpoints serving decrypted media streams require CSPRNG bearer session tokens (`?token=`), rejecting unauthorized localhost requests.
+- **Recursive Database Cascade**: The local SQLite index operates with `PRAGMA foreign_keys = ON` and recursive CTE triggers to prevent orphaned or lingering metadata nodes on deletion or trashing.
 - **Zero Sensitive Logging**: Strict rule enforced across all code: file names, paths, passphrases, tokens, chunk hashes, and keys are NEVER logged to console or crash reporting.
 - **Zero Unpinned Dependencies**: All third-party packages are pinned to exact versions and reviewed for supply chain vulnerabilities.
 - **Jailbreak / Root Detection**: Checked on startup; if detected, a non-blocking security advisory warns the user about compromised sandbox isolation.

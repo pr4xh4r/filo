@@ -8,6 +8,8 @@ class Workspace {
   final String description;
   final IconData icon;
   final Color accentColor;
+  final bool isEncrypted;
+  final bool isDeleted;
 
   const Workspace({
     required this.id,
@@ -15,6 +17,8 @@ class Workspace {
     required this.description,
     required this.icon,
     this.accentColor = FiloColors.primary,
+    this.isEncrypted = true,
+    this.isDeleted = false,
   });
 
   static const List<Workspace> defaults = [
@@ -34,7 +38,7 @@ class Workspace {
     ),
     Workspace(
       id: 'private',
-      name: 'Private Vault',
+      name: 'Private Space',
       description: 'Encrypted isolated sensitive storage',
       icon: Icons.lock_outline_rounded,
       accentColor: FiloColors.primary,

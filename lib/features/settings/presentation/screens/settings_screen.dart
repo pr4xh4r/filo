@@ -20,7 +20,9 @@ import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_qr_card.dart';
 import '../../../../shared/components/filo_qr_scanner_screen.dart';
+import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
+import '../../../../shared/components/handwriting_text.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
 import '../../../broadcast/domain/broadcast_service.dart';
@@ -85,10 +87,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   color: isDark ? Colors.white12 : Colors.black12,
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+                  maxWidth: 480,
+                ),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Text(
                     'Change Passphrase',
                     style: FiloTypography.title3.copyWith(
@@ -220,9 +229,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
+  },
+);
   }
 
   void _showScanOrPasteTokenDialog() {
@@ -247,10 +258,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   color: isDark ? Colors.white12 : Colors.black12,
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+                  maxWidth: 480,
+                ),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Text(
                     'Pair New Device',
                     style: FiloTypography.title3.copyWith(
@@ -337,9 +355,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
+  },
+);
   }
 
   Future<void> _handleLiveQrScan() async {
@@ -735,6 +755,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.35),
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
       builder: (context) => ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         child: BackdropFilter(
@@ -754,45 +778,234 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: FiloSpacing.md),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 4.5,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2C243B).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    const Text(
-                      'Auto-Lock Timeout',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.4),
-                    ),
-                    const SizedBox(height: FiloSpacing.sm),
-                    ...options.map(
-                      (mins) => ListTile(
-                        title: Text(
-                          mins == 0 ? 'Immediately on exit' : '$mins minutes',
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4.5,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2C243B).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(3),
                         ),
-                        trailing: mins == currentTimeout
-                            ? const Icon(Icons.check_circle_rounded, color: FiloColors.primary)
-                            : null,
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          ref.read(authNotifierProvider.notifier).setAutoLockTimeout(mins);
-                          Navigator.of(context).pop();
-                        },
                       ),
-                    ),
-                  ],
+                      const Text(
+                        'Auto-Lock Timeout',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.4),
+                      ),
+                      const SizedBox(height: FiloSpacing.sm),
+                      ...options.map(
+                        (mins) => ListTile(
+                          title: Text(
+                            mins == 0 ? 'Immediately on exit' : '$mins minutes',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                          ),
+                          trailing: mins == currentTimeout
+                              ? const Icon(Icons.check_circle_rounded, color: FiloColors.primary)
+                              : null,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            ref.read(authNotifierProvider.notifier).setAutoLockTimeout(mins);
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showTelegramStorageGuide() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    FiloSheet.show(
+      context: context,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2AABEE).withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.cloud_outlined,
+                color: Color(0xFF2AABEE),
+                size: 28,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: HandwritingText(
+              text: 'Telegram Storage Guide',
+              style: FiloTypography.handwriting(
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Filo turns Telegram into your private, unlimited cloud drive with two distinct storage modes.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: FiloTypography.fontFamily,
+              fontSize: 13,
+              color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Block 1: Encrypted (Unlimited)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: FiloColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.lock_rounded, size: 18, color: FiloColors.primary),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Encrypted',
+                        style: TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: FiloColors.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: const Text(
+                        'Unlimited',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: FiloColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'This data is encrypted and will only be decrypted by Filo. Even Telegram cannot see your files.',
+                  style: TextStyle(
+                    fontFamily: FiloTypography.fontFamily,
+                    fontSize: 13,
+                    color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Block 2: Viewable
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2AABEE).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.remove_red_eye_rounded, size: 18, color: Color(0xFF2AABEE)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Viewable',
+                        style: TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2AABEE).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: const Text(
+                        '2 GB / 4 GB',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2AABEE),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'This data will be viewable anywhere in Telegram. Standard limit is 2 GB per file; Telegram Premium unlocks 4 GB per file.',
+                  style: TextStyle(
+                    fontFamily: FiloTypography.fontFamily,
+                    fontSize: 13,
+                    color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
       ),
     );
   }
@@ -980,6 +1193,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
+          ),
+
+          const SizedBox(height: FiloSpacing.md),
+
+          // Telegram Storage Architecture Guide Tile
+          _buildSettingsTile(
+            icon: Icons.menu_book_rounded,
+            title: 'Telegram Cloud Guide',
+            subtitle: 'Read about Encrypted (unlimited) & Viewable (2GB/4GB)',
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: _showTelegramStorageGuide,
           ),
 
           const SizedBox(height: FiloSpacing.lg),

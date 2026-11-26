@@ -50,7 +50,12 @@ class BroadcastNotifier extends StateNotifier<BroadcastState> {
     http.Client? client,
     FlutterSecureStorage? storage,
   })  : _client = client ?? http.Client(),
-        _storage = storage ?? const FlutterSecureStorage(),
+        _storage = storage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(
+                encryptedSharedPreferences: true,
+              ),
+            ),
         super(const BroadcastState(isLoading: true)) {
     refresh();
   }
@@ -150,12 +155,17 @@ class BroadcastNotifier extends StateNotifier<BroadcastState> {
     state = state.copyWith(isUpdateCollapsed: collapsed);
   }
 
-  /// Launches a link in the native browser.
+  /// Launches a verified link in the native browser.
   static Future<void> openUrl(String url) async {
+    final trimmed = url.trim();
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return;
+    }
     try {
-      await _channel.invokeMethod('openUrl', {'url': url});
+      await _channel.invokeMethod('openUrl', {'url': trimmed});
     } catch (_) {
-      Clipboard.setData(ClipboardData(text: url));
+      Clipboard.setData(ClipboardData(text: trimmed));
     }
   }
 

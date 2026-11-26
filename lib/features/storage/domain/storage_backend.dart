@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'storage_models.dart';
 
@@ -29,11 +30,18 @@ abstract class StorageBackend {
   /// Locates or creates the user's private storage channel (e.g. "[APP_NAME] Vault").
   Future<VaultChannelInfo> getOrCreateVaultChannel(String channelTitle);
 
-  /// Uploads an encrypted chunk blob to the vault channel.
+  /// Stream of QR code login links emitted during QR authentication (e.g. tg://login?token=...).
+  Stream<String>? get qrLinkStream => null;
+
+  /// Requests QR code authentication. Returns initial link if immediately available.
+  Future<String?> requestQrCode() async => null;
+
+  /// Uploads an encrypted chunk blob or direct single-file payload to the vault channel.
   Future<RemoteUploadedChunk> uploadChunk({
     required String channelId,
     required Uint8List chunkData,
     required String partFileName,
+    File? sourceFile,
     ProgressCallback? onProgress,
   });
 
@@ -65,6 +73,9 @@ abstract class StorageBackend {
   Future<int> wipeChannel({
     required String channelId,
   });
+
+  /// Fetches storage quota information (e.g. Unlimited Telegram cloud).
+  Future<StorageQuotaInfo> getStorageQuota();
 
   /// Disposes of any open client sessions and resources.
   Future<void> dispose();

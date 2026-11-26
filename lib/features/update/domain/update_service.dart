@@ -125,13 +125,18 @@ class UpdateService {
     }
   }
 
-  /// Opens the release or download URL in the device's native browser.
+  /// Opens the release or download URL in the device's native browser after validating scheme.
   static Future<void> openDownloadUrl(String url) async {
+    final trimmed = url.trim();
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return;
+    }
     try {
-      await _channel.invokeMethod('openUrl', {'url': url});
+      await _channel.invokeMethod('openUrl', {'url': trimmed});
     } catch (_) {
       // Fallback
-      Clipboard.setData(ClipboardData(text: url));
+      Clipboard.setData(ClipboardData(text: trimmed));
     }
   }
 }

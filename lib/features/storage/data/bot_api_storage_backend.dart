@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../domain/storage_backend.dart';
@@ -84,6 +85,12 @@ class BotApiStorageBackend implements StorageBackend {
   }
 
   @override
+  Stream<String>? get qrLinkStream => null;
+
+  @override
+  Future<String?> requestQrCode() async => null;
+
+  @override
   Future<VaultChannelInfo> getOrCreateVaultChannel(String channelTitle) async {
     final response = await _client.post(
       Uri.parse('$_baseUrl/getChat'),
@@ -111,6 +118,7 @@ class BotApiStorageBackend implements StorageBackend {
     required String channelId,
     required Uint8List chunkData,
     required String partFileName,
+    File? sourceFile,
     ProgressCallback? onProgress,
   }) async {
     final uri = Uri.parse('$_baseUrl/sendDocument');
@@ -119,15 +127,26 @@ class BotApiStorageBackend implements StorageBackend {
     request.fields['chat_id'] = channelId;
     request.fields['caption'] = partFileName;
 
-    final multipartFile = http.MultipartFile.fromBytes(
-      'document',
-      chunkData,
-      filename: partFileName,
-    );
-    request.files.add(multipartFile);
+    final int totalSize;
+    if (sourceFile != null && await sourceFile.exists()) {
+      request.files.add(await http.MultipartFile.fromPath(
+        'document',
+        sourceFile.path,
+        filename: partFileName,
+      ));
+      totalSize = await sourceFile.length();
+    } else {
+      final multipartFile = http.MultipartFile.fromBytes(
+        'document',
+        chunkData,
+        filename: partFileName,
+      );
+      request.files.add(multipartFile);
+      totalSize = chunkData.length;
+    }
 
     if (onProgress != null) {
-      onProgress(0, chunkData.length);
+      onProgress(0, totalSize);
     }
 
     final streamedResponse = await _client.send(request);
@@ -260,6 +279,16 @@ class BotApiStorageBackend implements StorageBackend {
   }) async {
     // Bot API doesn't support bulk message deletion, returns status
     return 0;
+  }
+
+  @override
+  Future<StorageQuotaInfo> getStorageQuota() async {
+    return const StorageQuotaInfo(
+      totalBytes: -1,
+      usedBytes: 0,
+      planName: 'Unlimited',
+      providerName: 'Telegram',
+    );
   }
 
   @override

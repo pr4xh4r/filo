@@ -18,6 +18,21 @@ class TransferQueueSheet extends ConsumerWidget {
     return FiloSheet.show(
       context: context,
       title: 'Transfers',
+      trailing: GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.05),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.close_rounded,
+            size: 18,
+            color: FiloColors.lightTextSecondary,
+          ),
+        ),
+      ),
       child: const TransferQueueSheet(),
     );
   }

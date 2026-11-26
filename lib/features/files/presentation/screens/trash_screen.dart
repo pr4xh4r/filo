@@ -10,6 +10,7 @@ import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
+import '../../domain/workspace.dart';
 import '../providers/file_browser_provider.dart';
 
 /// Trash management interface with 30-day auto-purge policy and one-tap restore.
@@ -23,6 +24,7 @@ class TrashScreen extends ConsumerStatefulWidget {
 class _TrashScreenState extends ConsumerState<TrashScreen> {
   bool _isLoading = true;
   List<FileNode> _trashedNodes = [];
+  List<Workspace> _trashedWorkspaces = [];
 
   @override
   void initState() {
@@ -33,10 +35,15 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
   Future<void> _loadTrash() async {
     setState(() => _isLoading = true);
     final repo = ref.read(fileRepositoryProvider);
+    try {
+      await repo.purgeOldTrash(days: 30);
+    } catch (_) {}
     final list = await repo.getTrashedNodes();
+    final spaces = await repo.getDeletedWorkspaces();
     if (mounted) {
       setState(() {
         _trashedNodes = list;
+        _trashedWorkspaces = spaces;
         _isLoading = false;
       });
     }
@@ -50,7 +57,20 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
     await _loadTrash();
   }
 
+  Future<void> _handleRestoreWorkspace(Workspace ws) async {
+    HapticFeedback.lightImpact();
+    await ref.read(fileBrowserProvider.notifier).restoreWorkspace(ws.id);
+    if (!mounted) return;
+    FiloToast.show(
+      context,
+      message: 'Restored space "${ws.name}" and all its files',
+      type: FiloToastType.success,
+    );
+    await _loadTrash();
+  }
+
   Future<void> _handleEmptyTrash() async {
+    final totalItems = _trashedNodes.length + _trashedWorkspaces.length;
     HapticFeedback.mediumImpact();
     final confirm = await FiloSheet.show<bool>(
       context: context,
@@ -62,7 +82,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
           borderRadius: BorderRadius.circular(100),
         ),
         child: Text(
-          '${_trashedNodes.length} ${_trashedNodes.length == 1 ? "item" : "items"}',
+          '$totalItems ${totalItems == 1 ? "item" : "items"}',
           style: const TextStyle(
             fontFamily: FiloTypography.fontFamily,
             fontSize: 11,
@@ -121,7 +141,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            'All items in trash will be permanently purged from your vault. This action cannot be undone.',
+                            'All items in trash will be permanently purged from your space. This action cannot be undone.',
                             style: TextStyle(
                               fontFamily: FiloTypography.fontFamily,
                               fontSize: 12,
@@ -279,7 +299,7 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
           ),
         ),
         actions: [
-          if (_trashedNodes.isNotEmpty)
+          if (_trashedNodes.isNotEmpty || _trashedWorkspaces.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Material(
@@ -383,166 +403,324 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                         valueColor: AlwaysStoppedAnimation<Color>(FiloColors.primary),
                       ),
                     )
-                  : _trashedNodes.isEmpty
+                  : (_trashedNodes.isEmpty && _trashedWorkspaces.isEmpty)
                       ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const FiloIllustrationView(
-                                assetName: FiloIllustrations.trash,
-                                maxHeight: 220,
-                                maxWidth: 260,
-                              ),
-                              const SizedBox(height: FiloSpacing.lg),
-                              Text(
-                                'Trash Is Empty',
-                                style: TextStyle(
-                                  fontFamily: FiloTypography.fontFamily,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark
-                                      ? FiloColors.darkTextPrimary
-                                      : FiloColors.lightTextPrimary,
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                FiloIllustrationView(
+                                  assetName: FiloIllustrations.trash,
+                                  maxHeight: MediaQuery.of(context).orientation == Orientation.landscape ? 110 : 220,
+                                  maxWidth: MediaQuery.of(context).orientation == Orientation.landscape ? 140 : 260,
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Items moved to trash will appear here.',
-                                style: TextStyle(
-                                  fontFamily: FiloTypography.fontFamily,
-                                  fontSize: 13,
-                                  color: isDark
-                                      ? FiloColors.darkTextSecondary
-                                      : FiloColors.lightTextSecondary,
+                                const SizedBox(height: FiloSpacing.md),
+                                Text(
+                                  'Trash Is Empty',
+                                  style: TextStyle(
+                                    fontFamily: FiloTypography.fontFamily,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark
+                                        ? FiloColors.darkTextPrimary
+                                        : FiloColors.lightTextPrimary,
+                                  ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Items moved to trash will appear here.',
+                                  style: TextStyle(
+                                    fontFamily: FiloTypography.fontFamily,
+                                    fontSize: 13,
+                                    color: isDark
+                                        ? FiloColors.darkTextSecondary
+                                        : FiloColors.lightTextSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         )
-                      : ListView.builder(
+                      : ListView(
                           padding: const EdgeInsets.fromLTRB(
                             FiloSpacing.xl,
                             0,
                             FiloSpacing.xl,
                             FiloSpacing.xxl,
                           ),
-                          itemCount: _trashedNodes.length,
-                          itemBuilder: (context, index) {
-                            final item = _trashedNodes[index];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              child: Material(
-                                color: (isDark ? const Color(0xFF222234) : Colors.white).withValues(alpha: 0.85),
-                                borderRadius: BorderRadius.circular(20),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.02),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 42,
-                                        height: 42,
-                                        decoration: BoxDecoration(
-                                          color: item.isFolder
-                                              ? FiloColors.accentCoral.withValues(alpha: 0.12)
-                                              : FiloColors.primary.withValues(alpha: 0.08),
-                                          borderRadius: BorderRadius.circular(14),
-                                        ),
-                                        child: Icon(
-                                          _getFileIcon(item),
-                                          color: item.isFolder ? FiloColors.accentCoral : FiloColors.primary,
-                                          size: 22,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item.name,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontFamily: FiloTypography.fontFamily,
-                                                fontSize: 14.5,
-                                                fontWeight: FontWeight.w700,
-                                                color: isDark ? Colors.white : FiloColors.lightTextPrimary,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 3),
-                                            Text(
-                                              item.isFolder
-                                                  ? 'Folder'
-                                                  : HashUtils.formatBytes(item.sizeBytes),
-                                              style: TextStyle(
-                                                fontFamily: FiloTypography.fontFamily,
-                                                fontSize: 12,
-                                                color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      // Restore Pill Button
-                                      Material(
-                                        color: (isDark
-                                            ? Colors.white.withValues(alpha: 0.08)
-                                            : Colors.black.withValues(alpha: 0.04)),
-                                        borderRadius: BorderRadius.circular(100),
-                                        child: InkWell(
-                                          borderRadius: BorderRadius.circular(100),
-                                          onTap: () {
-                                            HapticFeedback.selectionClick();
-                                            _handleRestore(item.id, item.name);
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  Icons.undo_rounded,
-                                                  size: 15,
-                                                  color: isDark ? Colors.white70 : FiloColors.lightTextPrimary,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  'Restore',
-                                                  style: TextStyle(
-                                                    fontFamily: FiloTypography.fontFamily,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: isDark ? Colors.white70 : FiloColors.lightTextPrimary,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                          children: [
+                            if (_trashedWorkspaces.isNotEmpty) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                                child: Text(
+                                  'DELETED SPACES',
+                                  style: FiloTypography.caption.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 10.5,
+                                    letterSpacing: 0.5,
+                                    color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                                   ),
                                 ),
                               ),
-                            );
-                          },
+                              ..._trashedWorkspaces.map((ws) => _buildTrashedWorkspaceCard(ws, isDark)),
+                              const SizedBox(height: 12),
+                            ],
+                            if (_trashedNodes.isNotEmpty && _trashedWorkspaces.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4, bottom: 8),
+                                child: Text(
+                                  'DELETED FILES',
+                                  style: FiloTypography.caption.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 10.5,
+                                    letterSpacing: 0.5,
+                                    color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                                  ),
+                                ),
+                              ),
+                            ..._trashedNodes.map((item) => _buildTrashedNodeRow(item, isDark)),
+                          ],
                         ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrashedWorkspaceCard(Workspace ws, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: (isDark ? const Color(0xFF222234) : Colors.white).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.workspaces_outlined,
+                  size: 22,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            ws.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: FiloTypography.fontFamily,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.black.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            ws.isEncrypted ? 'Encrypted' : 'Viewable',
+                            style: TextStyle(
+                              fontFamily: FiloTypography.fontFamily,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Space & files in trash',
+                      style: TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
+                        fontSize: 12,
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: isDark ? Colors.white12 : Colors.black,
+                borderRadius: BorderRadius.circular(100),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(100),
+                  onTap: () => _handleRestoreWorkspace(ws),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.undo_rounded, size: 14, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'Restore Space',
+                          style: TextStyle(
+                            fontFamily: FiloTypography.fontFamily,
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrashedNodeRow(FileNode item, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: (isDark ? const Color(0xFF222234) : Colors.white).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: item.isFolder
+                      ? FiloColors.accentCoral.withValues(alpha: 0.12)
+                      : FiloColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  _getFileIcon(item),
+                  color: item.isFolder ? FiloColors.accentCoral : FiloColors.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item.isFolder
+                          ? 'Folder'
+                          : HashUtils.formatBytes(item.sizeBytes),
+                      style: TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
+                        fontSize: 12,
+                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Restore Pill Button
+              Material(
+                color: (isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.04)),
+                borderRadius: BorderRadius.circular(100),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(100),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _handleRestore(item.id, item.name);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.undo_rounded,
+                          size: 15,
+                          color: isDark ? Colors.white70 : FiloColors.lightTextPrimary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Restore',
+                          style: TextStyle(
+                            fontFamily: FiloTypography.fontFamily,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : FiloColors.lightTextPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

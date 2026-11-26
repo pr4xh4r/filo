@@ -15,6 +15,7 @@ class FileActionSheet extends StatelessWidget {
   final VoidCallback onMove;
   final VoidCallback onShare;
   final VoidCallback? onDownload;
+  final VoidCallback? onToggleOffline;
   final VoidCallback? onManageTags;
   final VoidCallback? onChangeWorkspace;
   final VoidCallback onDelete;
@@ -27,6 +28,7 @@ class FileActionSheet extends StatelessWidget {
     required this.onMove,
     required this.onShare,
     this.onDownload,
+    this.onToggleOffline,
     this.onManageTags,
     this.onChangeWorkspace,
     required this.onDelete,
@@ -40,6 +42,7 @@ class FileActionSheet extends StatelessWidget {
     required VoidCallback onMove,
     required VoidCallback onShare,
     VoidCallback? onDownload,
+    VoidCallback? onToggleOffline,
     VoidCallback? onManageTags,
     VoidCallback? onChangeWorkspace,
     required VoidCallback onDelete,
@@ -74,6 +77,7 @@ class FileActionSheet extends StatelessWidget {
         onMove: onMove,
         onShare: onShare,
         onDownload: onDownload,
+        onToggleOffline: onToggleOffline,
         onManageTags: onManageTags,
         onChangeWorkspace: onChangeWorkspace,
         onDelete: onDelete,
@@ -83,9 +87,11 @@ class FileActionSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
         // Star / Favorite
         _buildActionTile(
           context: context,
@@ -161,6 +167,19 @@ class FileActionSheet extends StatelessWidget {
             },
           ),
 
+        // Keep Offline / Remove Offline (Files only)
+        if (node.isFile && onToggleOffline != null)
+          _buildActionTile(
+            context: context,
+            icon: node.isPinnedOffline ? Icons.arrow_circle_down_rounded : Icons.arrow_circle_down_outlined,
+            iconColor: node.isPinnedOffline ? Colors.black : FiloColors.primary,
+            title: node.isPinnedOffline ? 'Remove from Offline' : 'Keep Offline (Save Pass/Doc)',
+            onTap: () {
+              Navigator.of(context).pop();
+              onToggleOffline!();
+            },
+          ),
+
         // Download to Device (Files only)
         if (node.isFile && onDownload != null)
           _buildActionTile(
@@ -187,8 +206,9 @@ class FileActionSheet extends StatelessWidget {
           },
         ),
       ],
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildActionTile({
     required BuildContext context,

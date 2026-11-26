@@ -91,6 +91,15 @@ void main() {
       var updated = await db.getNode('node_1');
       expect(updated?.name, 'Renamed.txt');
 
+      final targetFolder = FileNode(
+        id: 'target_folder',
+        name: 'Target Folder',
+        type: NodeType.folder,
+        createdAt: now,
+        modifiedAt: now,
+      );
+      await db.insertNode(targetFolder);
+
       await db.moveNode('node_1', 'target_folder');
       updated = await db.getNode('node_1');
       expect(updated?.parentId, 'target_folder');
@@ -170,6 +179,15 @@ void main() {
 
   group('FiloDatabase Chunk Operations', () {
     test('Insert and query chunks for multi-part file', () async {
+      final now = DateTime.now();
+      await db.insertNode(FileNode(
+        id: 'large_file',
+        name: 'large_video.mp4',
+        type: NodeType.file,
+        createdAt: now,
+        modifiedAt: now,
+      ));
+
       const chunks = [
         FileChunk(
           id: 'chunk_1',

@@ -8,6 +8,7 @@ class FiloAuthState {
   final bool isTelegramAuthenticated;
   final String? telegramUserId;
   final String? telegramUserName;
+  final String activeCloudProvider; // 'telegram'
   final VaultSetupStatus vaultStatus;
   final AppLockStatus lockStatus;
   final Uint8List? masterKey; // In-memory while app is unlocked, cleared on lock/wipe
@@ -20,6 +21,7 @@ class FiloAuthState {
     this.isTelegramAuthenticated = false,
     this.telegramUserId,
     this.telegramUserName,
+    this.activeCloudProvider = 'telegram',
     this.vaultStatus = VaultSetupStatus.unconfigured,
     this.lockStatus = AppLockStatus.unlocked,
     this.masterKey,
@@ -29,8 +31,10 @@ class FiloAuthState {
     this.isLoading = false,
   });
 
+  bool get isCloudAuthenticated => isTelegramAuthenticated;
+
   bool get isReady =>
-      isTelegramAuthenticated &&
+      isCloudAuthenticated &&
       vaultStatus == VaultSetupStatus.ready &&
       lockStatus == AppLockStatus.unlocked &&
       masterKey != null;
@@ -39,6 +43,7 @@ class FiloAuthState {
     bool? isTelegramAuthenticated,
     String? telegramUserId,
     String? telegramUserName,
+    String? activeCloudProvider,
     VaultSetupStatus? vaultStatus,
     AppLockStatus? lockStatus,
     Uint8List? masterKey,
@@ -52,6 +57,7 @@ class FiloAuthState {
           isTelegramAuthenticated ?? this.isTelegramAuthenticated,
       telegramUserId: telegramUserId ?? this.telegramUserId,
       telegramUserName: telegramUserName ?? this.telegramUserName,
+      activeCloudProvider: activeCloudProvider ?? this.activeCloudProvider,
       vaultStatus: vaultStatus ?? this.vaultStatus,
       lockStatus: lockStatus ?? this.lockStatus,
       masterKey: masterKey ?? this.masterKey,
@@ -63,3 +69,4 @@ class FiloAuthState {
     );
   }
 }
+

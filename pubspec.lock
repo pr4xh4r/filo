@@ -352,6 +352,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "8.2.1"
+  handy_tdlib_next:
+    dependency: "direct main"
+    description:
+      name: handy_tdlib_next
+      sha256: e63e7dc8fc84ab74d0e6d5efc60baf6b3d3f2a164a436bcb9d4ad9b7ea64cde7
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.16"
   hooks:
     dependency: transitive
     description:

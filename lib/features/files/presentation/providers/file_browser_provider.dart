@@ -1,9 +1,11 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:filo/core/database/node_model.dart';
 import 'package:filo/features/auth/presentation/providers/auth_provider.dart';
 import 'package:filo/features/files/data/file_repository.dart';
 import 'package:filo/features/files/domain/workspace.dart';
+import 'package:filo/features/storage/domain/storage_backend.dart';
 import 'package:filo/features/sync/domain/index_sync_service.dart';
 
 final fileRepositoryProvider = Provider<FileRepository>((ref) {
@@ -25,6 +27,7 @@ class FileBrowserState {
   final String activeWorkspaceId;
   final List<Workspace> workspaces;
   final String? selectedTagId;
+  final String? selectedCategory;
 
   const FileBrowserState({
     this.currentFolderId,
@@ -40,7 +43,27 @@ class FileBrowserState {
     this.activeWorkspaceId = 'personal',
     this.workspaces = Workspace.defaults,
     this.selectedTagId,
+    this.selectedCategory,
   });
+
+  /// Items filtered by active category (Photos, Videos, Docs, Audio, Folders)
+  List<FileNode> get displayItems {
+    if (selectedCategory == null) return items;
+    switch (selectedCategory) {
+      case 'photos':
+        return items.where((i) => !i.isFolder && ((i.mimeType?.startsWith('image/') ?? false) || i.name.toLowerCase().endsWith('.jpg') || i.name.toLowerCase().endsWith('.png') || i.name.toLowerCase().endsWith('.jpeg') || i.name.toLowerCase().endsWith('.webp') || i.name.toLowerCase().endsWith('.heic'))).toList();
+      case 'videos':
+        return items.where((i) => !i.isFolder && ((i.mimeType?.startsWith('video/') ?? false) || i.name.toLowerCase().endsWith('.mp4') || i.name.toLowerCase().endsWith('.mov') || i.name.toLowerCase().endsWith('.mkv'))).toList();
+      case 'docs':
+        return items.where((i) => !i.isFolder && ((i.mimeType?.contains('pdf') ?? false) || (i.mimeType?.contains('document') ?? false) || (i.mimeType?.contains('text') ?? false) || i.name.toLowerCase().endsWith('.pdf') || i.name.toLowerCase().endsWith('.txt') || i.name.toLowerCase().endsWith('.docx') || i.name.toLowerCase().endsWith('.xlsx'))).toList();
+      case 'audio':
+        return items.where((i) => !i.isFolder && ((i.mimeType?.startsWith('audio/') ?? false) || i.name.toLowerCase().endsWith('.mp3') || i.name.toLowerCase().endsWith('.m4a') || i.name.toLowerCase().endsWith('.flac') || i.name.toLowerCase().endsWith('.wav'))).toList();
+      case 'folders':
+        return items.where((i) => i.isFolder).toList();
+      default:
+        return items;
+    }
+  }
 
   FileBrowserState copyWith({
     String? currentFolderId,
@@ -59,6 +82,8 @@ class FileBrowserState {
     List<Workspace>? workspaces,
     String? selectedTagId,
     bool clearTag = false,
+    String? selectedCategory,
+    bool clearCategory = false,
   }) {
     return FileBrowserState(
       currentFolderId: clearFolder ? null : (currentFolderId ?? this.currentFolderId),
@@ -74,6 +99,7 @@ class FileBrowserState {
       activeWorkspaceId: activeWorkspaceId ?? this.activeWorkspaceId,
       workspaces: workspaces ?? this.workspaces,
       selectedTagId: clearTag ? null : (clearFilters ? null : (selectedTagId ?? this.selectedTagId)),
+      selectedCategory: clearCategory ? null : (clearFilters ? null : (selectedCategory ?? this.selectedCategory)),
     );
   }
 }
@@ -105,15 +131,16 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
     } catch (_) {}
   }
 
-  Future<void> addWorkspace(String name) async {
+  Future<void> addWorkspace(String name, {bool isEncrypted = true}) async {
     final cleanName = name.trim();
     if (cleanName.isEmpty) return;
     final wsId = cleanName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
     final newWs = Workspace(
       id: wsId,
       name: cleanName,
-      description: 'Personal space',
-      icon: Icons.folder_outlined,
+      description: isEncrypted ? 'Encrypted space' : 'Viewable space',
+      icon: isEncrypted ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+      isEncrypted: isEncrypted,
     );
     try {
       await _repository.createWorkspace(newWs);
@@ -130,6 +157,35 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
       selectedIds: {},
       isMultiSelect: false,
     );
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> removeWorkspace(String id) async {
+    final fallbackId = (state.activeWorkspaceId == id) ? 'personal' : state.activeWorkspaceId;
+
+    try {
+      await _repository.deleteWorkspace(id, moveToTrash: true);
+    } catch (_) {}
+
+    await loadWorkspaces();
+
+    state = state.copyWith(
+      activeWorkspaceId: fallbackId,
+      clearFolder: true,
+      selectedIds: {},
+      isMultiSelect: false,
+    );
+    await loadCurrentFolder();
+    _triggerAutoSync();
+  }
+
+  Future<void> restoreWorkspace(String id) async {
+    try {
+      await _repository.restoreWorkspace(id);
+    } catch (_) {}
+
+    await loadWorkspaces();
     await loadCurrentFolder();
     _triggerAutoSync();
   }
@@ -170,10 +226,19 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
     state = state.copyWith(
       activeWorkspaceId: workspaceId,
       clearFolder: true,
+      clearCategory: true,
       selectedIds: {},
       isMultiSelect: false,
     );
     loadCurrentFolder();
+  }
+
+  void setSelectedCategory(String? category) {
+    if (category == null || category.isEmpty || state.selectedCategory == category) {
+      state = state.copyWith(clearCategory: true);
+    } else {
+      state = state.copyWith(selectedCategory: category);
+    }
   }
 
   void setSelectedTag(String? tagId) {
@@ -193,6 +258,7 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
     state = state.copyWith(
       currentFolderId: folderId,
       clearFolder: folderId == null,
+      clearCategory: true,
       selectedIds: {},
       isMultiSelect: false,
     );
@@ -290,6 +356,12 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
     _triggerAutoSync();
   }
 
+  Future<bool> togglePinOffline(FileNode node, {Uint8List? masterKey, StorageBackend? storage}) async {
+    final isPinned = await _repository.togglePinOffline(node, masterKey: masterKey, storage: storage);
+    await loadCurrentFolder();
+    return isPinned;
+  }
+
   Future<void> moveToTrash(String id) async {
     await _repository.moveToTrash(id);
     await loadCurrentFolder();
@@ -313,6 +385,7 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
 
   Future<void> emptyTrash() async {
     await _repository.emptyTrash();
+    await loadWorkspaces();
     await loadCurrentFolder();
     _triggerAutoSync();
   }

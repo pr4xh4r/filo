@@ -1,7 +1,13 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/crypto/crypto_engine.dart';
 import '../../../core/database/filo_database.dart';
 import '../../../core/database/node_model.dart';
 import '../../../core/database/chunk_model.dart';
+import '../../storage/domain/storage_backend.dart';
 import '../domain/workspace.dart';
 
 /// Repository managing file and folder operations in the local index.
@@ -94,12 +100,24 @@ class FileRepository {
     return _database.getWorkspaces();
   }
 
+  Future<List<Workspace>> getDeletedWorkspaces() {
+    return _database.getDeletedWorkspaces();
+  }
+
   Future<void> createWorkspace(Workspace workspace) {
     return _database.insertWorkspace(workspace);
   }
 
-  Future<void> deleteWorkspace(String id) {
-    return _database.deleteWorkspace(id);
+  Future<void> deleteWorkspace(String id, {bool moveToTrash = true}) {
+    return _database.deleteWorkspace(id, moveToTrash: moveToTrash);
+  }
+
+  Future<void> restoreWorkspace(String id) {
+    return _database.restoreWorkspace(id);
+  }
+
+  Future<int> getWorkspaceTrashedFileCount(String workspaceId) {
+    return _database.getWorkspaceTrashedFileCount(workspaceId);
   }
 
   Future<void> saveFileChunks(List<FileChunk> chunks) {
@@ -147,11 +165,28 @@ class FileRepository {
     return _database.restoreNode(id);
   }
 
-  Future<void> deletePermanently(String id) {
+  Future<void> deletePermanently(String id) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final offlineFile = File('${appDir.path}/offline_vault/$id');
+      if (offlineFile.existsSync()) offlineFile.deleteSync();
+    } catch (_) {}
     return _database.deleteNodePermanently(id);
   }
 
-  Future<void> emptyTrash() {
+  Future<int> purgeOldTrash({int days = 30}) {
+    return _database.purgeOldTrash(days: days);
+  }
+
+  Future<void> emptyTrash() async {
+    try {
+      final trashed = await _database.listTrashedNodes();
+      final appDir = await getApplicationDocumentsDirectory();
+      for (final n in trashed) {
+        final offlineFile = File('${appDir.path}/offline_vault/${n.id}');
+        if (offlineFile.existsSync()) offlineFile.deleteSync();
+      }
+    } catch (_) {}
     return _database.emptyTrash();
   }
 
@@ -169,5 +204,87 @@ class FileRepository {
 
   Future<FileNode?> findDuplicateByHash(String contentHash) {
     return _database.findByHash(contentHash);
+  }
+
+  Future<File?> getOfflineFile(String nodeId) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final offlineFile = File('${appDir.path}/offline_vault/$nodeId');
+      if (offlineFile.existsSync() && offlineFile.lengthSync() > 0) {
+        return offlineFile;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<bool> togglePinOffline(FileNode node, {Uint8List? masterKey, StorageBackend? storage}) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final offlineDir = Directory('${appDir.path}/offline_vault');
+    if (!offlineDir.existsSync()) {
+      offlineDir.createSync(recursive: true);
+    }
+    final offlineFile = File('${offlineDir.path}/${node.id}');
+
+    if (node.isPinnedOffline) {
+      if (offlineFile.existsSync()) {
+        try {
+          offlineFile.deleteSync();
+        } catch (_) {}
+      }
+      await _database.updateNode(node.copyWith(isPinnedOffline: false));
+      return false;
+    } else {
+      if (!offlineFile.existsSync() || offlineFile.lengthSync() == 0) {
+        // Try preview cache first (instant copy)
+        final tempDir = await getTemporaryDirectory();
+        final name = node.name.toLowerCase();
+        final ext = name.contains('.') ? name.split('.').last : 'bin';
+        final previewFile = File('${tempDir.path}/filo_preview_${node.id}.$ext');
+        final streamFile = File('${tempDir.path}/filo_stream_${node.id}.$ext');
+
+        if (previewFile.existsSync() && previewFile.lengthSync() == node.sizeBytes) {
+          await previewFile.copy(offlineFile.path);
+        } else if (streamFile.existsSync() && streamFile.lengthSync() == node.sizeBytes) {
+          await streamFile.copy(offlineFile.path);
+        } else if (storage != null && masterKey != null) {
+          final chunks = await getChunksForNode(node.id);
+          final workspaces = await getWorkspaces();
+          final ws = workspaces.firstWhere(
+            (w) => w.id == node.workspaceId,
+            orElse: () => Workspace.fromId(node.workspaceId, workspaces),
+          );
+          final channelTitle = AppConfig.getChannelTitle(isEncrypted: ws.isEncrypted);
+          final channel = await storage.getOrCreateVaultChannel(channelTitle);
+
+          final sortedChunks = List<FileChunk>.from(chunks)
+            ..sort((a, b) => a.chunkIndex.compareTo(b.chunkIndex));
+          final sink = offlineFile.openWrite();
+          try {
+            for (final c in sortedChunks) {
+              final cipher = await storage.downloadChunk(
+                channelId: channel.channelId,
+                remoteFileId: c.remoteFileId,
+              );
+              final chunkData = (c.ivHex == 'plain')
+                  ? cipher
+                  : await CryptoEngine.decryptBytes(combinedBytes: cipher, key: masterKey);
+              sink.add(chunkData);
+            }
+          } catch (e) {
+            if (offlineFile.existsSync()) {
+              try {
+                offlineFile.deleteSync();
+              } catch (_) {}
+            }
+            rethrow;
+          } finally {
+            await sink.flush();
+            await sink.close();
+          }
+        }
+      }
+      await _database.updateNode(node.copyWith(isPinnedOffline: true));
+      return true;
+    }
   }
 }

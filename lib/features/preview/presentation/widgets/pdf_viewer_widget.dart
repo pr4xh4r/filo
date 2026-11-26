@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
@@ -6,14 +7,16 @@ import '../../../../core/theme/filo_typography.dart';
 
 /// Lightweight, native hardware-accelerated PDF viewer.
 class PdfViewerWidget extends StatefulWidget {
-  final Uint8List bytes;
+  final Uint8List? bytes;
+  final File? file;
   final String fileName;
 
   const PdfViewerWidget({
     super.key,
-    required this.bytes,
+    this.bytes,
+    this.file,
     required this.fileName,
-  });
+  }) : assert(bytes != null || file != null, 'Either bytes or file must be provided');
 
   @override
   State<PdfViewerWidget> createState() => _PdfViewerWidgetState();
@@ -34,9 +37,17 @@ class _PdfViewerWidgetState extends State<PdfViewerWidget> {
 
   Future<void> _initPdf() async {
     try {
-      _pdfController = PdfControllerPinch(
-        document: PdfDocument.openData(widget.bytes),
-      );
+      if (widget.file != null && await widget.file!.exists()) {
+        _pdfController = PdfControllerPinch(
+          document: PdfDocument.openFile(widget.file!.path),
+        );
+      } else if (widget.bytes != null) {
+        _pdfController = PdfControllerPinch(
+          document: PdfDocument.openData(widget.bytes!),
+        );
+      } else {
+        throw Exception('No PDF data provided');
+      }
       setState(() => _isReady = true);
     } catch (e) {
       setState(() => _error = 'Failed to load PDF: $e');

@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
+import 'core/cache/session_cache_service.dart';
 import 'core/config/app_config.dart';
 import 'core/database/filo_database.dart';
+import 'core/navigation/filo_navigator.dart';
 import 'core/theme/filo_colors.dart';
 import 'core/theme/filo_theme.dart';
 import 'core/theme/theme_provider.dart';
@@ -28,6 +30,12 @@ void main() async {
   } catch (_) {
     // Non-fatal if platform channel is unavailable during startup
   }
+
+  // Load hardened Telegram credentials from native security bridge
+  await AppConfig.initializeCredentials();
+
+  // Clean any leftover decrypted session files on fresh launch
+  unawaited(SessionCacheService.instance.purge());
 
   // BUG 2 FIX: Open a persistent file-backed SQLite DB instead of in-memory.
   // Data now survives app restarts.
@@ -166,6 +174,7 @@ class _FiloAppState extends ConsumerState<FiloApp> with WidgetsBindingObserver {
       // BUG 23 FIX: Every touch resets the inactivity timer
       onPointerDown: (_) => _lastActiveTime = DateTime.now(),
       child: MaterialApp(
+        navigatorKey: filoNavigatorKey,
         title: AppConfig.appName,
         debugShowCheckedModeBanner: false,
         theme: FiloTheme.lightTheme,

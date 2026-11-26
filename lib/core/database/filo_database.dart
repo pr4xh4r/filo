@@ -138,7 +138,7 @@ class FiloDatabase {
   }
 
   void _createTables() {
-    _db.execute('PRAGMA foreign_keys = OFF;');
+    _db.execute('PRAGMA foreign_keys = ON;');
     _db.execute('PRAGMA journal_mode = WAL;');
     _db.execute('PRAGMA synchronous = NORMAL;');
     _db.execute('PRAGMA temp_store = MEMORY;');
@@ -160,6 +160,7 @@ class FiloDatabase {
         sync_state TEXT NOT NULL DEFAULT 'synced',
         tags TEXT DEFAULT '',
         workspace_id TEXT NOT NULL DEFAULT 'personal',
+        is_pinned_offline INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (parent_id) REFERENCES nodes (id) ON DELETE CASCADE
       );
 
@@ -168,6 +169,7 @@ class FiloDatabase {
       CREATE INDEX IF NOT EXISTS idx_nodes_favorite ON nodes (is_favorite);
       CREATE INDEX IF NOT EXISTS idx_nodes_hash ON nodes (content_hash);
       CREATE INDEX IF NOT EXISTS idx_nodes_parent_trashed ON nodes (parent_id, is_trashed);
+      CREATE INDEX IF NOT EXISTS idx_nodes_ws_parent_trashed ON nodes (workspace_id, parent_id, is_trashed);
       CREATE INDEX IF NOT EXISTS idx_nodes_type_name ON nodes (type DESC, name COLLATE NOCASE ASC);
       CREATE INDEX IF NOT EXISTS idx_nodes_search ON nodes (name COLLATE NOCASE);
 
@@ -205,6 +207,8 @@ class FiloDatabase {
         name TEXT NOT NULL,
         description TEXT NOT NULL,
         icon_code INTEGER NOT NULL,
+        is_encrypted INTEGER NOT NULL DEFAULT 1,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL
       );
 
@@ -219,7 +223,19 @@ class FiloDatabase {
       _db.execute("ALTER TABLE nodes ADD COLUMN tags TEXT DEFAULT '';");
     } catch (_) {}
     try {
+      _db.execute('ALTER TABLE workspaces ADD COLUMN is_encrypted INTEGER NOT NULL DEFAULT 1;');
+    } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE workspaces ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;');
+    } catch (_) {}
+    try {
       _db.execute("ALTER TABLE nodes ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'personal';");
+    } catch (_) {}
+    try {
+      _db.execute('CREATE INDEX IF NOT EXISTS idx_nodes_ws_parent_trashed ON nodes (workspace_id, parent_id, is_trashed);');
+    } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE nodes ADD COLUMN is_pinned_offline INTEGER NOT NULL DEFAULT 0;');
     } catch (_) {}
   }
 
@@ -232,8 +248,8 @@ class FiloDatabase {
       INSERT OR REPLACE INTO nodes (
         id, parent_id, name, type, size_bytes, mime_type, content_hash,
         created_at, modified_at, is_favorite, is_trashed, trashed_at, sync_state,
-        tags, workspace_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        tags, workspace_id, is_pinned_offline
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''');
 
     stmt.execute([
@@ -252,6 +268,7 @@ class FiloDatabase {
       node.syncState.name,
       node.tags.join(','),
       node.workspaceId,
+      node.isPinnedOffline ? 1 : 0,
     ]);
     stmt.dispose();
   }
@@ -270,43 +287,98 @@ class FiloDatabase {
     );
   }
 
-  Future<List<Workspace>> getWorkspaces() async {
-    final ResultSet result = _db.select('SELECT * FROM workspaces ORDER BY created_at ASC');
-    if (result.isEmpty) {
+  Future<List<Workspace>> getWorkspaces({bool includeDeleted = false}) async {
+    final query = includeDeleted
+        ? 'SELECT * FROM workspaces ORDER BY created_at ASC'
+        : 'SELECT * FROM workspaces WHERE is_deleted = 0 ORDER BY created_at ASC';
+    final ResultSet result = _db.select(query);
+    if (result.isEmpty && !includeDeleted) {
       for (final ws in Workspace.defaults) {
         _db.execute(
-          'INSERT OR IGNORE INTO workspaces (id, name, description, icon_code, created_at) VALUES (?, ?, ?, ?, ?)',
-          [ws.id, ws.name, ws.description, ws.icon.codePoint, DateTime.now().millisecondsSinceEpoch],
+          'INSERT OR IGNORE INTO workspaces (id, name, description, icon_code, is_encrypted, is_deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [ws.id, ws.name, ws.description, ws.icon.codePoint, ws.isEncrypted ? 1 : 0, 0, DateTime.now().millisecondsSinceEpoch],
         );
       }
       return Workspace.defaults;
     }
     return result.map((row) {
       final id = row['id'] as String;
-      try {
-        return Workspace.defaults.firstWhere((d) => d.id == id);
-      } catch (_) {}
-
       final iconCode = row['icon_code'] as int;
       final icon = _resolveWorkspaceIcon(iconCode);
+      final isEncrypted = (row['is_encrypted'] as int? ?? 1) == 1;
+      final isDeleted = (row['is_deleted'] as int? ?? 0) == 1;
       return Workspace(
         id: id,
         name: row['name'] as String,
         description: row['description'] as String,
         icon: icon,
+        isEncrypted: isEncrypted,
+        isDeleted: isDeleted,
+      );
+    }).toList();
+  }
+
+  Future<List<Workspace>> getDeletedWorkspaces() async {
+    final ResultSet result = _db.select('SELECT * FROM workspaces WHERE is_deleted = 1 ORDER BY created_at DESC');
+    return result.map((row) {
+      final id = row['id'] as String;
+      final iconCode = row['icon_code'] as int;
+      final icon = _resolveWorkspaceIcon(iconCode);
+      final isEncrypted = (row['is_encrypted'] as int? ?? 1) == 1;
+      return Workspace(
+        id: id,
+        name: row['name'] as String,
+        description: row['description'] as String,
+        icon: icon,
+        isEncrypted: isEncrypted,
+        isDeleted: true,
       );
     }).toList();
   }
 
   Future<void> insertWorkspace(Workspace ws) async {
     _db.execute(
-      'INSERT OR REPLACE INTO workspaces (id, name, description, icon_code, created_at) VALUES (?, ?, ?, ?, ?)',
-      [ws.id, ws.name, ws.description, ws.icon.codePoint, DateTime.now().millisecondsSinceEpoch],
+      'INSERT OR REPLACE INTO workspaces (id, name, description, icon_code, is_encrypted, is_deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [ws.id, ws.name, ws.description, ws.icon.codePoint, ws.isEncrypted ? 1 : 0, ws.isDeleted ? 1 : 0, DateTime.now().millisecondsSinceEpoch],
     );
   }
 
-  Future<void> deleteWorkspace(String id) async {
-    _db.execute('DELETE FROM workspaces WHERE id = ?', [id]);
+  Future<void> deleteWorkspace(String id, {bool moveToTrash = true}) async {
+    if (moveToTrash) {
+      _db.execute('UPDATE workspaces SET is_deleted = 1 WHERE id = ?', [id]);
+      _db.execute(
+        'UPDATE nodes SET is_trashed = 1, trashed_at = ? WHERE workspace_id = ? AND is_trashed = 0',
+        [DateTime.now().millisecondsSinceEpoch, id],
+      );
+    } else {
+      _db.execute('BEGIN TRANSACTION');
+      try {
+        _db.execute('DELETE FROM chunks WHERE node_id IN (SELECT id FROM nodes WHERE workspace_id = ?)', [id]);
+        _db.execute('DELETE FROM nodes WHERE workspace_id = ?', [id]);
+        _db.execute('DELETE FROM workspaces WHERE id = ?', [id]);
+        _db.execute('COMMIT');
+      } catch (_) {
+        _db.execute('ROLLBACK');
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> restoreWorkspace(String id) async {
+    _db.execute('UPDATE workspaces SET is_deleted = 0 WHERE id = ?', [id]);
+    _db.execute(
+      'UPDATE nodes SET is_trashed = 0, trashed_at = NULL WHERE workspace_id = ? AND is_trashed = 1',
+      [id],
+    );
+  }
+
+  Future<int> getWorkspaceTrashedFileCount(String workspaceId) async {
+    final ResultSet res = _db.select(
+      'SELECT COUNT(*) as cnt FROM nodes WHERE workspace_id = ? AND is_trashed = 1',
+      [workspaceId],
+    );
+    if (res.isEmpty) return 0;
+    return res.first['cnt'] as int;
   }
 
   static IconData _resolveWorkspaceIcon(int code) {
@@ -421,7 +493,8 @@ class FiloDatabase {
         is_favorite = ?,
         is_trashed = ?,
         trashed_at = ?,
-        sync_state = ?
+        sync_state = ?,
+        is_pinned_offline = ?
       WHERE id = ?
     ''');
     stmt.execute([
@@ -437,6 +510,7 @@ class FiloDatabase {
       node.isTrashed ? 1 : 0,
       node.trashedAt?.millisecondsSinceEpoch,
       node.syncState.name,
+      node.isPinnedOffline ? 1 : 0,
       node.id,
     ]);
     stmt.dispose();
@@ -498,53 +572,127 @@ class FiloDatabase {
   }
 
   Future<void> trashNode(String id) async {
-    _db.execute(
-      'UPDATE nodes SET is_trashed = 1, trashed_at = ? WHERE id = ?',
-      [DateTime.now().millisecondsSinceEpoch, id],
-    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _db.execute('''
+      WITH RECURSIVE subtree(id) AS (
+        SELECT id FROM nodes WHERE id = ?
+        UNION ALL
+        SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
+      )
+      UPDATE nodes SET is_trashed = 1, trashed_at = ? WHERE id IN subtree
+    ''', [id, now]);
   }
 
   Future<void> trashNodes(List<String> ids) async {
     if (ids.isEmpty) return;
+    _db.execute('PRAGMA foreign_keys = OFF;');
     _db.execute('BEGIN TRANSACTION');
     try {
       final now = DateTime.now().millisecondsSinceEpoch;
-      final stmt = _db.prepare(
-        'UPDATE nodes SET is_trashed = 1, trashed_at = ? WHERE id = ?',
-      );
+      final stmt = _db.prepare('''
+        WITH RECURSIVE subtree(id) AS (
+          SELECT id FROM nodes WHERE id = ?
+          UNION ALL
+          SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
+        )
+        UPDATE nodes SET is_trashed = 1, trashed_at = ? WHERE id IN subtree
+      ''');
       for (final id in ids) {
-        stmt.execute([now, id]);
+        stmt.execute([id, now]);
       }
       stmt.dispose();
       _db.execute('COMMIT');
     } catch (_) {
       _db.execute('ROLLBACK');
       rethrow;
+    } finally {
+      _db.execute('PRAGMA foreign_keys = ON;');
     }
   }
 
   Future<void> restoreNode(String id) async {
-    _db.execute(
-      'UPDATE nodes SET is_trashed = 0, trashed_at = NULL WHERE id = ?',
-      [id],
-    );
+    _db.execute('''
+      WITH RECURSIVE subtree(id) AS (
+        SELECT id FROM nodes WHERE id = ?
+        UNION ALL
+        SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
+      )
+      UPDATE nodes SET is_trashed = 0, trashed_at = NULL WHERE id IN subtree
+    ''', [id]);
   }
 
   Future<void> deleteNodePermanently(String id) async {
-    _db.execute('DELETE FROM chunks WHERE node_id = ?', [id]);
-    _db.execute('DELETE FROM nodes WHERE id = ?', [id]);
-  }
-
-  Future<void> emptyTrash() async {
-    // BUG 12 FIX: Execute emptyTrash in an atomic transaction
+    _db.execute('PRAGMA foreign_keys = OFF;');
     _db.execute('BEGIN TRANSACTION');
     try {
-      _db.execute('DELETE FROM chunks WHERE node_id IN (SELECT id FROM nodes WHERE is_trashed = 1)');
-      _db.execute('DELETE FROM nodes WHERE is_trashed = 1');
+      _db.execute('''
+        WITH RECURSIVE subtree(id) AS (
+          SELECT id FROM nodes WHERE id = ?
+          UNION ALL
+          SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
+        )
+        DELETE FROM chunks WHERE node_id IN subtree
+      ''', [id]);
+      _db.execute('''
+        WITH RECURSIVE subtree(id) AS (
+          SELECT id FROM nodes WHERE id = ?
+          UNION ALL
+          SELECT n.id FROM nodes n JOIN subtree s ON n.parent_id = s.id
+        )
+        DELETE FROM nodes WHERE id IN subtree
+      ''', [id]);
       _db.execute('COMMIT');
     } catch (_) {
       _db.execute('ROLLBACK');
       rethrow;
+    } finally {
+      _db.execute('PRAGMA foreign_keys = ON;');
+    }
+  }
+
+  Future<int> purgeOldTrash({int days = 30}) async {
+    final cutoff = DateTime.now().subtract(Duration(days: days)).millisecondsSinceEpoch;
+    _db.execute('PRAGMA foreign_keys = OFF;');
+    _db.execute('BEGIN TRANSACTION');
+    try {
+      final oldNodes = _db.select(
+        'SELECT id FROM nodes WHERE is_trashed = 1 AND trashed_at IS NOT NULL AND trashed_at < ?',
+        [cutoff],
+      );
+      if (oldNodes.isNotEmpty) {
+        _db.execute(
+          'DELETE FROM chunks WHERE node_id IN (SELECT id FROM nodes WHERE is_trashed = 1 AND trashed_at IS NOT NULL AND trashed_at < ?)',
+          [cutoff],
+        );
+        _db.execute(
+          'DELETE FROM nodes WHERE is_trashed = 1 AND trashed_at IS NOT NULL AND trashed_at < ?',
+          [cutoff],
+        );
+      }
+      _db.execute('COMMIT');
+      return oldNodes.length;
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      return 0;
+    } finally {
+      _db.execute('PRAGMA foreign_keys = ON;');
+    }
+  }
+
+  Future<void> emptyTrash() async {
+    // BUG 12 FIX: Execute emptyTrash in an atomic transaction
+    _db.execute('PRAGMA foreign_keys = OFF;');
+    _db.execute('BEGIN TRANSACTION');
+    try {
+      _db.execute('DELETE FROM chunks WHERE node_id IN (SELECT id FROM nodes WHERE is_trashed = 1)');
+      _db.execute('DELETE FROM nodes WHERE is_trashed = 1');
+      _db.execute('DELETE FROM workspaces WHERE is_deleted = 1');
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    } finally {
+      _db.execute('PRAGMA foreign_keys = ON;');
     }
   }
 
@@ -769,6 +917,8 @@ class FiloDatabase {
         'description': r['description'],
         'iconCode': r['icon_code'],
         'createdAt': r['created_at'],
+        'isEncrypted': r.containsKey('is_encrypted') && r['is_encrypted'] != null ? r['is_encrypted'] : 1,
+        'isDeleted': r.containsKey('is_deleted') && r['is_deleted'] != null ? r['is_deleted'] : 0,
       };
     }).toList();
 
@@ -792,6 +942,7 @@ class FiloDatabase {
     final workspacesRaw = data['workspaces'] as List<dynamic>?;
     final exportedAt = (data['exportedAt'] as num?)?.toInt();
 
+    _db.execute('PRAGMA foreign_keys = OFF;');
     _db.execute('BEGIN TRANSACTION');
     try {
       _db.execute('DELETE FROM chunks');
@@ -802,13 +953,15 @@ class FiloDatabase {
         for (final item in workspacesRaw) {
           final w = item as Map<String, dynamic>;
           _db.execute(
-            'INSERT OR REPLACE INTO workspaces (id, name, description, icon_code, created_at) VALUES (?, ?, ?, ?, ?)',
+            'INSERT OR REPLACE INTO workspaces (id, name, description, icon_code, created_at, is_encrypted, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [
               w['id'] as String,
               w['name'] as String,
               w['description'] as String? ?? 'Personal space',
               (w['iconCode'] as num?)?.toInt() ?? Icons.folder_outlined.codePoint,
               (w['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
+              (w['isEncrypted'] as num?)?.toInt() ?? 1,
+              (w['isDeleted'] as num?)?.toInt() ?? 0,
             ],
           );
         }
@@ -848,6 +1001,8 @@ class FiloDatabase {
     } catch (_) {
       _db.execute('ROLLBACK');
       rethrow;
+    } finally {
+      _db.execute('PRAGMA foreign_keys = ON;');
     }
   }
 
@@ -890,6 +1045,9 @@ class FiloDatabase {
       workspaceId: row.containsKey('workspace_id') && row['workspace_id'] != null && row['workspace_id'] is String
           ? (row['workspace_id'] as String)
           : 'personal',
+      isPinnedOffline: row.containsKey('is_pinned_offline') && row['is_pinned_offline'] != null
+          ? (row['is_pinned_offline'] as int) == 1
+          : false,
     );
   }
 }

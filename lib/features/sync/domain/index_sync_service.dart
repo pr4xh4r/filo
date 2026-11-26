@@ -346,6 +346,7 @@ class IndexSyncService {
     );
 
     Uint8List encryptedCatalogBytes;
+    Map<String, dynamic>? pendingKeyBundleEnvelope;
     final decodedStr = utf8.decode(downloadedBytes, allowMalformed: true);
 
     if (decodedStr.trimLeft().startsWith('{')) {
@@ -353,9 +354,7 @@ class IndexSyncService {
         final envelope = json.decode(decodedStr) as Map<String, dynamic>;
         if (envelope.containsKey('catalogCiphertextHex')) {
           encryptedCatalogBytes = HashUtils.hexToBytes(envelope['catalogCiphertextHex'] as String);
-          if (_authRepository != null) {
-            await _authRepository.importVaultKeyBundle(envelope);
-          }
+          pendingKeyBundleEnvelope = envelope;
         } else {
           encryptedCatalogBytes = downloadedBytes;
         }
@@ -367,11 +366,16 @@ class IndexSyncService {
       encryptedCatalogBytes = downloadedBytes;
     }
 
-    // 4. Decrypt on-device with Master Key
+    // 4. Decrypt on-device with Master Key (cryptographically verifying AEAD MAC before state mutation)
     final decryptedBytes = await CryptoEngine.decryptBytes(
       combinedBytes: encryptedCatalogBytes,
       key: masterKey,
     );
+
+    // Cryptographic verification succeeded: safe to import vault envelope credentials
+    if (pendingKeyBundleEnvelope != null && _authRepository != null) {
+      await _authRepository.importVaultKeyBundle(pendingKeyBundleEnvelope);
+    }
 
     // 5. Rebuild local SQLite index
     final jsonStr = utf8.decode(decryptedBytes);

@@ -29,10 +29,35 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = project.findProperty("RELEASE_STORE_FILE") as String?
+                ?: System.getenv("RELEASE_STORE_FILE")
+            val keystoreFile = if (keystorePath != null) file(keystorePath) else rootProject.file("release-keystore.jks")
+
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = project.findProperty("RELEASE_STORE_PASSWORD") as String?
+                    ?: System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias = project.findProperty("RELEASE_KEY_ALIAS") as String?
+                    ?: System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as String?
+                    ?: System.getenv("RELEASE_KEY_PASSWORD")
+            } else {
+                // When release keystore is not yet provisioned on dev machine,
+                // fall back to debug signing only with an explicit build notice.
+                val debugConfig = signingConfigs.getByName("debug")
+                storeFile = debugConfig.storeFile
+                storePassword = debugConfig.storePassword
+                keyAlias = debugConfig.keyAlias
+                keyPassword = debugConfig.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

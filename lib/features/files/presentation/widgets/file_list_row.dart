@@ -125,6 +125,14 @@ class FileListRow extends StatelessWidget {
                           color: FiloColors.accentCoral,
                         ),
                       ],
+                      if (node.isPinnedOffline) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_circle_down_rounded,
+                          size: 14,
+                          color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 2),

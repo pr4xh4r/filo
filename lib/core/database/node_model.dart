@@ -21,6 +21,7 @@ class FileNode {
   final SyncState syncState;
   final List<String> tags;
   final String workspaceId;
+  final bool isPinnedOffline;
 
   const FileNode({
     required this.id,
@@ -38,6 +39,7 @@ class FileNode {
     this.syncState = SyncState.synced,
     this.tags = const [],
     this.workspaceId = 'personal',
+    this.isPinnedOffline = false,
   });
 
   bool get isFolder => type == NodeType.folder;
@@ -59,6 +61,7 @@ class FileNode {
     SyncState? syncState,
     List<String>? tags,
     String? workspaceId,
+    bool? isPinnedOffline,
   }) {
     return FileNode(
       id: id ?? this.id,
@@ -76,6 +79,7 @@ class FileNode {
       syncState: syncState ?? this.syncState,
       tags: tags ?? this.tags,
       workspaceId: workspaceId ?? this.workspaceId,
+      isPinnedOffline: isPinnedOffline ?? this.isPinnedOffline,
     );
   }
 
@@ -96,14 +100,28 @@ class FileNode {
       'syncState': syncState.name,
       'tags': tags.join(','),
       'workspaceId': workspaceId,
+      'isPinnedOffline': isPinnedOffline ? 1 : 0,
     };
+  }
+
+  /// Sanitizes a file or folder name to prevent path traversal and filesystem injection.
+  static String sanitizeNodeName(String raw) {
+    var cleaned = raw.replaceAll('\x00', '').trim();
+    cleaned = cleaned.replaceAll(RegExp(r'^[\\/]+'), '');
+    cleaned = cleaned.split(RegExp(r'[\\/]')).last;
+    cleaned = cleaned.replaceAll('..', '');
+    cleaned = cleaned.trim();
+    if (cleaned.isEmpty || cleaned == '.') {
+      return 'unnamed_file';
+    }
+    return cleaned;
   }
 
   factory FileNode.fromJson(Map<String, dynamic> json) {
     return FileNode(
       id: json['id'] as String,
       parentId: json['parentId'] as String?,
-      name: json['name'] as String,
+      name: sanitizeNodeName(json['name'] as String? ?? 'unnamed_file'),
       type: NodeType.values.firstWhere(
         (e) => e.name == json['type'],
         orElse: () => NodeType.file,
@@ -126,6 +144,7 @@ class FileNode {
           ? (json['tags'] as String).split(',').where((s) => s.isNotEmpty).toList()
           : const [],
       workspaceId: (json['workspaceId'] as String?) ?? 'personal',
+      isPinnedOffline: (json['isPinnedOffline'] as int? ?? 0) == 1,
     );
   }
 }

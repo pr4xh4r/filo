@@ -20,14 +20,22 @@ class AuthRepository {
   static const _keyRecoveryKeyHash = 'filo_recovery_key_hash';
   // BUG 5 FIX: Store a separate bundle wrapped with the recovery key as KEK
   static const _keyRecoveryWrappedBundle = 'filo_recovery_wrapped_bundle';
+  static const _keyActiveCloudProvider = 'filo_active_cloud_provider';
 
   AuthRepository({
     required StorageBackend storageBackend,
     FlutterSecureStorage? secureStorage,
   })  : _storageBackend = storageBackend,
-        _secureStorage = secureStorage ?? const FlutterSecureStorage();
+        _secureStorage = secureStorage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(
+                encryptedSharedPreferences: true,
+              ),
+            );
 
   StorageBackend get storageBackend => _storageBackend;
+  Stream<String>? get qrLinkStream => _storageBackend.qrLinkStream;
+  Future<String?> requestQrCode() => _storageBackend.requestQrCode();
 
   /// Checks if a vault has already been configured on this device.
   Future<bool> hasConfiguredVault() async {
@@ -159,7 +167,7 @@ class AuthRepository {
 
     // Derive old KEK and unwrap the master key first
     final oldKek = await Argon2Kdf.deriveKey(
-      passphrase: currentPassphrase,
+      passphrase: currentPassphrase.trim(),
       salt: oldBundle.salt,
     );
     final masterKey = await KeyWrapper.unwrapKey(bundle: oldBundle, kek: oldKek);
@@ -167,7 +175,7 @@ class AuthRepository {
     // Derive new KEK with fresh salt
     final newSalt = Argon2Kdf.generateSalt();
     final newKek = await Argon2Kdf.deriveKey(
-      passphrase: newPassphrase,
+      passphrase: newPassphrase.trim(),
       salt: newSalt,
     );
 
@@ -186,6 +194,31 @@ class AuthRepository {
     // BUG 6 FIX: Recovery bundle stays valid — master key hasn't changed,
     // so the recovery-wrapped bundle still correctly unlocks the same master key.
     // No update needed for _keyRecoveryWrappedBundle or _keyRecoveryKeyHash.
+  }
+
+  /// Disaster recovery path: resets passphrase using the emergency recovery key.
+  Future<void> resetPassphraseWithRecoveryKey({
+    required String recoveryKey,
+    required String newPassphrase,
+  }) async {
+    final masterKey = await unlockWithRecoveryKey(recoveryKey.trim());
+
+    final newSalt = Argon2Kdf.generateSalt();
+    final newKek = await Argon2Kdf.deriveKey(
+      passphrase: newPassphrase.trim(),
+      salt: newSalt,
+    );
+
+    final newBundle = await KeyWrapper.wrapKey(
+      masterKey: masterKey,
+      kek: newKek,
+      salt: newSalt,
+    );
+
+    await _secureStorage.write(
+      key: _keyWrappedBundle,
+      value: json.encode(newBundle.toJson()),
+    );
   }
 
   /// Biometric preference helpers
@@ -282,6 +315,10 @@ class AuthRepository {
       value: minutes.toString(),
     );
   }
+
+  /// Cloud Provider helpers
+  Future<String?> getActiveCloudProvider() => _secureStorage.read(key: _keyActiveCloudProvider);
+  Future<void> setActiveCloudProvider(String provider) => _secureStorage.write(key: _keyActiveCloudProvider, value: provider);
 
   /// Completely wipes local security storage and signs out of Telegram.
   Future<void> wipeLocalSecurity() async {

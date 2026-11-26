@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
+import '../../../../core/cache/session_cache_service.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/database/filo_database.dart';
 import '../../../storage/data/tdlib_storage_backend.dart';
@@ -85,6 +86,7 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
 
       final isBio = await _repository.isBiometricEnabled();
       final timeout = await _repository.getAutoLockTimeoutMinutes();
+      final activeProvider = await _repository.getActiveCloudProvider();
 
       VaultSetupStatus vaultStatus;
       if (!hasVault) {
@@ -97,6 +99,7 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         isTelegramAuthenticated: authState.isAuthenticated,
         telegramUserId: authState.userId,
         telegramUserName: authState.userName,
+        activeCloudProvider: activeProvider ?? 'telegram',
         vaultStatus: vaultStatus,
         lockStatus: hasVault ? AppLockStatus.locked : AppLockStatus.unlocked,
         isBiometricEnabled: isBio,
@@ -109,6 +112,12 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         errorMessage: e.toString(),
       );
     }
+  }
+
+  Stream<String>? get qrLinkStream => _repository.qrLinkStream;
+
+  Future<String?> requestQrCode() async {
+    return _repository.requestQrCode();
   }
 
   Future<StorageAuthState> sendTelegramCode(String phoneNumber) async {
@@ -203,14 +212,30 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     }
   }
 
+  Future<void> signOutTelegram() async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _repository.storageBackend.signOut();
+      state = state.copyWith(
+        isTelegramAuthenticated: false,
+        telegramUserId: null,
+        telegramUserName: null,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+    }
+  }
+
   Future<String> setupNewVault(String passphrase) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final recoveryKey = await _repository.setupNewVault(passphrase: passphrase);
       final masterKey = await _repository.unlockWithPassphrase(passphrase);
 
-      // Create storage channel in Telegram ('filo')
-      await _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
+      // Create storage channels in Telegram ('filo enc' and 'filo view')
+      await _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle);
+      await _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle);
 
       if (state.isBiometricEnabled) {
         await _repository.storeBiometricMasterKey(masterKey);
@@ -243,6 +268,53 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     }
   }
 
+  void completeVaultSetup() {
+    state = state.copyWith(
+      vaultStatus: VaultSetupStatus.ready,
+      lockStatus: AppLockStatus.unlocked,
+    );
+  }
+
+  Future<void> changePassphrase({
+    required String currentPassphrase,
+    required String newPassphrase,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _repository.changePassphrase(
+        currentPassphrase: currentPassphrase,
+        newPassphrase: newPassphrase,
+      );
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      rethrow;
+    }
+  }
+
+  Future<void> resetPassphraseWithRecoveryKey({
+    required String recoveryKey,
+    required String newPassphrase,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _repository.resetPassphraseWithRecoveryKey(
+        recoveryKey: recoveryKey,
+        newPassphrase: newPassphrase,
+      );
+      final masterKey = await _repository.unlockWithPassphrase(newPassphrase);
+      state = state.copyWith(
+        vaultStatus: VaultSetupStatus.ready,
+        lockStatus: AppLockStatus.unlocked,
+        masterKey: masterKey,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      rethrow;
+    }
+  }
+
   Future<void> unlockWithPassphrase(String passphrase) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
@@ -251,6 +323,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         await _repository.storeBiometricMasterKey(masterKey);
       }
       await _maybeAutoRestore(masterKey);
+      _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
+      _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
       state = state.copyWith(
         vaultStatus: VaultSetupStatus.ready,
         lockStatus: AppLockStatus.unlocked,
@@ -275,6 +349,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         await _repository.storeBiometricMasterKey(masterKey);
       }
       await _maybeAutoRestore(masterKey);
+      _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
+      _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
       state = state.copyWith(
         vaultStatus: VaultSetupStatus.ready,
         lockStatus: AppLockStatus.unlocked,
@@ -315,6 +391,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         if (masterKey != null) {
           state = state.copyWith(isLoading: true, errorMessage: null);
           await _maybeAutoRestore(masterKey);
+          _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
+          _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
           state = state.copyWith(
             vaultStatus: VaultSetupStatus.ready,
             lockStatus: AppLockStatus.unlocked,
@@ -386,6 +464,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
   void lockVault() {
     // Zero out master key in memory for security
     _syncService?.clearSessionKey();
+    // Zero-knowledge security rule: purge all decrypted session files immediately
+    SessionCacheService.instance.purge();
     state = state.copyWith(
       lockStatus: AppLockStatus.locked,
       masterKey: null,
@@ -446,6 +526,7 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     state = state.copyWith(isLoading: true);
     try {
       _syncService?.clearSessionKey();
+      await SessionCacheService.instance.purge();
       await _repository.wipeLocalSecurity();
       await database.wipeAllLocalData();
       state = const FiloAuthState(

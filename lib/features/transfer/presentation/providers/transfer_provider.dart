@@ -51,6 +51,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     String? parentId,
     String workspaceId = 'personal',
     List<String> tags = const [],
+    bool? isEncrypted,
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final authState = _ref.read(authNotifierProvider);
@@ -63,6 +64,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
       parentId: parentId,
       workspaceId: workspaceId,
       tags: tags,
+      isEncrypted: isEncrypted,
       onTaskCreated: onTaskCreated,
     );
 
@@ -76,6 +78,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     String? parentId,
     String workspaceId = 'personal',
     List<String> tags = const [],
+    bool? isEncrypted,
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final authState = _ref.read(authNotifierProvider);
@@ -88,6 +91,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
       parentId: parentId,
       workspaceId: workspaceId,
       tags: tags,
+      isEncrypted: isEncrypted,
       onTaskCreated: onTaskCreated,
       onFileUploaded: (_) {
         _ref.read(indexSyncServiceProvider).triggerAutoSync(masterKey: authState.masterKey!);
@@ -106,6 +110,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     String workspaceId = 'personal',
     List<String> tags = const [],
     String? customName,
+    bool? isEncrypted,
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final authState = _ref.read(authNotifierProvider);
@@ -120,6 +125,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
       workspaceId: workspaceId,
       tags: tags,
       customName: customName,
+      isEncrypted: isEncrypted,
       onTaskCreated: onTaskCreated,
     );
 
@@ -132,6 +138,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
     String? parentId,
     String workspaceId = 'personal',
     List<String> tags = const [],
+    bool? isEncrypted,
     void Function(FileNode node)? onTaskCreated,
   }) async {
     final authState = _ref.read(authNotifierProvider);
@@ -149,6 +156,7 @@ class TransferQueueNotifier extends StateNotifier<List<TransferTask>> {
           parentId: parentId,
           workspaceId: workspaceId,
           tags: tags,
+          isEncrypted: isEncrypted,
           onTaskCreated: onTaskCreated,
         );
         uploadedList.add(node);

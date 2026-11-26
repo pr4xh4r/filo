@@ -16,8 +16,6 @@ import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../preview/presentation/screens/file_preview_screen.dart';
 import '../../../settings/presentation/screens/settings_screen.dart';
-import '../../../broadcast/presentation/widgets/broadcast_and_update_banner.dart';
-import '../../../broadcast/domain/broadcast_service.dart';
 import '../../../transfer/presentation/providers/transfer_provider.dart';
 import '../../../transfer/presentation/screens/transfer_queue_sheet.dart';
 import '../providers/file_browser_provider.dart';
@@ -230,10 +228,17 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     ),
                   ],
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+                    maxWidth: 480,
+                  ),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     Row(
                       children: [
                         Container(
@@ -346,9 +351,11 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
+  },
+);
   }
 
   void _showTagManagerDialog(FileNode node) {
@@ -766,10 +773,17 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     ),
                   ],
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+                    maxWidth: 480,
+                  ),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     Row(
                       children: [
                         Container(
@@ -886,9 +900,11 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
+  },
+);
   }
 
   void _showMoveDialog(FileNode node) async {
@@ -1151,7 +1167,6 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     final activeTasksCount = activeTasks.length;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeWorkspace = Workspace.fromId(state.activeWorkspaceId, state.workspaces);
-    final broadcastState = ref.watch(broadcastNotifierProvider);
 
     return Scaffold(
       body: FiloBackground(
@@ -1270,22 +1285,9 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             ),
                             const SizedBox(width: 6),
                             _buildHeaderIconButton(
-                              icon: (broadcastState.update != null || broadcastState.broadcast != null)
-                                  ? Icons.notifications_active_rounded
-                                  : Icons.notifications_none_rounded,
-                              onTap: () {
-                                if (activeTasksCount > 0) {
-                                  TransferQueueSheet.show(context);
-                                } else if (broadcastState.update != null && broadcastState.isUpdateCollapsed) {
-                                  ref.read(broadcastNotifierProvider.notifier).toggleCollapseUpdate(false);
-                                  FiloToast.show(context, message: 'Update available: v${broadcastState.update?.latestVersion}', type: FiloToastType.info);
-                                } else {
-                                  TransferQueueSheet.show(context);
-                                }
-                              },
-                              badgeCount: activeTasksCount > 0
-                                  ? activeTasksCount
-                                  : ((broadcastState.update != null || broadcastState.broadcast != null) ? 1 : null),
+                              icon: Icons.swap_vert_rounded,
+                              onTap: () => TransferQueueSheet.show(context),
+                              badgeCount: activeTasksCount > 0 ? activeTasksCount : null,
                             ),
                             const SizedBox(width: 6),
                             _buildHeaderIconButton(
@@ -1301,11 +1303,6 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                       ],
                     ),
                   ),
-                ),
-
-                // 1.2 Admin Broadcast & Update Banner (Theme-synced, persistent, polite)
-                const SliverToBoxAdapter(
-                  child: BroadcastAndUpdateBanner(),
                 ),
 
                 // Search Bar if Active
@@ -2093,19 +2090,19 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: FiloColors.brandGradient),
+                color: isDark ? Colors.white : Colors.black,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: FiloColors.accentCoral.withValues(alpha: 0.35),
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.2),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.add_rounded,
-                color: Colors.white,
+                color: isDark ? Colors.black : Colors.white,
                 size: 24,
               ),
             ),

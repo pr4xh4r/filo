@@ -21,6 +21,8 @@
         android:label="filo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:extractNativeLibs="true">
         <!-- Foreground Data Sync Service for Background Transfer Resilience -->
         <service

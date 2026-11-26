@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 import '../domain/storage_backend.dart';
@@ -116,11 +117,20 @@ class FakeStorageBackend implements StorageBackend {
   }
 
   @override
+  Stream<String>? get qrLinkStream => null;
+
+  @override
+  Future<String?> requestQrCode() async => 'tg://login?token=FAKE_STORAGE_QR_TOKEN';
+
+  @override
   Future<VaultChannelInfo> getOrCreateVaultChannel(String channelTitle) async {
     await _applyLatency();
     _checkFloodWait();
 
-    const channelId = '-1009876543210';
+    // Map channel title to distinct deterministic channel IDs (e.g. 'filo enc' vs 'filo view')
+    final channelId = channelTitle.contains('view')
+        ? '-1009876543211'
+        : '-1009876543210';
     _channelMessages.putIfAbsent(channelId, () => []);
 
     return VaultChannelInfo(
@@ -136,6 +146,7 @@ class FakeStorageBackend implements StorageBackend {
     required String channelId,
     required Uint8List chunkData,
     required String partFileName,
+    File? sourceFile,
     ProgressCallback? onProgress,
   }) async {
     await _applyLatency();
@@ -145,9 +156,13 @@ class FakeStorageBackend implements StorageBackend {
       throw Exception('Simulated network interruption during chunk upload');
     }
 
+    final effectiveData = (chunkData.isEmpty && sourceFile != null && await sourceFile.exists())
+        ? await sourceFile.readAsBytes()
+        : chunkData;
+
     // Simulate progressive streaming progress
     if (onProgress != null) {
-      final total = chunkData.length;
+      final total = effectiveData.length;
       final step = (total ~/ 4).clamp(1, total);
       for (int i = step; i < total; i += step) {
         onProgress(i, total);
@@ -158,12 +173,12 @@ class FakeStorageBackend implements StorageBackend {
     final messageId = _uuid.v4();
     final remoteFileId = 'file_${_uuid.v4()}';
 
-    _fileStore[remoteFileId] = chunkData;
+    _fileStore[remoteFileId] = effectiveData;
 
     final message = RemoteMessage(
       messageId: messageId,
       remoteFileId: remoteFileId,
-      documentData: chunkData,
+      documentData: effectiveData,
       caption: partFileName,
       date: DateTime.now(),
     );
@@ -173,7 +188,7 @@ class FakeStorageBackend implements StorageBackend {
     return RemoteUploadedChunk(
       messageId: messageId,
       remoteFileId: remoteFileId,
-      sizeBytes: chunkData.length,
+      sizeBytes: effectiveData.length,
       partFileName: partFileName,
     );
   }
@@ -260,6 +275,16 @@ class FakeStorageBackend implements StorageBackend {
     _channelMessages[channelId]?.clear();
     _pinnedMessages.remove(channelId);
     return count;
+  }
+
+  @override
+  Future<StorageQuotaInfo> getStorageQuota() async {
+    return const StorageQuotaInfo(
+      totalBytes: -1,
+      usedBytes: 1048576 * 45,
+      planName: 'Unlimited',
+      providerName: 'Telegram',
+    );
   }
 
   @override

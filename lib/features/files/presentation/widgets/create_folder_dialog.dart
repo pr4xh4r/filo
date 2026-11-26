@@ -72,10 +72,17 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.9,
+                maxWidth: 480,
+              ),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 Row(
                   children: [
                     Container(
@@ -113,12 +120,19 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
                     controller: _controller,
                     autofocus: true,
                     textCapitalization: TextCapitalization.sentences,
-                    style: const TextStyle(fontSize: 15, color: FiloColors.lightTextPrimary),
+                    style: const TextStyle(
+                      fontFamily: FiloTypography.fontFamily,
+                      fontSize: 15,
+                      color: FiloColors.lightTextPrimary,
+                    ),
                     onSubmitted: (_) => _submit(),
                     decoration: const InputDecoration(
                       filled: false,
                       hintText: 'Folder name',
-                      hintStyle: TextStyle(color: FiloColors.lightTextTertiary),
+                      hintStyle: TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
+                        color: FiloColors.lightTextTertiary,
+                      ),
                       border: InputBorder.none,
                       isDense: true,
                     ),
@@ -130,7 +144,13 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel', style: TextStyle(color: FiloColors.lightTextSecondary)),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
+                          color: FiloColors.lightTextSecondary,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     FiloButton(
@@ -145,6 +165,8 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }

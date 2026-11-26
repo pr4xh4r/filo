@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/crypto/qr_encoder.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_radius.dart';
 import '../../../../core/theme/filo_spacing.dart';
@@ -9,7 +9,9 @@ import '../../../../core/theme/filo_typography.dart';
 import '../../../../core/theme/persona_provider.dart';
 import '../../../../shared/components/filo_glass.dart';
 import '../../../../shared/components/filo_qr_scanner_screen.dart';
+import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
+import '../../../files/presentation/screens/file_browser_screen.dart';
 import '../providers/auth_provider.dart';
 
 /// Passphrase setup screen with human, jargon-free copywriting and CRED/iOS 18 liquid glass aesthetics.
@@ -28,6 +30,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
   bool _obscurePassphrase = true;
   bool _confirmedLossRisk = false;
   bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -81,17 +84,25 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
     final pwd = _passphraseController.text;
     final confirm = _confirmController.text;
 
+    setState(() => _errorMessage = null);
+
     if (pwd.length < 8) {
-      FiloToast.show(context, message: 'Your key must be at least 8 characters long', type: FiloToastType.error);
+      HapticFeedback.heavyImpact();
+      setState(() => _errorMessage = 'Passphrase must be at least 8 characters long.');
+      FiloToast.show(context, message: 'Passphrase must be at least 8 characters long', type: FiloToastType.error);
       return;
     }
 
     if (pwd != confirm) {
-      FiloToast.show(context, message: 'Keys do not match', type: FiloToastType.error);
+      HapticFeedback.heavyImpact();
+      setState(() => _errorMessage = 'Passphrases do not match. Please re-enter.');
+      FiloToast.show(context, message: 'Passphrases do not match', type: FiloToastType.error);
       return;
     }
 
     if (!_confirmedLossRisk) {
+      HapticFeedback.mediumImpact();
+      setState(() => _errorMessage = 'Please confirm you saved your key by checking the box.');
       FiloToast.show(context, message: 'Please confirm you saved your key', type: FiloToastType.warning);
       return;
     }
@@ -104,7 +115,10 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
         _showRecoveryKeySheet(recoveryKey);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
       FiloToast.show(context, message: e.toString(), type: FiloToastType.error);
     }
   }
@@ -115,7 +129,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
       final found = await ref.read(authNotifierProvider.notifier).checkForCloudVault();
       if (!mounted) return;
       if (found) {
-        FiloToast.show(context, message: 'Existing vault detected! Please enter your passphrase.', type: FiloToastType.success);
+        FiloToast.show(context, message: 'Existing space detected! Please enter your passphrase.', type: FiloToastType.success);
       } else {
         FiloToast.show(context, message: 'No existing backup found in Telegram.', type: FiloToastType.info);
       }
@@ -148,7 +162,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
           backgroundColor: isDark ? FiloColors.darkSurface : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: Text(
-            'Pair Vault with Token',
+            'Pair Space with Token',
             style: FiloTypography.title3.copyWith(
               color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
             ),
@@ -206,190 +220,228 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
     if (token == null || token.isEmpty) return;
 
     try {
-      String rawJson = token;
-      if (token.startsWith('filo://vault?bundle=')) {
-        final b64 = token.substring('filo://vault?bundle='.length);
-        rawJson = utf8.decode(base64Url.decode(b64));
-      }
-      final data = json.decode(rawJson) as Map<String, dynamic>;
+      final data = QrEncoder.parsePairingToken(token);
       final repo = ref.read(authRepositoryProvider);
+      final hasVault = await repo.hasConfiguredVault();
+      if (hasVault && mounted) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Replace Existing Keys?'),
+            content: const Text(
+              'Importing this pairing token will replace the existing space configuration on this device. '
+              'Are you sure you want to proceed?',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(backgroundColor: FiloColors.destructive),
+                child: const Text('Replace & Pair', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
       await repo.importVaultKeyBundle(data);
       if (!mounted) return;
       ref.read(authNotifierProvider.notifier).initialize();
-      FiloToast.show(context, message: 'Vault paired! Please enter your passphrase.', type: FiloToastType.success);
+      FiloToast.show(context, message: 'Device paired! Please enter your passphrase.', type: FiloToastType.success);
     } catch (e) {
       if (mounted) {
-        FiloToast.show(context, message: 'Invalid pairing token: $e', type: FiloToastType.error);
+        final cleanMsg = e.toString().replaceAll('Exception: ', '').replaceAll('FormatException: ', '');
+        setState(() => _errorMessage = 'Pairing error: $cleanMsg');
+        FiloToast.show(context, message: 'Pairing failed: $cleanMsg', type: FiloToastType.error);
       }
     }
   }
 
   void _showRecoveryKeySheet(String recoveryKey) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
-    showModalBottomSheet(
+    FiloSheet.show(
       context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return FiloGlass(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Illustration / Icon Header
+          Center(
+            child: Container(
+              height: isLandscape ? 60 : 110,
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              child: Image.asset(
+                FiloIllustrations.recovery,
+                fit: BoxFit.contain,
               ),
-              const SizedBox(height: 14),
-              Center(
-                child: Container(
-                  height: 150,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  child: Image.asset(
-                    FiloIllustrations.recovery,
-                    fit: BoxFit.contain,
-                  ),
-                ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Handwritten Cursive Title
+          Center(
+            child: Text(
+              'Emergency Recovery Key',
+              textAlign: TextAlign.center,
+              style: FiloTypography.handwriting(
+                fontSize: isLandscape ? 22 : 26,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : FiloColors.lightTextPrimary,
               ),
-              const SizedBox(height: 10),
-              Text(
-                'Emergency Recovery Key',
-                style: FiloTypography.editorial(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.8,
-                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Save this in a secure place. If you ever forget your passphrase, this is the only way to recover your files.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: FiloTypography.fontFamily,
+              fontSize: 12.5,
+              height: 1.35,
+              color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Recovery Key Box with Monospace font and inline copy button
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: 0.10),
+                width: 1.0,
               ),
-              const SizedBox(height: 6),
-              Text(
-                'Save this in a secure place. If you ever forget your vault key, this is the only way to recover your files.',
-                style: FiloTypography.body.copyWith(
-                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark ? FiloColors.darkSurfaceSecondary : FiloColors.lightSurfaceSecondary,
-                  borderRadius: FiloRadius.roundedLg,
-                  border: Border.all(
-                    color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
-                    width: 0.8,
-                  ),
-                ),
-                child: SelectableText(
-                  recoveryKey,
-                  style: FiloTypography.monospace.copyWith(
-                    color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: FiloRadius.roundedLg,
-                        ),
-                        side: BorderSide(
-                          color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: recoveryKey));
-                        HapticFeedback.lightImpact();
-                        FiloToast.show(context, message: 'Recovery key copied', type: FiloToastType.success);
-                      },
-                      child: Text(
-                        'Copy Key',
-                        style: FiloTypography.callout.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                        ),
-                      ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SelectableText(
+                    recoveryKey,
+                    style: TextStyle(
+                      fontFamily: FiloTypography.monospaceFontFamily,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.6,
+                      color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        HapticFeedback.mediumImpact();
-                        Navigator.of(context).pop();
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: FiloColors.brandGradient,
-                          ),
-                          borderRadius: FiloRadius.roundedLg,
-                        ),
-                        child: Center(
-                          child: Text(
-                            'Done',
-                            style: FiloTypography.callout.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.copy_rounded, size: 20),
+                  color: FiloColors.primary,
+                  tooltip: 'Copy Key',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: recoveryKey));
+                    HapticFeedback.lightImpact();
+                    FiloToast.show(context, message: 'Recovery key copied', type: FiloToastType.success);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Primary Gradient Action Button
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              Navigator.of(context).pop();
+              ref.read(authNotifierProvider.notifier).completeVaultSetup();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const FileBrowserScreen()),
+                (route) => false,
+              );
+            },
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [FiloColors.primary, Color(0xFF1E293B)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(100),
+                boxShadow: [
+                  BoxShadow(
+                    color: FiloColors.primary.withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-            ],
+              child: Center(
+                child: Text(
+                  'Start Using Filo',
+                  style: FiloTypography.callout.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15.5,
+                  ),
+                ),
+              ),
+            ),
           ),
-        );
-      },
+          const SizedBox(height: 4),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final pwd = _passphraseController.text;
     final strength = _calculateStrength(pwd);
 
     return Scaffold(
       body: FiloAmbientBackground(
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: FiloSpacing.xl,
-              vertical: FiloSpacing.lg,
-            ),
-            physics: const BouncingScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: FiloSpacing.sm),
-
-                Text(
-                  'Create Vault Key',
-                  style: FiloTypography.editorial(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -1.2,
-                    color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
-                  ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isLandscape ? FiloSpacing.xxl : FiloSpacing.xl,
+                  vertical: isLandscape ? FiloSpacing.sm : FiloSpacing.lg,
                 ),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (Navigator.of(context).canPop()) ...[
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 20,
+                          color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                        ),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                      const SizedBox(height: FiloSpacing.md),
+                    ] else ...[
+                      const SizedBox(height: FiloSpacing.sm),
+                    ],
+
+                    Text(
+                      'Create Passphrase',
+                      style: FiloTypography.editorial(
+                        fontSize: isLandscape ? 28 : 36,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -1.2,
+                        color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                      ),
+                    ),
                 const SizedBox(height: 4),
                 Text(
                   'Choose a secret key only you know. It protects every file on your phone.',
@@ -406,7 +458,11 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                   child: TextField(
                     controller: _passphraseController,
                     obscureText: _obscurePassphrase,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) {
+                      setState(() {
+                        if (_errorMessage != null) _errorMessage = null;
+                      });
+                    },
                     style: FiloTypography.title3.copyWith(
                       color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                     ),
@@ -470,6 +526,9 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                     style: FiloTypography.title3.copyWith(
                       color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                     ),
+                    onChanged: (_) {
+                      if (_errorMessage != null) setState(() => _errorMessage = null);
+                    },
                     decoration: InputDecoration(
                       filled: false,
                       fillColor: Colors.transparent,
@@ -514,7 +573,43 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                   ),
                 ),
 
-                const SizedBox(height: FiloSpacing.xxl),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: FiloSpacing.md),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: FiloColors.destructive.withValues(alpha: 0.12),
+                      borderRadius: FiloRadius.roundedLg,
+                      border: Border.all(
+                        color: FiloColors.destructive.withValues(alpha: 0.4),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 20,
+                          color: FiloColors.destructive,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: FiloColors.destructive,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: FiloSpacing.lg),
 
                 // CTA Button
                 GestureDetector(
@@ -552,7 +647,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  'Create Vault',
+                                  'Create Space',
                                   style: FiloTypography.title3.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
@@ -571,39 +666,155 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                   ),
                 ),
 
+                const SizedBox(height: FiloSpacing.lg),
+
+                // Sleek Divider
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Text(
+                        'OR RECOVER SPACE',
+                        style: TextStyle(
+                          fontFamily: FiloTypography.fontFamily,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                          color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: isDark ? Colors.white12 : Colors.black12)),
+                  ],
+                ),
+
                 const SizedBox(height: FiloSpacing.md),
 
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _isLoading ? null : _handleRestoreFromCloud,
-                    icon: Icon(
-                      Icons.cloud_download_outlined,
-                      size: 18,
-                      color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                    ),
-                    label: Text(
-                      'Already have a vault? Restore from Telegram',
-                      style: FiloTypography.caption.copyWith(
-                        color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                        fontWeight: FontWeight.w600,
+                // Option 1: Already have a space? Restore from Telegram
+                GestureDetector(
+                  onTap: _isLoading ? null : _handleRestoreFromCloud,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
                       ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: FiloColors.primary.withValues(alpha: 0.14),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.cloud_download_rounded,
+                            size: 19,
+                            color: FiloColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Already have a space?',
+                                style: TextStyle(
+                                  fontFamily: FiloTypography.fontFamily,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Restore existing files and keys from Telegram',
+                                style: TextStyle(
+                                  fontFamily: FiloTypography.fontFamily,
+                                  fontSize: 11.5,
+                                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                          color: isDark ? Colors.white38 : Colors.black38,
+                        ),
+                      ],
                     ),
                   ),
                 ),
 
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _isLoading ? null : _handlePastePairingToken,
-                    icon: Icon(
-                      Icons.qr_code_scanner_rounded,
-                      size: 16,
-                      color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-                    ),
-                    label: Text(
-                      'Pair with QR Code / Token from another phone',
-                      style: FiloTypography.caption.copyWith(
-                        color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                const SizedBox(height: 10),
+
+                // Option 2: Pair with token / QR code
+                GestureDetector(
+                  onTap: _isLoading ? null : _handlePastePairingToken,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
                       ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.06),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.qr_code_2_rounded,
+                            size: 19,
+                            color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Pair with token',
+                                style: TextStyle(
+                                  fontFamily: FiloTypography.fontFamily,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Scan QR code or paste pairing token from another phone',
+                                style: TextStyle(
+                                  fontFamily: FiloTypography.fontFamily,
+                                  fontSize: 11.5,
+                                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                          color: isDark ? Colors.white38 : Colors.black38,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -614,6 +825,8 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }

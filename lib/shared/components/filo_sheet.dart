@@ -17,12 +17,14 @@ class FiloSheet extends StatelessWidget {
   final String? title;
   final Widget child;
   final Widget? trailing;
+  final bool isScrollable;
 
   const FiloSheet({
     super.key,
     this.title,
     required this.child,
     this.trailing,
+    this.isScrollable = true,
   });
 
   static Future<T?> show<T>({
@@ -30,14 +32,17 @@ class FiloSheet extends StatelessWidget {
     required Widget child,
     String? title,
     Widget? trailing,
+    bool isScrollable = true,
   }) {
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     return showModalBottomSheet<T>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.35),
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
+        maxHeight: MediaQuery.of(context).size.height * (isLandscape ? 0.95 : 0.88),
+        maxWidth: isLandscape ? 620 : double.infinity,
       ),
       transitionAnimationController: AnimationController(
         vsync: Navigator.of(context),
@@ -46,6 +51,7 @@ class FiloSheet extends StatelessWidget {
       builder: (context) => FiloSheet(
         title: title,
         trailing: trailing,
+        isScrollable: isScrollable,
         child: child,
       ),
     );
@@ -53,6 +59,8 @@ class FiloSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
         top: Radius.circular(32),
@@ -61,26 +69,33 @@ class FiloSheet extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
         child: Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFCFFF8F5),
-                Color(0xFCF8F4FF),
-              ],
+              colors: isDark
+                  ? const [
+                      Color(0xFA1E1E2C),
+                      Color(0xFA14141F),
+                    ]
+                  : const [
+                      Color(0xFCFFF8F5),
+                      Color(0xFCF8F4FF),
+                    ],
             ),
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(32),
             ),
             border: Border(
               top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.95),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.16)
+                    : Colors.white.withValues(alpha: 0.95),
                 width: 1.5,
               ),
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF2C243B).withValues(alpha: 0.10),
+                color: (isDark ? Colors.black : const Color(0xFF2C243B)).withValues(alpha: 0.12),
                 blurRadius: 32,
                 offset: const Offset(0, -6),
               ),
@@ -103,7 +118,7 @@ class FiloSheet extends StatelessWidget {
                       width: 40,
                       height: 4.5,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2C243B).withValues(alpha: 0.15),
+                        color: (isDark ? Colors.white : const Color(0xFF2C243B)).withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -119,12 +134,12 @@ class FiloSheet extends StatelessWidget {
                           Expanded(
                             child: Text(
                               title!,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: FiloTypography.fontFamily,
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.4,
-                                color: FiloColors.lightTextPrimary,
+                                color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                               ),
                             ),
                           ),
@@ -133,7 +148,7 @@ class FiloSheet extends StatelessWidget {
                       ),
                     ),
                     Divider(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
                       height: 12,
                       indent: FiloSpacing.xl,
                       endIndent: FiloSpacing.xl,
@@ -147,7 +162,12 @@ class FiloSheet extends StatelessWidget {
                         FiloSpacing.lg,
                         FiloSpacing.lg,
                       ),
-                      child: child,
+                      child: isScrollable
+                          ? SingleChildScrollView(
+                              physics: const BouncingScrollPhysics(),
+                              child: child,
+                            )
+                          : child,
                     ),
                   ),
                 ],

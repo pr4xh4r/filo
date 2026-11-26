@@ -40,7 +40,7 @@ class BreadcrumbBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  'Vault',
+                  'Space',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: breadcrumbs.isEmpty ? FontWeight.w600 : FontWeight.w500,

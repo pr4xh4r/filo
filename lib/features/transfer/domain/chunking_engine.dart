@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/crypto/crypto_engine.dart';
@@ -13,6 +15,35 @@ typedef TransferProgressCallback = void Function(
   int totalBytes,
   double progress,
 );
+
+/// Top-level helper function for isolated AES-256-GCM chunk encryption.
+/// Keeping this at top-level prevents closure capture of enclosing classes or callbacks
+/// (such as TransferManager or SQLite database handles) when spawning in an Isolate.
+Future<Uint8List> _encryptBufferInIsolate(
+  Uint8List buffer,
+  Uint8List masterKey,
+  Uint8List iv,
+) {
+  return Isolate.run(() async {
+    final encryptedPayload = await CryptoEngine.encrypt(
+      plaintext: buffer,
+      key: masterKey,
+      customIv: iv,
+    );
+    return encryptedPayload.toCombinedBytes();
+  });
+}
+
+/// Top-level helper function for isolated AES-256-GCM chunk decryption.
+Future<Uint8List> _decryptBytesInIsolate(
+  Uint8List combinedBytes,
+  Uint8List masterKey,
+) {
+  return Isolate.run(() => CryptoEngine.decryptBytes(
+    combinedBytes: combinedBytes,
+    key: masterKey,
+  ));
+}
 
 /// Handles chunking, on-the-fly streaming encryption, and reassembly.
 class ChunkingEngine {
@@ -56,29 +87,85 @@ class ChunkingEngine {
     }
   }
 
-  /// Uploads a file with chunked AES-256-GCM encryption.
-  /// Handles files of any size (including files > 1 GB) with memory safety.
+  /// Uploads a file to Telegram.
+  ///
+  /// - For viewable spaces (`isEncrypted == false`): Uploads directly as a SINGLE complete file
+  ///   with its authentic original filename to the `filo view` channel without chunking.
+  /// - For encrypted spaces (`isEncrypted == true`): Encrypts chunks using AES-256-GCM
+  ///   with high-performance adaptive chunk sizing (1-pass for files <= 16MB).
   Future<List<FileChunk>> uploadFile({
     required File file,
     required String nodeId,
     required Uint8List masterKey,
     required String channelId,
+    String? customFileName,
+    bool isEncrypted = true,
     int chunkSize = AppConfig.mtprotoChunkSize,
     TransferProgressCallback? onProgress,
   }) async {
     final fileSize = await file.length();
+    final effectiveName = customFileName ?? p.basename(file.path);
+
+    // 1. VIEWABLE SPACES: DIRECT SINGLE-FILE UPLOAD WITHOUT CHUNKING
+    // In viewable spaces, users want their file saved whole in Telegram so they can
+    // view photos, stream videos, or open documents directly inside Telegram.
+    if (!isEncrypted) {
+      final fileHash = await HashUtils.sha256Stream(file.openRead());
+      final remoteChunk = await _retryWithBackoff(
+        () => _storageBackend.uploadChunk(
+          channelId: channelId,
+          chunkData: Uint8List(0),
+          sourceFile: file,
+          partFileName: effectiveName,
+          onProgress: (chunkBytes, chunkTotal) {
+            if (onProgress != null && fileSize > 0) {
+              onProgress(
+                chunkBytes.clamp(0, fileSize),
+                fileSize,
+                (chunkBytes / fileSize).clamp(0.0, 1.0),
+              );
+            }
+          },
+        ),
+        debugLabel: 'upload-viewable-$effectiveName',
+      );
+
+      final chunk = FileChunk(
+        id: _uuid.v4(),
+        nodeId: nodeId,
+        chunkIndex: 0,
+        remoteMessageId: remoteChunk.messageId,
+        remoteFileId: remoteChunk.remoteFileId,
+        sizeBytes: fileSize,
+        sha256Hash: fileHash,
+        ivHex: 'plain',
+      );
+
+      if (onProgress != null) {
+        onProgress(fileSize, fileSize, 1.0);
+      }
+
+      return [chunk];
+    }
+
+    // 2. ENCRYPTED SPACES: SMART 3-TIER ADAPTIVE CHUNKING ARCHITECTURE
+    // - Tier 1 (<= 32 MB): 1 single encrypted file ($nodeId.enc)
+    //   Zero chunk fragmentation, 1 Telegram message, 0 rate limit flood, instant AES decryption.
+    // - Tier 2 (32 MB to 128 MB): 32 MB chunks
+    //   Low message count (e.g. 64 MB = 2 chunks), maximum MTProto throughput.
+    // - Tier 3 (> 128 MB): 32 MB chunks
+    //   Rock-solid resumability on spotty mobile data; chunk 0 enables instant video streaming.
+    final effectiveChunkSize = (chunkSize != AppConfig.mtprotoChunkSize)
+        ? chunkSize
+        : (fileSize <= 32 * 1024 * 1024
+            ? (fileSize > 0 ? fileSize : 1024 * 1024)
+            : (fileSize <= 128 * 1024 * 1024
+                ? 32 * 1024 * 1024
+                : 32 * 1024 * 1024));
+
     final chunks = <FileChunk>[];
     int bytesProcessed = 0;
     int chunkIndex = 0;
-
-    // Adaptive chunk sizing for responsive, real-time transfers
-    final effectiveChunkSize = (chunkSize != AppConfig.mtprotoChunkSize)
-        ? chunkSize
-        : (fileSize <= 4 * 1024 * 1024
-            ? 512 * 1024 // 512 KB
-            : (fileSize <= 32 * 1024 * 1024
-                ? 2 * 1024 * 1024 // 2 MB
-                : 8 * 1024 * 1024)); // 8 MB
 
     final randomAccessFile = await file.open(mode: FileMode.read);
 
@@ -87,27 +174,25 @@ class ChunkingEngine {
         final remaining = fileSize - bytesProcessed;
         final currentChunkSize = remaining < effectiveChunkSize ? remaining : effectiveChunkSize;
 
-        // 1. Read chunk directly into buffer
+        // Read chunk directly into buffer
         final buffer = Uint8List(currentChunkSize);
         await randomAccessFile.readInto(buffer);
 
-        // 2. Encrypt chunk on-device with Master Key
+        // Encrypt in background isolate for smooth 60fps UI
         final iv = CryptoEngine.generateIv();
-        final encryptedPayload = await CryptoEngine.encrypt(
-          plaintext: buffer,
-          key: masterKey,
-          customIv: iv,
-        );
+        final chunkPayload = await _encryptBufferInIsolate(buffer, masterKey, iv);
+        final ivHex = HashUtils.bytesToHex(iv);
+        final partFileName = (fileSize <= effectiveChunkSize && chunkIndex == 0)
+            ? '$nodeId.enc'
+            : '${nodeId}_part$chunkIndex.enc';
 
-        final combinedBytes = encryptedPayload.toCombinedBytes();
-        final chunkHash = HashUtils.sha256Hex(combinedBytes);
-        final partFileName = '${nodeId}_part$chunkIndex.enc';
+        final chunkHash = HashUtils.sha256Hex(chunkPayload);
 
-        // 3. Upload encrypted chunk to Telegram channel with streaming progress and resilience
+        // Upload chunk to Telegram channel with streaming progress
         final remoteChunk = await _retryWithBackoff(
           () => _storageBackend.uploadChunk(
             channelId: channelId,
-            chunkData: combinedBytes,
+            chunkData: chunkPayload,
             partFileName: partFileName,
             onProgress: (chunkBytes, chunkTotal) {
               if (onProgress != null && chunkTotal > 0) {
@@ -123,7 +208,6 @@ class ChunkingEngine {
           debugLabel: 'upload-$partFileName',
         );
 
-        // 4. Record chunk metadata
         final chunk = FileChunk(
           id: _uuid.v4(),
           nodeId: nodeId,
@@ -132,7 +216,7 @@ class ChunkingEngine {
           remoteFileId: remoteChunk.remoteFileId,
           sizeBytes: currentChunkSize,
           sha256Hash: chunkHash,
-          ivHex: HashUtils.bytesToHex(iv),
+          ivHex: ivHex,
         );
         chunks.add(chunk);
 
@@ -170,6 +254,27 @@ class ChunkingEngine {
       ..sort((a, b) => a.chunkIndex.compareTo(b.chunkIndex));
 
     final totalBytes = sortedChunks.fold<int>(0, (sum, c) => sum + c.sizeBytes);
+
+    // Fast path: Single unencrypted file (viewable space) downloads directly at maximum throughput
+    if (sortedChunks.length == 1 && sortedChunks.first.ivHex == 'plain') {
+      final c = sortedChunks.first;
+      final cipherBytes = await _retryWithBackoff(
+        () => _storageBackend.downloadChunk(
+          channelId: channelId,
+          remoteFileId: c.remoteFileId,
+          onProgress: (chunkBytes, chunkTotal) {
+            if (onProgress != null && totalBytes > 0) {
+              onProgress(chunkBytes, totalBytes, (chunkBytes / totalBytes).clamp(0.0, 1.0));
+            }
+          },
+        ),
+        debugLabel: 'download-viewable-direct',
+      );
+      await destinationFile.writeAsBytes(cipherBytes, flush: true);
+      onProgress?.call(totalBytes, totalBytes, 1.0);
+      return;
+    }
+
     int bytesDownloaded = 0;
 
     final outputSink = destinationFile.openWrite();
@@ -194,13 +299,14 @@ class ChunkingEngine {
           );
         }
 
-        // 3. Decrypt on-device with Master Key
-        final plaintext = await CryptoEngine.decryptBytes(
-          combinedBytes: cipherBytes,
-          key: masterKey,
-        );
+        // 3. Decrypt or write directly
+        if (chunk.ivHex == 'plain') {
+          outputSink.add(cipherBytes);
+        } else {
+          final plaintext = await _decryptBytesInIsolate(cipherBytes, masterKey);
+          outputSink.add(plaintext);
+        }
 
-        outputSink.add(plaintext);
         bytesDownloaded += chunk.sizeBytes;
 
         if (onProgress != null) {
@@ -242,9 +348,10 @@ class ChunkingEngine {
       );
     }
 
-    return CryptoEngine.decryptBytes(
-      combinedBytes: cipherBytes,
-      key: masterKey,
-    );
+    if (chunk.ivHex == 'plain') {
+      return cipherBytes;
+    }
+
+    return _decryptBytesInIsolate(cipherBytes, masterKey);
   }
 }

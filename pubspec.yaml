@@ -49,6 +49,7 @@ dependencies:
   pdfx: ^2.11.0
   image_picker: ^1.2.4
   mobile_scanner: ^7.5.0
+  handy_tdlib_next: ^2.3.16
 
 dev_dependencies:
   flutter_test:
