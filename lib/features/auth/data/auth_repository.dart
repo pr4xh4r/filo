@@ -1,5 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../core/crypto/argon2_kdf.dart';
 import '../../../core/crypto/crypto_engine.dart';
@@ -12,6 +14,8 @@ import '../../storage/domain/storage_backend.dart';
 class AuthRepository {
   final FlutterSecureStorage _secureStorage;
   final StorageBackend _storageBackend;
+  final MethodChannel _securityChannel;
+  final bool? _useHardwareKeystoreOverride;
 
   static const _keyWrappedBundle = 'filo_wrapped_master_key';
   static const _keyBiometricEnabled = 'filo_biometric_enabled';
@@ -21,17 +25,30 @@ class AuthRepository {
   // BUG 5 FIX: Store a separate bundle wrapped with the recovery key as KEK
   static const _keyRecoveryWrappedBundle = 'filo_recovery_wrapped_bundle';
   static const _keyActiveCloudProvider = 'filo_active_cloud_provider';
+  static const _hwBiometricPrefix = 'v2_hw:';
 
   AuthRepository({
     required StorageBackend storageBackend,
     FlutterSecureStorage? secureStorage,
+    MethodChannel? securityChannel,
+    @visibleForTesting bool? useHardwareKeystoreOverride,
   })  : _storageBackend = storageBackend,
         _secureStorage = secureStorage ??
             const FlutterSecureStorage(
               aOptions: AndroidOptions(
                 encryptedSharedPreferences: true,
               ),
-            );
+            ),
+        _securityChannel =
+            securityChannel ?? const MethodChannel('com.filo.vault.filo/security'),
+        _useHardwareKeystoreOverride = useHardwareKeystoreOverride;
+
+  bool get _useHardwareKeystore =>
+      _useHardwareKeystoreOverride ?? (!kIsWeb && Platform.isAndroid);
+
+  bool get _isFlutterTest =>
+      const bool.fromEnvironment('FLUTTER_TEST') ||
+      (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST'));
 
   StorageBackend get storageBackend => _storageBackend;
   Stream<String>? get qrLinkStream => _storageBackend.qrLinkStream;
@@ -49,53 +66,53 @@ class AuthRepository {
   Future<String> setupNewVault({
     required String passphrase,
   }) async {
-    // 1. Generate 256-bit Master Key
     final masterKey = CryptoEngine.generateMasterKey();
-
-    // 2. Generate Salt & derive KEK via Argon2id
     final salt = Argon2Kdf.generateSalt();
-    final kek = await Argon2Kdf.deriveKey(
-      passphrase: passphrase,
-      salt: salt,
-    );
+    Uint8List? kek;
+    Uint8List? recoveryKeyBytes;
+    try {
+      kek = await Argon2Kdf.deriveKey(
+        passphrase: passphrase,
+        salt: salt,
+      );
 
-    // 3. Wrap Master Key under passphrase KEK
-    final bundle = await KeyWrapper.wrapKey(
-      masterKey: masterKey,
-      kek: kek,
-      salt: salt,
-    );
+      final bundle = await KeyWrapper.wrapKey(
+        masterKey: masterKey,
+        kek: kek,
+        salt: salt,
+      );
 
-    // 4. BUG 5 FIX: Generate recovery key and wrap the SAME master key under it
-    //    so users can actually recover their vault using this key.
-    final recoveryKey = RecoveryKey.generate();
-    final recoveryKeyBytes = RecoveryKey.parseToBytes(recoveryKey);
-    final recoveryHash = HashUtils.sha256Hex(recoveryKeyBytes);
+      // BUG 5 FIX: Generate recovery key and wrap the SAME master key under it
+      final recoveryKey = RecoveryKey.generate();
+      recoveryKeyBytes = RecoveryKey.parseToBytes(recoveryKey);
+      final recoveryHash = HashUtils.sha256Hex(recoveryKeyBytes);
 
-    // Use recovery key bytes directly as the 32-byte KEK
-    final recoverySalt = Argon2Kdf.generateSalt();
-    final recoveryBundle = await KeyWrapper.wrapKey(
-      masterKey: masterKey,
-      kek: recoveryKeyBytes, // 32 bytes of CSPRNG = valid AES-256 key
-      salt: recoverySalt,
-    );
+      final recoverySalt = Argon2Kdf.generateSalt();
+      final recoveryBundle = await KeyWrapper.wrapKey(
+        masterKey: masterKey,
+        kek: recoveryKeyBytes,
+        salt: recoverySalt,
+      );
 
-    // 5. Persist all bundles to hardware secure storage atomically
-    await _secureStorage.write(
-      key: _keyWrappedBundle,
-      value: json.encode(bundle.toJson()),
-    );
-    await _secureStorage.write(
-      key: _keyRecoveryKeyHash,
-      value: recoveryHash,
-    );
-    // BUG 5 FIX: Persist the recovery-wrapped bundle so recovery is actually possible
-    await _secureStorage.write(
-      key: _keyRecoveryWrappedBundle,
-      value: json.encode(recoveryBundle.toJson()),
-    );
+      await _secureStorage.write(
+        key: _keyWrappedBundle,
+        value: json.encode(bundle.toJson()),
+      );
+      await _secureStorage.write(
+        key: _keyRecoveryKeyHash,
+        value: recoveryHash,
+      );
+      await _secureStorage.write(
+        key: _keyRecoveryWrappedBundle,
+        value: json.encode(recoveryBundle.toJson()),
+      );
 
-    return recoveryKey;
+      return recoveryKey;
+    } finally {
+      masterKey.fillRange(0, masterKey.length, 0);
+      kek?.fillRange(0, kek.length, 0);
+      recoveryKeyBytes?.fillRange(0, recoveryKeyBytes.length, 0);
+    }
   }
 
   /// Unlocks the vault using the user's passphrase.
@@ -109,14 +126,15 @@ class AuthRepository {
     final bundleMap = json.decode(bundleJson) as Map<String, dynamic>;
     final bundle = WrappedKeyBundle.fromJson(bundleMap);
 
-    // Derive KEK with stored salt
     final kek = await Argon2Kdf.deriveKey(
       passphrase: passphrase,
       salt: bundle.salt,
     );
-
-    // Unwrap Master Key
-    return KeyWrapper.unwrapKey(bundle: bundle, kek: kek);
+    try {
+      return await KeyWrapper.unwrapKey(bundle: bundle, kek: kek);
+    } finally {
+      kek.fillRange(0, kek.length, 0);
+    }
   }
 
   /// BUG 5 FIX: Unlocks the vault using the emergency recovery key.
@@ -131,23 +149,27 @@ class AuthRepository {
       );
     }
 
-    // Verify the recovery key hash first
     final storedHash = await _secureStorage.read(key: _keyRecoveryKeyHash);
     final recoveryKeyBytes = RecoveryKey.parseToBytes(formattedRecoveryKey);
-    final providedHash = HashUtils.sha256Hex(recoveryKeyBytes);
+    try {
+      final providedHash = HashUtils.sha256Hex(recoveryKeyBytes);
 
-    if (storedHash != null && !HashUtils.constantTimeCompare(
-      providedHash.codeUnits,
-      storedHash.codeUnits,
-    )) {
-      throw Exception('Invalid recovery key.');
+      if (storedHash != null &&
+          !HashUtils.constantTimeCompare(
+            providedHash.codeUnits,
+            storedHash.codeUnits,
+          )) {
+        throw Exception('Invalid recovery key.');
+      }
+
+      final bundle = WrappedKeyBundle.fromJson(
+        json.decode(recoveryBundleJson) as Map<String, dynamic>,
+      );
+
+      return await KeyWrapper.unwrapKey(bundle: bundle, kek: recoveryKeyBytes);
+    } finally {
+      recoveryKeyBytes.fillRange(0, recoveryKeyBytes.length, 0);
     }
-
-    final bundle = WrappedKeyBundle.fromJson(
-      json.decode(recoveryBundleJson) as Map<String, dynamic>,
-    );
-
-    return KeyWrapper.unwrapKey(bundle: bundle, kek: recoveryKeyBytes);
   }
 
   /// Re-wraps the Master Key when the user changes their passphrase.
@@ -165,35 +187,37 @@ class AuthRepository {
       json.decode(bundleJson) as Map<String, dynamic>,
     );
 
-    // Derive old KEK and unwrap the master key first
-    final oldKek = await Argon2Kdf.deriveKey(
-      passphrase: currentPassphrase.trim(),
-      salt: oldBundle.salt,
-    );
-    final masterKey = await KeyWrapper.unwrapKey(bundle: oldBundle, kek: oldKek);
+    Uint8List? oldKek;
+    Uint8List? masterKey;
+    Uint8List? newKek;
+    try {
+      oldKek = await Argon2Kdf.deriveKey(
+        passphrase: currentPassphrase.trim(),
+        salt: oldBundle.salt,
+      );
+      masterKey = await KeyWrapper.unwrapKey(bundle: oldBundle, kek: oldKek);
 
-    // Derive new KEK with fresh salt
-    final newSalt = Argon2Kdf.generateSalt();
-    final newKek = await Argon2Kdf.deriveKey(
-      passphrase: newPassphrase.trim(),
-      salt: newSalt,
-    );
+      final newSalt = Argon2Kdf.generateSalt();
+      newKek = await Argon2Kdf.deriveKey(
+        passphrase: newPassphrase.trim(),
+        salt: newSalt,
+      );
 
-    // Wrap master key under new KEK
-    final newBundle = await KeyWrapper.wrapKey(
-      masterKey: masterKey,
-      kek: newKek,
-      salt: newSalt,
-    );
+      final newBundle = await KeyWrapper.wrapKey(
+        masterKey: masterKey,
+        kek: newKek,
+        salt: newSalt,
+      );
 
-    // Save updated passphrase bundle
-    await _secureStorage.write(
-      key: _keyWrappedBundle,
-      value: json.encode(newBundle.toJson()),
-    );
-    // BUG 6 FIX: Recovery bundle stays valid — master key hasn't changed,
-    // so the recovery-wrapped bundle still correctly unlocks the same master key.
-    // No update needed for _keyRecoveryWrappedBundle or _keyRecoveryKeyHash.
+      await _secureStorage.write(
+        key: _keyWrappedBundle,
+        value: json.encode(newBundle.toJson()),
+      );
+    } finally {
+      oldKek?.fillRange(0, oldKek.length, 0);
+      masterKey?.fillRange(0, masterKey.length, 0);
+      newKek?.fillRange(0, newKek.length, 0);
+    }
   }
 
   /// Disaster recovery path: resets passphrase using the emergency recovery key.
@@ -201,24 +225,31 @@ class AuthRepository {
     required String recoveryKey,
     required String newPassphrase,
   }) async {
-    final masterKey = await unlockWithRecoveryKey(recoveryKey.trim());
+    Uint8List? masterKey;
+    Uint8List? newKek;
+    try {
+      masterKey = await unlockWithRecoveryKey(recoveryKey.trim());
 
-    final newSalt = Argon2Kdf.generateSalt();
-    final newKek = await Argon2Kdf.deriveKey(
-      passphrase: newPassphrase.trim(),
-      salt: newSalt,
-    );
+      final newSalt = Argon2Kdf.generateSalt();
+      newKek = await Argon2Kdf.deriveKey(
+        passphrase: newPassphrase.trim(),
+        salt: newSalt,
+      );
 
-    final newBundle = await KeyWrapper.wrapKey(
-      masterKey: masterKey,
-      kek: newKek,
-      salt: newSalt,
-    );
+      final newBundle = await KeyWrapper.wrapKey(
+        masterKey: masterKey,
+        kek: newKek,
+        salt: newSalt,
+      );
 
-    await _secureStorage.write(
-      key: _keyWrappedBundle,
-      value: json.encode(newBundle.toJson()),
-    );
+      await _secureStorage.write(
+        key: _keyWrappedBundle,
+        value: json.encode(newBundle.toJson()),
+      );
+    } finally {
+      masterKey?.fillRange(0, masterKey.length, 0);
+      newKek?.fillRange(0, newKek.length, 0);
+    }
   }
 
   /// Biometric preference helpers
@@ -234,8 +265,129 @@ class AuthRepository {
     );
   }
 
-  /// Securely stores the derived Master Key in hardware-backed keystore
-  /// for quick biometric unlock.
+  Future<bool> canUseHardwareBiometric() async {
+    if (!_useHardwareKeystore) return false;
+    try {
+      final available =
+          await _securityChannel.invokeMethod<bool>('canUseHardwareBiometric');
+      return available ?? false;
+    } on MissingPluginException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Wraps and persists the Master Key inside an Android Hardware Keystore-backed
+  /// AES-256-GCM cipher authenticated by `BiometricPrompt.CryptoObject`.
+  Future<bool> enrollHardwareBiometricKey(
+    Uint8List masterKey, {
+    String reason = 'Authenticate to enable biometric unlock for Filo',
+  }) async {
+    if (!_useHardwareKeystore) {
+      await storeBiometricMasterKey(masterKey);
+      return true;
+    }
+
+    try {
+      final wrappedBlob = await _securityChannel.invokeMethod<String>(
+        'enrollBiometricKey',
+        {
+          'masterKeyBase64': base64Encode(masterKey),
+          'reason': reason,
+        },
+      );
+      if (wrappedBlob == null || !wrappedBlob.startsWith(_hwBiometricPrefix)) {
+        return false;
+      }
+      await _secureStorage.write(
+        key: _keyBiometricMasterKey,
+        value: wrappedBlob,
+      );
+      return true;
+    } on MissingPluginException {
+      // Only fall back in unit tests where native platform channel is absent;
+      // never bypass Android Keystore on real devices.
+      if (_isFlutterTest) {
+        await storeBiometricMasterKey(masterKey);
+        return true;
+      }
+      rethrow;
+    } on PlatformException catch (e) {
+      if (e.code == 'BIOMETRIC_CANCELED') {
+        return false;
+      }
+      rethrow;
+    }
+  }
+
+  /// Unseals the hardware-wrapped Master Key using Android Keystore `BiometricPrompt.CryptoObject`.
+  /// Rejects legacy unencrypted entries (`!startsWith('v2_hw:')`) and triggers re-enrollment.
+  Future<Uint8List?> unlockWithHardwareBiometricKey({
+    String reason = 'Scan fingerprint to unlock Filo vault',
+  }) async {
+    final stored = await _secureStorage.read(key: _keyBiometricMasterKey);
+    if (stored == null || stored.isEmpty) return null;
+
+    if (_useHardwareKeystore) {
+      if (!stored.startsWith(_hwBiometricPrefix)) {
+        await deleteBiometricMasterKey();
+        throw StateError('BIOMETRIC_REENROLL_REQUIRED');
+      }
+
+      try {
+        final unsealedBase64 = await _securityChannel.invokeMethod<String>(
+          'unsealBiometricKey',
+          {
+            'wrappedBlob': stored,
+            'reason': reason,
+          },
+        );
+        if (unsealedBase64 == null || unsealedBase64.isEmpty) {
+          return null;
+        }
+        return Uint8List.fromList(base64Decode(unsealedBase64));
+      } on PlatformException catch (e) {
+        if (e.code == 'BIOMETRIC_REENROLL_REQUIRED') {
+          await deleteBiometricMasterKey();
+          throw StateError('BIOMETRIC_REENROLL_REQUIRED');
+        }
+        if (e.code == 'BIOMETRIC_CANCELED') {
+          return null;
+        }
+        rethrow;
+      } on MissingPluginException {
+        if (_isFlutterTest) {
+          return null;
+        }
+        rethrow;
+      }
+    }
+
+    if (stored.startsWith(_hwBiometricPrefix)) {
+      return null;
+    }
+    return Uint8List.fromList(base64Decode(stored));
+  }
+
+  /// Checks whether any legacy plaintext biometric credential exists on Android
+  /// without hardware Keystore binding; clears it and disables biometric unlock.
+  /// Returns `true` if a legacy/missing credential was cleared.
+  Future<bool> clearLegacyBiometricKeyIfUnbound() async {
+    if (!_useHardwareKeystore) return false;
+    final stored = await _secureStorage.read(key: _keyBiometricMasterKey);
+    if (stored == null ||
+        stored.isEmpty ||
+        !stored.startsWith(_hwBiometricPrefix)) {
+      await deleteBiometricMasterKey();
+      await setBiometricEnabled(false);
+      return true;
+    }
+    return false;
+  }
+
+  /// Securely stores the derived Master Key in non-Android secure storage (e.g. iOS Keychain)
+  /// or test mocks for quick biometric unlock.
   Future<void> storeBiometricMasterKey(Uint8List masterKey) async {
     await _secureStorage.write(
       key: _keyBiometricMasterKey,
@@ -243,16 +395,33 @@ class AuthRepository {
     );
   }
 
-  /// Retrieves the Master Key stored for biometric unlock.
+  /// Retrieves the Master Key stored for biometric unlock (non-Android / test fallback).
   Future<Uint8List?> getBiometricMasterKey() async {
     final b64 = await _secureStorage.read(key: _keyBiometricMasterKey);
     if (b64 == null || b64.isEmpty) return null;
+    if (_useHardwareKeystore) {
+      if (!b64.startsWith(_hwBiometricPrefix)) {
+        await deleteBiometricMasterKey();
+      }
+      return null;
+    }
+    if (b64.startsWith(_hwBiometricPrefix)) return null;
     return Uint8List.fromList(base64Decode(b64));
   }
 
-  /// Deletes the biometric Master Key upon logout, wipe, or biometric toggle off.
+  /// Deletes the biometric Master Key and hardware Keystore alias upon logout,
+  /// wipe, invalidation, or biometric toggle off.
   Future<void> deleteBiometricMasterKey() async {
     await _secureStorage.delete(key: _keyBiometricMasterKey);
+    await _deleteHardwareKeystoreAlias();
+  }
+
+  Future<void> _deleteHardwareKeystoreAlias() async {
+    try {
+      await _securityChannel.invokeMethod<bool>('deleteBiometricKey');
+    } on MissingPluginException {
+      // Non-fatal in unit tests or non-Android platforms
+    } catch (_) {}
   }
 
   /// Checks if a biometric Master Key is currently enrolled in secure storage.
@@ -320,9 +489,11 @@ class AuthRepository {
   Future<String?> getActiveCloudProvider() => _secureStorage.read(key: _keyActiveCloudProvider);
   Future<void> setActiveCloudProvider(String provider) => _secureStorage.write(key: _keyActiveCloudProvider, value: provider);
 
-  /// Completely wipes local security storage and signs out of Telegram.
+  /// Completely wipes local security storage, hardware Keystore biometric alias,
+  /// and signs out of Telegram.
   Future<void> wipeLocalSecurity() async {
     await _secureStorage.deleteAll();
+    await _deleteHardwareKeystoreAlias();
     await _storageBackend.signOut();
   }
 }

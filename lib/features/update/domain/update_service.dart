@@ -15,12 +15,62 @@ final updateServiceProvider = Provider<UpdateService>((ref) {
 class UpdateService {
   static const String _repoReleasesUrl =
       'https://api.github.com/repos/pr4xh4r/filo/releases/latest';
+  static const String _defaultReleasesUrl = 'https://github.com/pr4xh4r/filo/releases';
+
+  static const Set<String> _trustedHosts = {
+    'github.com',
+    'objects.githubusercontent.com',
+    'github-releases.githubusercontent.com',
+    'raw.githubusercontent.com',
+  };
 
   static const _channel = MethodChannel('com.filo.vault.filo/transfers');
 
   final http.Client _client;
 
   UpdateService({http.Client? client}) : _client = client ?? http.Client();
+
+  /// Validates that [url] uses strict HTTPS, belongs to a trusted GitHub release/repo host,
+  /// and (for github.com / raw.githubusercontent.com) targets the official `/pr4xh4r/filo` repository.
+  static bool isTrustedUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return false;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || uri.scheme.toLowerCase() != 'https') {
+      return false;
+    }
+    if (uri.userInfo.isNotEmpty || uri.host.isEmpty) {
+      return false;
+    }
+    if (uri.hasPort && uri.port != 443) {
+      return false;
+    }
+
+    final host = uri.host.toLowerCase();
+    if (!_trustedHosts.contains(host)) {
+      return false;
+    }
+
+    if (uri.pathSegments.any((segment) => segment == '..' || segment == '.')) {
+      return false;
+    }
+
+    if (host == 'github.com' || host == 'raw.githubusercontent.com') {
+      final segments = uri.normalizePath().pathSegments.where((s) => s.isNotEmpty).toList();
+      if (segments.isEmpty || segments[0].toLowerCase() != 'pr4xh4r') {
+        return false;
+      }
+      if (segments.length == 1) {
+        return host == 'github.com';
+      }
+      if (segments[1].toLowerCase() != 'filo') {
+        return false;
+      }
+    }
+
+    return true;
+  }
 
   /// Compares two semantic version strings (e.g. '1.0.1' vs '1.0.0').
   /// Returns true if [remote] is strictly newer than [current].
@@ -57,7 +107,7 @@ class UpdateService {
           '📱 Dynamic Island real-time upload progress pill',
         ],
         fullBody: 'This update includes major stability fixes and performance optimizations.',
-        downloadUrl: 'https://github.com/pr4xh4r/filo/releases',
+        downloadUrl: _defaultReleasesUrl,
         publishedAt: DateTime.now(),
         isTestRelease: true,
       );
@@ -81,17 +131,28 @@ class UpdateService {
         return null; // Current version is up to date
       }
 
-      // Extract APK download URL if attached as a release asset
-      String downloadUrl = data['html_url'] as String? ?? 'https://github.com/pr4xh4r/filo/releases';
+      // Extract APK download URL if attached as a release asset, enforcing host allowlist.
+      final rawHtmlUrl = data['html_url'] as String?;
+      String downloadUrl = (rawHtmlUrl != null && isTrustedUrl(rawHtmlUrl))
+          ? rawHtmlUrl.trim()
+          : _defaultReleasesUrl;
+
       final assets = data['assets'] as List<dynamic>?;
       if (assets != null && assets.isNotEmpty) {
         for (final asset in assets) {
           final name = asset['name'] as String? ?? '';
           if (name.endsWith('.apk')) {
-            downloadUrl = asset['browser_download_url'] as String? ?? downloadUrl;
+            final assetUrl = asset['browser_download_url'] as String?;
+            if (assetUrl != null && isTrustedUrl(assetUrl)) {
+              downloadUrl = assetUrl.trim();
+            }
             break;
           }
         }
+      }
+
+      if (!isTrustedUrl(downloadUrl)) {
+        downloadUrl = _defaultReleasesUrl;
       }
 
       // Parse release notes into bullet points
@@ -125,11 +186,10 @@ class UpdateService {
     }
   }
 
-  /// Opens the release or download URL in the device's native browser after validating scheme.
+  /// Opens the release or download URL in the device's native browser after validating host allowlist.
   static Future<void> openDownloadUrl(String url) async {
     final trimmed = url.trim();
-    final uri = Uri.tryParse(trimmed);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+    if (!isTrustedUrl(trimmed)) {
       return;
     }
     try {

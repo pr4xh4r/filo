@@ -440,6 +440,20 @@ class TransferManager {
     }
   }
 
+  /// Inserts or updates a task managed by an external orchestrator (e.g. VaultExportService)
+  /// so background keep-alive, auto-lock suppression, and transfer UI stay synchronized.
+  void upsertExternalTask(TransferTask task) {
+    _tasks[task.id] = task;
+    _notify(immediate: task.status != TransferStatus.running);
+  }
+
+  /// Removes a completed/cancelled external task from the in-memory queue if needed.
+  void removeExternalTask(String taskId) {
+    if (_tasks.remove(taskId) != null) {
+      _notify(immediate: true);
+    }
+  }
+
   DateTime _lastNotifyTime = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _throttleTimer;
 

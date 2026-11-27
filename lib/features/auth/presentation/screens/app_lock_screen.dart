@@ -28,6 +28,7 @@ class AppLockScreen extends ConsumerStatefulWidget {
 class _AppLockScreenState extends ConsumerState<AppLockScreen>
     with SingleTickerProviderStateMixin {
   final _passphraseController = TextEditingController();
+  bool _obscurePassphrase = true;
   bool _isLoading = false;
   String? _errorMessage;
   late AnimationController _shakeController;
@@ -110,228 +111,247 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen>
   void _showRecoveryKeyDialog() {
     final controller = TextEditingController();
     final newPassphraseController = TextEditingController();
+    bool obscureNewPassphrase = true;
 
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  gradient: isDark
-                      ? const LinearGradient(
-                          colors: [Color(0xFF1E1E2C), Color(0xFF26263A)],
-                        )
-                      : const LinearGradient(
-                          colors: [Color(0xFFFFF9F7), Color(0xFFFBF4FF)],
-                        ),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.85),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: 500,
-                    maxHeight: MediaQuery.of(ctx).size.height * 0.88,
-                  ),
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: FiloColors.accentCoral.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.vpn_key_outlined,
-                                color: FiloColors.accentCoral,
-                                size: 20,
-                              ),
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      gradient: isDark
+                          ? const LinearGradient(
+                              colors: [Color(0xFF1E1E2C), Color(0xFF26263A)],
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFFFFF9F7), Color(0xFFFBF4FF)],
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Emergency Recovery',
-                                style: FiloTypography.title3.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  fontFamily: FiloTypography.fontFamily,
-                                  color: isDark ? Colors.white : FiloColors.lightTextPrimary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Enter the 64-character recovery key generated when your space was created.',
-                          style: FiloTypography.caption.copyWith(
-                            fontFamily: FiloTypography.fontFamily,
-                            color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Colors.white.withValues(alpha: 0.85),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.12)
-                                  : Colors.black.withValues(alpha: 0.08),
-                            ),
-                          ),
-                          child: TextField(
-                            controller: controller,
-                            autofocus: true,
-                            style: TextStyle(
-                              fontFamily: 'JetBrainsMono',
-                              fontSize: 12.5,
-                              color: isDark ? Colors.white : FiloColors.lightTextPrimary,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Recovery Key (A1B2-C3D4-...)',
-                              hintStyle: TextStyle(
-                                fontFamily: FiloTypography.fontFamily,
-                                color: isDark ? Colors.white38 : FiloColors.lightTextTertiary,
-                              ),
-                              border: InputBorder.none,
-                              isDense: true,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'New Passphrase (optional):',
-                          style: TextStyle(
-                            fontFamily: FiloTypography.fontFamily,
-                            color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Colors.white.withValues(alpha: 0.85),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.12)
-                                  : Colors.black.withValues(alpha: 0.08),
-                            ),
-                          ),
-                          child: TextField(
-                            controller: newPassphraseController,
-                            obscureText: true,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isDark ? Colors.white : FiloColors.lightTextPrimary,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Set fresh passphrase (min 8 chars)',
-                              hintStyle: TextStyle(
-                                fontFamily: FiloTypography.fontFamily,
-                                color: isDark ? Colors.white38 : FiloColors.lightTextTertiary,
-                              ),
-                              border: InputBorder.none,
-                              isDense: true,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              child: Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  fontFamily: FiloTypography.fontFamily,
-                                  color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            FiloButton(
-                              label: 'Recover',
-                              size: FiloButtonSize.small,
-                              onPressed: () async {
-                                final key = controller.text.trim();
-                                if (key.isEmpty) return;
-                                final newPwd = newPassphraseController.text.trim();
-                                Navigator.of(ctx).pop();
-                                setState(() => _isLoading = true);
-                                try {
-                                  if (newPwd.isNotEmpty) {
-                                    if (newPwd.length < 8) {
-                                      throw Exception('New passphrase must be at least 8 characters');
-                                    }
-                                    await ref.read(authNotifierProvider.notifier).resetPassphraseWithRecoveryKey(
-                                          recoveryKey: key,
-                                          newPassphrase: newPwd,
-                                        );
-                                  } else {
-                                    await ref.read(authNotifierProvider.notifier).unlockWithRecoveryKey(key);
-                                  }
-                                  if (mounted) {
-                                    FiloToast.show(context, message: 'Filo unlocked successfully', type: FiloToastType.success);
-                                  }
-                                } catch (e) {
-                                  if (mounted) {
-                                    FiloToast.show(context, message: 'Recovery failed: $e', type: FiloToastType.error);
-                                  }
-                                } finally {
-                                  if (mounted) {
-                                    setState(() => _isLoading = false);
-                                  }
-                                }
-                              },
-                            ),
-                          ],
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.15)
+                            : Colors.white.withValues(alpha: 0.85),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
                         ),
                       ],
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: 500,
+                        maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: FiloColors.accentCoral.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.vpn_key_outlined,
+                                    color: FiloColors.accentCoral,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Emergency Recovery',
+                                    style: FiloTypography.title3.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: FiloTypography.fontFamily,
+                                      color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Enter the 64-character recovery key generated when your space was created.',
+                              style: FiloTypography.caption.copyWith(
+                                fontFamily: FiloTypography.fontFamily,
+                                color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Colors.white.withValues(alpha: 0.85),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.12)
+                                      : Colors.black.withValues(alpha: 0.08),
+                                ),
+                              ),
+                              child: TextField(
+                                controller: controller,
+                                autofocus: true,
+                                style: TextStyle(
+                                  fontFamily: 'JetBrainsMono',
+                                  fontSize: 12.5,
+                                  color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Recovery Key (A1B2-C3D4-...)',
+                                  hintStyle: TextStyle(
+                                    fontFamily: FiloTypography.fontFamily,
+                                    color: isDark ? Colors.white38 : FiloColors.lightTextTertiary,
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'New Passphrase (optional):',
+                              style: TextStyle(
+                                fontFamily: FiloTypography.fontFamily,
+                                color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Colors.white.withValues(alpha: 0.85),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.12)
+                                      : Colors.black.withValues(alpha: 0.08),
+                                ),
+                              ),
+                              child: TextField(
+                                controller: newPassphraseController,
+                                obscureText: obscureNewPassphrase,
+                                textAlignVertical: TextAlignVertical.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Set fresh passphrase (min 8 chars)',
+                                  hintStyle: TextStyle(
+                                    fontFamily: FiloTypography.fontFamily,
+                                    color: isDark ? Colors.white38 : FiloColors.lightTextTertiary,
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      obscureNewPassphrase
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      size: 19,
+                                      color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                                    ),
+                                    onPressed: () {
+                                      HapticFeedback.selectionClick();
+                                      setDialogState(() => obscureNewPassphrase = !obscureNewPassphrase);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      fontFamily: FiloTypography.fontFamily,
+                                      color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                FiloButton(
+                                  label: 'Recover',
+                                  size: FiloButtonSize.small,
+                                  onPressed: () async {
+                                    final key = controller.text.trim();
+                                    if (key.isEmpty) return;
+                                    final newPwd = newPassphraseController.text.trim();
+                                    Navigator.of(ctx).pop();
+                                    setState(() => _isLoading = true);
+                                    try {
+                                      if (newPwd.isNotEmpty) {
+                                        if (newPwd.length < 8) {
+                                          throw Exception('New passphrase must be at least 8 characters');
+                                        }
+                                        await ref.read(authNotifierProvider.notifier).resetPassphraseWithRecoveryKey(
+                                              recoveryKey: key,
+                                              newPassphrase: newPwd,
+                                            );
+                                      } else {
+                                        await ref.read(authNotifierProvider.notifier).unlockWithRecoveryKey(key);
+                                      }
+                                      if (mounted) {
+                                        FiloToast.show(context, message: 'Filo unlocked successfully', type: FiloToastType.success);
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        FiloToast.show(context, message: 'Recovery failed: $e', type: FiloToastType.error);
+                                      }
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _isLoading = false);
+                                      }
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -432,8 +452,9 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                       child: TextField(
                         controller: _passphraseController,
-                        obscureText: true,
+                        obscureText: _obscurePassphrase,
                         autofocus: false,
+                        textAlignVertical: TextAlignVertical.center,
                         style: FiloTypography.title3.copyWith(
                           color: isDark
                               ? FiloColors.darkTextPrimary
@@ -452,6 +473,21 @@ class _AppLockScreenState extends ConsumerState<AppLockScreen>
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassphrase
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              size: 20,
+                              color: isDark
+                                  ? FiloColors.darkTextTertiary
+                                  : FiloColors.lightTextTertiary,
+                            ),
+                            onPressed: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _obscurePassphrase = !_obscurePassphrase);
+                            },
+                          ),
                         ),
                         onChanged: (_) {
                           if (_errorMessage != null) {

@@ -768,30 +768,13 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                                        decoration: BoxDecoration(
-                                          color: isDark
-                                              ? Colors.white.withValues(alpha: 0.08)
-                                              : Colors.black.withValues(alpha: 0.05),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(
-                                            color: isDark
-                                                ? Colors.white.withValues(alpha: 0.1)
-                                                : Colors.black.withValues(alpha: 0.06),
-                                            width: 0.8,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          ws.isEncrypted ? '🔒 Encrypted' : '👁️ Viewable',
-                                          style: TextStyle(
-                                            fontFamily: FiloTypography.fontFamily,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w700,
-                                            color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
-                                          ),
-                                        ),
+                                      const SizedBox(width: 6),
+                                      Icon(
+                                        ws.isEncrypted
+                                            ? Icons.lock_outline_rounded
+                                            : Icons.visibility_outlined,
+                                        size: 14,
+                                        color: isDark ? Colors.white60 : FiloColors.lightTextSecondary,
                                       ),
                                     ],
                                   ),
@@ -872,7 +855,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     } else {
       final isMedia = _isMediaNode(node);
       final siblingCandidates = isMedia
-          ? state.items.where((n) => _isMediaNode(n)).toList()
+          ? state.displayItems.where((n) => _isMediaNode(n)).toList()
           : <FileNode>[];
       final initialIdx = isMedia ? siblingCandidates.indexWhere((n) => n.id == node.id) : 0;
 
@@ -1491,12 +1474,6 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             ),
                             const SizedBox(width: 6),
                             _buildHeaderIconButton(
-                              icon: Icons.swap_vert_rounded,
-                              onTap: () => TransferQueueSheet.show(context),
-                              badgeCount: activeTasksCount > 0 ? activeTasksCount : null,
-                            ),
-                            const SizedBox(width: 6),
-                            _buildHeaderIconButton(
                               icon: Icons.delete_outline_rounded,
                               onTap: () {
                                 Navigator.of(context).push(
@@ -1639,31 +1616,41 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                           _buildCategoryCard(
                             title: 'Photos',
                             icon: Icons.photo_outlined,
-                            count: '${state.items.where((i) => (i.mimeType?.startsWith('image/') ?? false) || i.name.toLowerCase().endsWith('.jpg') || i.name.toLowerCase().endsWith('.png') || i.name.toLowerCase().endsWith('.jpeg') || i.name.toLowerCase().endsWith('.webp') || i.name.toLowerCase().endsWith('.heic')).length} files',
+                            count: '${state.countForCategory('photos')} files',
+                            isSelected: state.selectedCategory == 'photos',
+                            onTap: () => notifier.setSelectedCategory('photos'),
                           ),
                           const SizedBox(width: 12),
                           _buildCategoryCard(
                             title: 'Videos',
                             icon: Icons.videocam_outlined,
-                            count: '${state.items.where((i) => (i.mimeType?.startsWith('video/') ?? false) || i.name.toLowerCase().endsWith('.mp4') || i.name.toLowerCase().endsWith('.mov') || i.name.toLowerCase().endsWith('.mkv')).length} files',
+                            count: '${state.countForCategory('videos')} files',
+                            isSelected: state.selectedCategory == 'videos',
+                            onTap: () => notifier.setSelectedCategory('videos'),
                           ),
                           const SizedBox(width: 12),
                           _buildCategoryCard(
                             title: 'Docs',
                             icon: Icons.description_outlined,
-                            count: '${state.items.where((i) => (i.mimeType?.contains('pdf') ?? false) || (i.mimeType?.contains('document') ?? false) || (i.mimeType?.contains('text') ?? false) || i.name.toLowerCase().endsWith('.pdf') || i.name.toLowerCase().endsWith('.txt') || i.name.toLowerCase().endsWith('.docx') || i.name.toLowerCase().endsWith('.xlsx')).length} files',
+                            count: '${state.countForCategory('docs')} files',
+                            isSelected: state.selectedCategory == 'docs',
+                            onTap: () => notifier.setSelectedCategory('docs'),
                           ),
                           const SizedBox(width: 12),
                           _buildCategoryCard(
                             title: 'Audio',
                             icon: Icons.headphones_outlined,
-                            count: '${state.items.where((i) => (i.mimeType?.startsWith('audio/') ?? false) || i.name.toLowerCase().endsWith('.mp3') || i.name.toLowerCase().endsWith('.m4a') || i.name.toLowerCase().endsWith('.flac') || i.name.toLowerCase().endsWith('.wav')).length} files',
+                            count: '${state.countForCategory('audio')} files',
+                            isSelected: state.selectedCategory == 'audio',
+                            onTap: () => notifier.setSelectedCategory('audio'),
                           ),
                           const SizedBox(width: 12),
                           _buildCategoryCard(
                             title: 'Folders',
                             icon: Icons.folder_outlined,
-                            count: '${state.items.where((i) => i.isFolder).length} folders',
+                            count: '${state.countForCategory('folders')} folders',
+                            isSelected: state.selectedCategory == 'folders',
+                            onTap: () => notifier.setSelectedCategory('folders'),
                           ),
                         ],
                       ),
@@ -1733,15 +1720,60 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          state.currentFolderId == null ? 'Recent Files' : 'Files',
-                          style: FiloTypography.title3.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? FiloColors.darkTextPrimary
-                                : FiloColors.lightTextPrimary,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              state.selectedCategory != null
+                                  ? _categorySectionTitle(state.selectedCategory!)
+                                  : (state.currentFolderId == null ? 'Recent Files' : 'Files'),
+                              style: FiloTypography.title3.copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? FiloColors.darkTextPrimary
+                                    : FiloColors.lightTextPrimary,
+                              ),
+                            ),
+                            if (state.selectedCategory != null) ...[
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  notifier.setSelectedCategory(null);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.1)
+                                        : Colors.black.withValues(alpha: 0.06),
+                                    borderRadius: BorderRadius.circular(100),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Show all',
+                                        style: TextStyle(
+                                          fontFamily: FiloTypography.fontFamily,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Icon(
+                                        Icons.close_rounded,
+                                        size: 12,
+                                        color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         IconButton(
                           icon: Icon(state.isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded, size: 20),
@@ -1761,12 +1793,16 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                       ),
                     ),
                   )
-                else if (state.items.isEmpty)
+                else if (state.displayItems.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 120),
-                      child: _buildUniqueEmptySpace(state.isFavoritesOnly),
+                      child: _buildUniqueEmptySpace(
+                        state.isFavoritesOnly,
+                        selectedCategory: state.selectedCategory,
+                        onClearCategory: () => notifier.setSelectedCategory(null),
+                      ),
                     ),
                   )
                 else if (state.isGridView)
@@ -1786,7 +1822,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                       ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                          final node = state.items[index];
+                          final node = state.displayItems[index];
                           return FileGridCard(
                             node: node,
                             isSelected: state.selectedIds.contains(node.id),
@@ -1796,7 +1832,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             onMoreTap: () => _showFileActions(node),
                           );
                         },
-                        childCount: state.items.length,
+                        childCount: state.displayItems.length,
                       ),
                     ),
                   )
@@ -1811,7 +1847,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                          final node = state.items[index];
+                          final node = state.displayItems[index];
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8.0),
                             child: FileListRow(
@@ -1826,7 +1862,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             ),
                           );
                         },
-                        childCount: state.items.length,
+                        childCount: state.displayItems.length,
                       ),
                     ),
                   ),
@@ -1973,9 +2009,65 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
+  String _categorySectionTitle(String category) {
+    switch (category) {
+      case 'photos':
+        return 'Photos';
+      case 'videos':
+        return 'Videos';
+      case 'docs':
+        return 'Docs';
+      case 'audio':
+        return 'Audio';
+      case 'folders':
+        return 'Folders';
+      default:
+        return 'Recent Files';
+    }
+  }
+
   // Unique Artistic Empty State (Editorial Monoline & Frosted Glass)
-  Widget _buildUniqueEmptySpace(bool isFavoritesOnly) {
+  Widget _buildUniqueEmptySpace(
+    bool isFavoritesOnly, {
+    String? selectedCategory,
+    VoidCallback? onClearCategory,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (selectedCategory != null) {
+      final label = _categorySectionTitle(selectedCategory).toLowerCase();
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.folder_open_rounded,
+                size: 46,
+                color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+              ),
+              const SizedBox(height: FiloSpacing.md),
+              Text(
+                'no $label here yet',
+                style: FiloTypography.title2.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                  letterSpacing: -0.4,
+                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (onClearCategory != null)
+                TextButton(
+                  onPressed: onClearCategory,
+                  child: const Text('Show all files'),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final illustrationAsset = isFavoritesOnly
         ? FiloIllustrations.starred
         : FiloIllustrations.emptyVault;
@@ -2019,61 +2111,93 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
     );
   }
 
-  // Category Squircle Card (Clean iOS Outline Icons, NO emojis)
+  // Category Squircle Card (Clean iOS Outline Icons, NO emojis, clickable filter)
   Widget _buildCategoryCard({
     required String title,
     required IconData icon,
     required String count,
+    required bool isSelected,
+    required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: 125,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? FiloColors.darkSurface : Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          width: 125,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? (isDark ? Colors.white : Colors.black)
+                : (isDark ? FiloColors.darkSurface : Colors.white),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? Colors.transparent
+                  : (isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.06)),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isSelected ? (isDark ? 0.35 : 0.14) : (isDark ? 0.2 : 0.03)),
+                blurRadius: isSelected ? 14 : 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18, color: FiloColors.primary),
-              const SizedBox(width: 8),
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 18,
+                    color: isSelected
+                        ? (isDark ? Colors.black : Colors.white)
+                        : FiloColors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected
+                            ? (isDark ? Colors.black : Colors.white)
+                            : (isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Text(
-                title,
+                count,
                 style: TextStyle(
                   fontFamily: FiloTypography.fontFamily,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
+                  fontSize: 12,
+                  color: isSelected
+                      ? (isDark ? Colors.black54 : Colors.white70)
+                      : (isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            count,
-            style: TextStyle(
-              fontFamily: FiloTypography.fontFamily,
-              fontSize: 12,
-              color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2656,30 +2780,13 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? Colors.white.withValues(alpha: 0.08)
-                                        : Colors.black.withValues(alpha: 0.05),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: isDark
-                                          ? Colors.white.withValues(alpha: 0.1)
-                                          : Colors.black.withValues(alpha: 0.06),
-                                      width: 0.8,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    ws.isEncrypted ? '🔒 Encrypted' : '👁️ Viewable',
-                                    style: TextStyle(
-                                      fontFamily: FiloTypography.fontFamily,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
-                                    ),
-                                  ),
+                                const SizedBox(width: 6),
+                                Icon(
+                                  ws.isEncrypted
+                                      ? Icons.lock_outline_rounded
+                                      : Icons.visibility_outlined,
+                                  size: 14,
+                                  color: isDark ? Colors.white60 : FiloColors.lightTextSecondary,
                                 ),
                               ],
                             ),

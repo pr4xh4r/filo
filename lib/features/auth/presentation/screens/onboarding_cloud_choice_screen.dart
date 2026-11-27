@@ -450,7 +450,11 @@ class _OnboardingCloudChoiceScreenState
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Session active: @${authState.telegramUserName ?? 'telegram_user'}',
+                      authState.telegramUserName != null && authState.telegramUserName!.isNotEmpty
+                          ? 'Session active: @${authState.telegramUserName}'
+                          : (authState.telegramDisplayName != null
+                              ? 'Session active: ${authState.telegramDisplayName}'
+                              : 'Session active: Telegram User'),
                       style: const TextStyle(
                         fontFamily: FiloTypography.fontFamily,
                         fontSize: 12,

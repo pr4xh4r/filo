@@ -34,8 +34,8 @@ void main() async {
   // Load hardened Telegram credentials from native security bridge
   await AppConfig.initializeCredentials();
 
-  // Clean any leftover decrypted session files on fresh launch
-  unawaited(SessionCacheService.instance.purge());
+  // Clean any leftover decrypted session files before opening DB or launching UI
+  await SessionCacheService.instance.purge();
 
   // BUG 2 FIX: Open a persistent file-backed SQLite DB instead of in-memory.
   // Data now survives app restarts.

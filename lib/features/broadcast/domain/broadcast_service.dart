@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/config/app_config.dart';
+import '../../update/domain/update_service.dart';
 import 'broadcast_model.dart';
 
 const _channel = MethodChannel('com.filo.vault.filo/transfers');
@@ -40,6 +41,8 @@ class BroadcastState {
 }
 
 class BroadcastNotifier extends StateNotifier<BroadcastState> {
+  static const String _defaultReleasesUrl = 'https://github.com/pr4xh4r/filo/releases';
+
   final http.Client _client;
   final FlutterSecureStorage _storage;
 
@@ -59,6 +62,10 @@ class BroadcastNotifier extends StateNotifier<BroadcastState> {
         super(const BroadcastState(isLoading: true)) {
     refresh();
   }
+
+  /// Validates that [url] uses strict HTTPS, belongs to a trusted GitHub host,
+  /// and targets the official `/pr4xh4r/filo` repository when hosted on GitHub.
+  static bool isTrustedUrl(String url) => UpdateService.isTrustedUrl(url);
 
   /// Refreshes the broadcast and version updates manifest.
   /// If [forceTest] is true, populates realistic test broadcast and update data for user verification.
@@ -87,7 +94,7 @@ class BroadcastNotifier extends StateNotifier<BroadcastState> {
             '📲 Instant QR vault pairing between devices',
             '🔄 Background transfer resilience with native Android service',
           ],
-          downloadUrl: 'https://github.com/pr4xh4r/filo/releases',
+          downloadUrl: _defaultReleasesUrl,
           isMandatory: false,
         ),
         isUpdateCollapsed: false,
@@ -116,13 +123,39 @@ class BroadcastNotifier extends StateNotifier<BroadcastState> {
             activeBroadcast = null;
           }
         }
+        if (activeBroadcast != null &&
+            activeBroadcast.actionUrl != null &&
+            activeBroadcast.actionUrl!.isNotEmpty &&
+            !isTrustedUrl(activeBroadcast.actionUrl!)) {
+          activeBroadcast = AdminBroadcast(
+            id: activeBroadcast.id,
+            title: activeBroadcast.title,
+            message: activeBroadcast.message,
+            actionTitle: null,
+            actionUrl: null,
+            isDismissible: activeBroadcast.isDismissible,
+            priority: activeBroadcast.priority,
+            publishedAt: activeBroadcast.publishedAt,
+          );
+        }
 
         // Check if update is strictly newer than current app version
         AppUpdateDetails? activeUpdate = manifest.update;
         if (activeUpdate != null) {
-          final isNewer = _isNewerVersion(activeUpdate.latestVersion, AppConfig.appVersion);
+          final isNewer = UpdateService.isNewerVersion(
+            activeUpdate.latestVersion,
+            AppConfig.appVersion,
+          );
           if (!isNewer) {
             activeUpdate = null;
+          } else if (!isTrustedUrl(activeUpdate.downloadUrl)) {
+            activeUpdate = AppUpdateDetails(
+              latestVersion: activeUpdate.latestVersion,
+              title: activeUpdate.title,
+              changelog: activeUpdate.changelog,
+              downloadUrl: _defaultReleasesUrl,
+              isMandatory: activeUpdate.isMandatory,
+            );
           }
         }
 
@@ -155,35 +188,16 @@ class BroadcastNotifier extends StateNotifier<BroadcastState> {
     state = state.copyWith(isUpdateCollapsed: collapsed);
   }
 
-  /// Launches a verified link in the native browser.
+  /// Launches a verified link in the native browser after enforcing host allowlist.
   static Future<void> openUrl(String url) async {
     final trimmed = url.trim();
-    final uri = Uri.tryParse(trimmed);
-    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+    if (!isTrustedUrl(trimmed)) {
       return;
     }
     try {
       await _channel.invokeMethod('openUrl', {'url': trimmed});
     } catch (_) {
       Clipboard.setData(ClipboardData(text: trimmed));
-    }
-  }
-
-  bool _isNewerVersion(String remote, String current) {
-    try {
-      final cleanRemote = remote.replaceAll(RegExp(r'[^0-9.]'), '');
-      final cleanCurrent = current.replaceAll(RegExp(r'[^0-9.]'), '');
-
-      final remoteParts = cleanRemote.split('.').map(int.parse).toList();
-      final currentParts = cleanCurrent.split('.').map(int.parse).toList();
-
-      for (int i = 0; i < remoteParts.length && i < currentParts.length; i++) {
-        if (remoteParts[i] > currentParts[i]) return true;
-        if (remoteParts[i] < currentParts[i]) return false;
-      }
-      return remoteParts.length > currentParts.length;
-    } catch (_) {
-      return false;
     }
   }
 }

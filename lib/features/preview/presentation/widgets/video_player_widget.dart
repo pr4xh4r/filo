@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
+import '../../../../core/cache/session_cache_service.dart';
+import '../../../../core/database/node_model.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_typography.dart';
 
@@ -61,12 +62,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       if (widget.file != null && widget.file!.existsSync()) {
         _tempFile = widget.file;
       } else if (widget.bytes != null) {
-        final tempDir = await getTemporaryDirectory();
-        final ext = widget.fileName.contains('.') ? widget.fileName.split('.').last : 'mp4';
-        _tempFile = File(
-          '${tempDir.path}/filo_vid_${DateTime.now().millisecondsSinceEpoch}.$ext',
+        final sessionDir = await SessionCacheService.instance.getSessionDirectory();
+        if (!mounted) return;
+        final rawExt = widget.fileName.contains('.') ? widget.fileName.split('.').last : 'mp4';
+        final safeExt = FileNode.sanitizeNodeName(rawExt.isEmpty ? 'mp4' : rawExt);
+        final tempFile = File(
+          '${sessionDir.path}/filo_vid_${DateTime.now().millisecondsSinceEpoch}.$safeExt',
         );
-        await _tempFile!.writeAsBytes(widget.bytes!, flush: true);
+        await tempFile.writeAsBytes(widget.bytes!, flush: true);
+        if (!mounted) {
+          unawaited(SessionCacheService.secureDeleteFile(tempFile));
+          return;
+        }
+        _tempFile = tempFile;
       } else {
         throw Exception('No video file or bytes provided');
       }
@@ -184,8 +192,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     _hideControlsTimer?.cancel();
     _feedbackTimer?.cancel();
     _controller?.dispose();
-    if (widget.bytes != null && widget.file == null) {
-      _tempFile?.delete().ignore();
+    if (widget.bytes != null && widget.file == null && _tempFile != null) {
+      unawaited(SessionCacheService.secureDeleteFile(_tempFile!));
+      _tempFile = null;
     }
     super.dispose();
   }

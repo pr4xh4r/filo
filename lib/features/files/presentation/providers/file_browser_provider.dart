@@ -46,23 +46,69 @@ class FileBrowserState {
     this.selectedCategory,
   });
 
+  /// Returns true when [item] belongs to [category] ('photos', 'videos', 'docs', 'audio', 'folders').
+  static bool matchesCategory(FileNode item, String category) {
+    final name = item.name.toLowerCase();
+    final mime = item.mimeType?.toLowerCase() ?? '';
+    switch (category) {
+      case 'photos':
+        return !item.isFolder &&
+            (mime.startsWith('image/') ||
+                name.endsWith('.jpg') ||
+                name.endsWith('.png') ||
+                name.endsWith('.jpeg') ||
+                name.endsWith('.webp') ||
+                name.endsWith('.gif') ||
+                name.endsWith('.bmp') ||
+                name.endsWith('.heic'));
+      case 'videos':
+        return !item.isFolder &&
+            (mime.startsWith('video/') ||
+                name.endsWith('.mp4') ||
+                name.endsWith('.mov') ||
+                name.endsWith('.mkv') ||
+                name.endsWith('.avi') ||
+                name.endsWith('.webm'));
+      case 'docs':
+        return !item.isFolder &&
+            (mime.contains('pdf') ||
+                mime.contains('document') ||
+                mime.contains('text') ||
+                name.endsWith('.pdf') ||
+                name.endsWith('.txt') ||
+                name.endsWith('.md') ||
+                name.endsWith('.csv') ||
+                name.endsWith('.tsv') ||
+                name.endsWith('.doc') ||
+                name.endsWith('.docx') ||
+                name.endsWith('.xls') ||
+                name.endsWith('.xlsx') ||
+                name.endsWith('.ppt') ||
+                name.endsWith('.pptx'));
+      case 'audio':
+        return !item.isFolder &&
+            (mime.startsWith('audio/') ||
+                name.endsWith('.mp3') ||
+                name.endsWith('.m4a') ||
+                name.endsWith('.flac') ||
+                name.endsWith('.wav') ||
+                name.endsWith('.aac') ||
+                name.endsWith('.ogg'));
+      case 'folders':
+        return item.isFolder;
+      default:
+        return true;
+    }
+  }
+
+  /// Counts items in the current listing matching [category].
+  int countForCategory(String category) =>
+      items.where((i) => matchesCategory(i, category)).length;
+
   /// Items filtered by active category (Photos, Videos, Docs, Audio, Folders)
   List<FileNode> get displayItems {
     if (selectedCategory == null) return items;
-    switch (selectedCategory) {
-      case 'photos':
-        return items.where((i) => !i.isFolder && ((i.mimeType?.startsWith('image/') ?? false) || i.name.toLowerCase().endsWith('.jpg') || i.name.toLowerCase().endsWith('.png') || i.name.toLowerCase().endsWith('.jpeg') || i.name.toLowerCase().endsWith('.webp') || i.name.toLowerCase().endsWith('.heic'))).toList();
-      case 'videos':
-        return items.where((i) => !i.isFolder && ((i.mimeType?.startsWith('video/') ?? false) || i.name.toLowerCase().endsWith('.mp4') || i.name.toLowerCase().endsWith('.mov') || i.name.toLowerCase().endsWith('.mkv'))).toList();
-      case 'docs':
-        return items.where((i) => !i.isFolder && ((i.mimeType?.contains('pdf') ?? false) || (i.mimeType?.contains('document') ?? false) || (i.mimeType?.contains('text') ?? false) || i.name.toLowerCase().endsWith('.pdf') || i.name.toLowerCase().endsWith('.txt') || i.name.toLowerCase().endsWith('.docx') || i.name.toLowerCase().endsWith('.xlsx'))).toList();
-      case 'audio':
-        return items.where((i) => !i.isFolder && ((i.mimeType?.startsWith('audio/') ?? false) || i.name.toLowerCase().endsWith('.mp3') || i.name.toLowerCase().endsWith('.m4a') || i.name.toLowerCase().endsWith('.flac') || i.name.toLowerCase().endsWith('.wav'))).toList();
-      case 'folders':
-        return items.where((i) => i.isFolder).toList();
-      default:
-        return items;
-    }
+    return items.where((i) => matchesCategory(i, selectedCategory!)).toList();
   }
 
   FileBrowserState copyWith({
@@ -303,7 +349,7 @@ class FileBrowserNotifier extends StateNotifier<FileBrowserState> {
   }
 
   void selectAll() {
-    final allIds = state.items.map((e) => e.id).toSet();
+    final allIds = state.displayItems.map((e) => e.id).toSet();
     state = state.copyWith(
       selectedIds: allIds,
       isMultiSelect: true,

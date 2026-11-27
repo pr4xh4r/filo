@@ -38,10 +38,14 @@ class BotApiStorageBackend implements StorageBackend {
 
       if (data['ok'] == true) {
         final result = data['result'] as Map<String, dynamic>;
+        final firstName = (result['first_name'] as String? ?? '').trim();
+        final lastName = (result['last_name'] as String? ?? '').trim();
+        final fullName = '$firstName $lastName'.trim();
         return StorageAuthState(
           step: StorageAuthStep.authenticated,
           userId: result['id'].toString(),
           userName: result['username'] as String?,
+          displayName: fullName.isNotEmpty ? fullName : null,
         );
       } else {
         return StorageAuthState(
@@ -83,6 +87,9 @@ class BotApiStorageBackend implements StorageBackend {
   Future<void> signOut() async {
     _client.close();
   }
+
+  @override
+  Stream<StorageAuthState>? get authStateStream => null;
 
   @override
   Stream<String>? get qrLinkStream => null;
@@ -173,16 +180,10 @@ class BotApiStorageBackend implements StorageBackend {
     }
   }
 
-  @override
-  Future<Uint8List> downloadChunk({
-    required String channelId,
-    required String remoteFileId,
-    ProgressCallback? onProgress,
-  }) async {
-    // 1. Get file path from file_id
-    final getFileResponse = await _client.get(
-      Uri.parse('$_baseUrl/getFile?file_id=$remoteFileId'),
-    );
+  Future<Uri> _resolveDownloadUri(String remoteFileId) async {
+    final getFileResponse = await _client
+        .get(Uri.parse('$_baseUrl/getFile?file_id=$remoteFileId'))
+        .timeout(const Duration(seconds: 30));
     final getFileData = json.decode(getFileResponse.body) as Map<String, dynamic>;
 
     if (getFileData['ok'] != true) {
@@ -191,19 +192,90 @@ class BotApiStorageBackend implements StorageBackend {
     }
 
     final filePath = getFileData['result']['file_path'] as String;
+    return Uri.parse('$_fileBaseUrl/$filePath');
+  }
 
-    // 2. Download the binary stream
-    final downloadUri = Uri.parse('$_fileBaseUrl/$filePath');
-    final response = await _client.get(downloadUri);
+  Future<void> _streamDownloadToSink({
+    required String remoteFileId,
+    required void Function(List<int> chunk) onChunk,
+    ProgressCallback? onProgress,
+  }) async {
+    final downloadUri = await _resolveDownloadUri(remoteFileId);
+    final request = http.Request('GET', downloadUri);
+    final streamedResponse = await _client.send(request).timeout(
+          const Duration(seconds: 60),
+        );
 
-    if (response.statusCode == 200) {
-      final bytes = response.bodyBytes;
-      if (onProgress != null) {
-        onProgress(bytes.length, bytes.length);
+    if (streamedResponse.statusCode != 200) {
+      throw Exception('Download failed with status ${streamedResponse.statusCode}');
+    }
+
+    final total = streamedResponse.contentLength ?? 0;
+    int received = 0;
+
+    final iterator = StreamIterator<List<int>>(streamedResponse.stream);
+    try {
+      while (await iterator.moveNext().timeout(const Duration(seconds: 120))) {
+        final chunk = iterator.current;
+        onChunk(chunk);
+        received += chunk.length;
+        onProgress?.call(received, total > 0 ? total : received);
       }
-      return bytes;
-    } else {
-      throw Exception('Download failed with status ${response.statusCode}');
+    } finally {
+      await iterator.cancel();
+    }
+  }
+
+  @override
+  Future<Uint8List> downloadChunk({
+    required String channelId,
+    required String remoteFileId,
+    ProgressCallback? onProgress,
+  }) async {
+    final builder = BytesBuilder(copy: false);
+    await _streamDownloadToSink(
+      remoteFileId: remoteFileId,
+      onChunk: builder.add,
+      onProgress: onProgress,
+    );
+    return builder.toBytes();
+  }
+
+  @override
+  Future<void> downloadChunkToFile({
+    required String channelId,
+    required String remoteFileId,
+    required File destinationFile,
+    ProgressCallback? onProgress,
+    bool deleteRemoteCache = false,
+  }) async {
+    if (!destinationFile.parent.existsSync()) {
+      destinationFile.parent.createSync(recursive: true);
+    }
+
+    final sink = destinationFile.openWrite();
+    var sinkClosed = false;
+    try {
+      await _streamDownloadToSink(
+        remoteFileId: remoteFileId,
+        onChunk: sink.add,
+        onProgress: onProgress,
+      );
+      await sink.flush();
+      await sink.close();
+      sinkClosed = true;
+    } catch (_) {
+      if (!sinkClosed) {
+        try {
+          await sink.close();
+        } catch (_) {}
+      }
+      if (await destinationFile.exists()) {
+        try {
+          await destinationFile.delete();
+        } catch (_) {}
+      }
+      rethrow;
     }
   }
 

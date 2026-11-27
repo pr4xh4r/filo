@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
+import 'package:pointycastle/export.dart';
 import 'package:sqlite3/open.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'node_model.dart';
@@ -113,10 +117,239 @@ class StorageUsageStats {
 /// - Full-text and metadata search by name, type, date, size.
 /// - Serializes/deserializes index snapshots for zero-knowledge Telegram cloud backup.
 class FiloDatabase {
+  static const String _encPrefix = 'enc:v1:';
   final Database _db;
+  final Random _secureRandom = Random.secure();
+  Uint8List? _dbKey;
+  Uint8List? _idxKey;
 
   FiloDatabase._(this._db) {
     _createTables();
+  }
+
+  bool get hasEncryptionKey => _dbKey != null;
+
+  /// Derives database AEAD and blind-index subkeys from [masterKey] and
+  /// transparently migrates any existing plaintext rows to AES-256-GCM at rest.
+  void setEncryptionKey(Uint8List masterKey) {
+    clearEncryptionKey();
+    final dbSubkey = Hmac(sha256, masterKey)
+        .convert(utf8.encode('filo-local-db-aead-v1'))
+        .bytes;
+    final idxSubkey = Hmac(sha256, masterKey)
+        .convert(utf8.encode('filo-local-db-idx-v1'))
+        .bytes;
+    _dbKey = Uint8List.fromList(dbSubkey);
+    _idxKey = Uint8List.fromList(idxSubkey);
+    _migratePlaintextRowsIfNeeded();
+  }
+
+  /// Zeroes derived database encryption keys in memory.
+  void clearEncryptionKey() {
+    if (_dbKey != null) {
+      _dbKey!.fillRange(0, _dbKey!.length, 0);
+      _dbKey = null;
+    }
+    if (_idxKey != null) {
+      _idxKey!.fillRange(0, _idxKey!.length, 0);
+      _idxKey = null;
+    }
+  }
+
+  String? _encryptString(String? value) {
+    if (_dbKey == null || value == null) return value;
+    final iv = Uint8List(12);
+    for (int i = 0; i < 12; i++) {
+      iv[i] = _secureRandom.nextInt(256);
+    }
+    final cipher = GCMBlockCipher(AESEngine())
+      ..init(
+        true,
+        AEADParameters(KeyParameter(_dbKey!), 128, iv, Uint8List(0)),
+      );
+    final plaintext = Uint8List.fromList(utf8.encode(value));
+    final cipherAndTag = cipher.process(plaintext);
+    final combined = Uint8List(12 + cipherAndTag.length);
+    combined.setRange(0, 12, iv);
+    combined.setRange(12, combined.length, cipherAndTag);
+    return '$_encPrefix${base64Encode(combined)}';
+  }
+
+  String _encryptRequired(String value) => _encryptString(value)!;
+
+  String? _decryptString(String? value) {
+    if (value == null || _dbKey == null || !value.startsWith(_encPrefix)) {
+      return value;
+    }
+    final combined = base64Decode(value.substring(_encPrefix.length));
+    if (combined.length < 28) {
+      throw const FormatException('Encrypted database field is truncated');
+    }
+    final iv = Uint8List.fromList(combined.sublist(0, 12));
+    final cipherAndTag = Uint8List.fromList(combined.sublist(12));
+    final cipher = GCMBlockCipher(AESEngine())
+      ..init(
+        false,
+        AEADParameters(KeyParameter(_dbKey!), 128, iv, Uint8List(0)),
+      );
+    final plaintext = cipher.process(cipherAndTag);
+    return utf8.decode(plaintext);
+  }
+
+  String _decryptRequired(String value) => _decryptString(value)!;
+
+  String? _hashIndex(String? contentHash) {
+    if (contentHash == null || _idxKey == null) return null;
+    return Hmac(sha256, _idxKey!).convert(utf8.encode(contentHash)).toString();
+  }
+
+  void _migratePlaintextRowsIfNeeded() {
+    if (_dbKey == null || _idxKey == null) return;
+    bool migratedAny = false;
+    _db.execute('BEGIN TRANSACTION');
+    try {
+      final nodeRows = _db.select(
+        'SELECT id, name, mime_type, tags, content_hash, content_hash_idx FROM nodes',
+      );
+      if (nodeRows.isNotEmpty) {
+        final nodeStmt = _db.prepare(
+          'UPDATE nodes SET name = ?, mime_type = ?, tags = ?, content_hash = ?, content_hash_idx = ? WHERE id = ?',
+        );
+        try {
+          for (final row in nodeRows) {
+            final id = row['id'] as String;
+            final name = row['name'] as String;
+            final mime = row['mime_type'] as String?;
+            final tags = row['tags'] as String?;
+            final contentHash = row['content_hash'] as String?;
+            final contentHashIdx = row['content_hash_idx'] as String?;
+
+            String newName = name;
+            String? newMime = mime;
+            String? newTags = tags;
+            String? newHash = contentHash;
+            String? newHashIdx = contentHashIdx;
+            bool needsUpdate = false;
+
+            if (!name.startsWith(_encPrefix)) {
+              newName = _encryptRequired(name);
+              needsUpdate = true;
+            }
+            if (mime != null && !mime.startsWith(_encPrefix)) {
+              newMime = _encryptRequired(mime);
+              needsUpdate = true;
+            }
+            if (tags != null && !tags.startsWith(_encPrefix)) {
+              newTags = _encryptRequired(tags);
+              needsUpdate = true;
+            }
+            if (contentHash != null && !contentHash.startsWith(_encPrefix)) {
+              newHash = _encryptRequired(contentHash);
+              newHashIdx = _hashIndex(contentHash);
+              needsUpdate = true;
+            } else if (contentHash != null &&
+                contentHash.startsWith(_encPrefix) &&
+                contentHashIdx == null) {
+              final plainHash = _decryptString(contentHash);
+              newHashIdx = _hashIndex(plainHash);
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              nodeStmt.execute([
+                newName,
+                newMime,
+                newTags,
+                newHash,
+                newHashIdx,
+                id,
+              ]);
+              migratedAny = true;
+            }
+          }
+        } finally {
+          nodeStmt.dispose();
+        }
+      }
+
+      final wsRows = _db.select('SELECT id, name, description FROM workspaces');
+      if (wsRows.isNotEmpty) {
+        final wsStmt = _db.prepare(
+          'UPDATE workspaces SET name = ?, description = ? WHERE id = ?',
+        );
+        try {
+          for (final row in wsRows) {
+            final id = row['id'] as String;
+            final name = row['name'] as String;
+            final desc = row['description'] as String;
+            String newName = name;
+            String newDesc = desc;
+            bool needsUpdate = false;
+
+            if (!name.startsWith(_encPrefix)) {
+              newName = _encryptRequired(name);
+              needsUpdate = true;
+            }
+            if (!desc.startsWith(_encPrefix)) {
+              newDesc = _encryptRequired(desc);
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              wsStmt.execute([newName, newDesc, id]);
+              migratedAny = true;
+            }
+          }
+        } finally {
+          wsStmt.dispose();
+        }
+      }
+
+      final taskRows = _db.select(
+        'SELECT id, file_name, error_message FROM transfer_tasks',
+      );
+      if (taskRows.isNotEmpty) {
+        final taskStmt = _db.prepare(
+          'UPDATE transfer_tasks SET file_name = ?, error_message = ? WHERE id = ?',
+        );
+        try {
+          for (final row in taskRows) {
+            final id = row['id'] as String;
+            final fileName = row['file_name'] as String;
+            final errorMsg = row['error_message'] as String?;
+            String newFileName = fileName;
+            String? newErrorMsg = errorMsg;
+            bool needsUpdate = false;
+
+            if (!fileName.startsWith(_encPrefix)) {
+              newFileName = _encryptRequired(fileName);
+              needsUpdate = true;
+            }
+            if (errorMsg != null && !errorMsg.startsWith(_encPrefix)) {
+              newErrorMsg = _encryptRequired(errorMsg);
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              taskStmt.execute([newFileName, newErrorMsg, id]);
+              migratedAny = true;
+            }
+          }
+        } finally {
+          taskStmt.dispose();
+        }
+      }
+
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+
+    if (migratedAny) {
+      _db.execute('VACUUM;');
+      _db.execute('PRAGMA wal_checkpoint(TRUNCATE);');
+    }
   }
 
   /// Opens or creates a file-backed SQLite database.
@@ -139,6 +372,7 @@ class FiloDatabase {
 
   void _createTables() {
     _db.execute('PRAGMA foreign_keys = ON;');
+    _db.execute('PRAGMA secure_delete = ON;');
     _db.execute('PRAGMA journal_mode = WAL;');
     _db.execute('PRAGMA synchronous = NORMAL;');
     _db.execute('PRAGMA temp_store = MEMORY;');
@@ -152,6 +386,7 @@ class FiloDatabase {
         size_bytes INTEGER NOT NULL DEFAULT 0,
         mime_type TEXT,
         content_hash TEXT,
+        content_hash_idx TEXT,
         created_at INTEGER NOT NULL,
         modified_at INTEGER NOT NULL,
         is_favorite INTEGER NOT NULL DEFAULT 0,
@@ -237,6 +472,12 @@ class FiloDatabase {
     try {
       _db.execute('ALTER TABLE nodes ADD COLUMN is_pinned_offline INTEGER NOT NULL DEFAULT 0;');
     } catch (_) {}
+    try {
+      _db.execute('ALTER TABLE nodes ADD COLUMN content_hash_idx TEXT;');
+    } catch (_) {}
+    try {
+      _db.execute('CREATE INDEX IF NOT EXISTS idx_nodes_hash_idx ON nodes (content_hash_idx);');
+    } catch (_) {}
   }
 
   // -------------------------------------------------------------
@@ -246,27 +487,28 @@ class FiloDatabase {
   Future<void> insertNode(FileNode node) async {
     final stmt = _db.prepare('''
       INSERT OR REPLACE INTO nodes (
-        id, parent_id, name, type, size_bytes, mime_type, content_hash,
+        id, parent_id, name, type, size_bytes, mime_type, content_hash, content_hash_idx,
         created_at, modified_at, is_favorite, is_trashed, trashed_at, sync_state,
         tags, workspace_id, is_pinned_offline
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''');
 
     stmt.execute([
       node.id,
       node.parentId,
-      node.name,
+      _encryptRequired(node.name),
       node.type.name,
       node.sizeBytes,
-      node.mimeType,
-      node.contentHash,
+      _encryptString(node.mimeType),
+      _encryptString(node.contentHash),
+      _hashIndex(node.contentHash),
       node.createdAt.millisecondsSinceEpoch,
       node.modifiedAt.millisecondsSinceEpoch,
       node.isFavorite ? 1 : 0,
       node.isTrashed ? 1 : 0,
       node.trashedAt?.millisecondsSinceEpoch,
       node.syncState.name,
-      node.tags.join(','),
+      _encryptRequired(node.tags.join(',')),
       node.workspaceId,
       node.isPinnedOffline ? 1 : 0,
     ]);
@@ -276,7 +518,7 @@ class FiloDatabase {
   Future<void> updateNodeTags(String id, List<String> tags) async {
     _db.execute(
       'UPDATE nodes SET tags = ?, modified_at = ? WHERE id = ?',
-      [tags.join(','), DateTime.now().millisecondsSinceEpoch, id],
+      [_encryptRequired(tags.join(',')), DateTime.now().millisecondsSinceEpoch, id],
     );
   }
 
@@ -296,7 +538,15 @@ class FiloDatabase {
       for (final ws in Workspace.defaults) {
         _db.execute(
           'INSERT OR IGNORE INTO workspaces (id, name, description, icon_code, is_encrypted, is_deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [ws.id, ws.name, ws.description, ws.icon.codePoint, ws.isEncrypted ? 1 : 0, 0, DateTime.now().millisecondsSinceEpoch],
+          [
+            ws.id,
+            _encryptRequired(ws.name),
+            _encryptRequired(ws.description),
+            ws.icon.codePoint,
+            ws.isEncrypted ? 1 : 0,
+            0,
+            DateTime.now().millisecondsSinceEpoch,
+          ],
         );
       }
       return Workspace.defaults;
@@ -309,8 +559,8 @@ class FiloDatabase {
       final isDeleted = (row['is_deleted'] as int? ?? 0) == 1;
       return Workspace(
         id: id,
-        name: row['name'] as String,
-        description: row['description'] as String,
+        name: _decryptRequired(row['name'] as String),
+        description: _decryptRequired(row['description'] as String),
         icon: icon,
         isEncrypted: isEncrypted,
         isDeleted: isDeleted,
@@ -327,8 +577,8 @@ class FiloDatabase {
       final isEncrypted = (row['is_encrypted'] as int? ?? 1) == 1;
       return Workspace(
         id: id,
-        name: row['name'] as String,
-        description: row['description'] as String,
+        name: _decryptRequired(row['name'] as String),
+        description: _decryptRequired(row['description'] as String),
         icon: icon,
         isEncrypted: isEncrypted,
         isDeleted: true,
@@ -339,7 +589,15 @@ class FiloDatabase {
   Future<void> insertWorkspace(Workspace ws) async {
     _db.execute(
       'INSERT OR REPLACE INTO workspaces (id, name, description, icon_code, is_encrypted, is_deleted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [ws.id, ws.name, ws.description, ws.icon.codePoint, ws.isEncrypted ? 1 : 0, ws.isDeleted ? 1 : 0, DateTime.now().millisecondsSinceEpoch],
+      [
+        ws.id,
+        _encryptRequired(ws.name),
+        _encryptRequired(ws.description),
+        ws.icon.codePoint,
+        ws.isEncrypted ? 1 : 0,
+        ws.isDeleted ? 1 : 0,
+        DateTime.now().millisecondsSinceEpoch,
+      ],
     );
   }
 
@@ -402,10 +660,18 @@ class FiloDatabase {
   }
 
   Future<FileNode?> findByHash(String contentHash) async {
-    final ResultSet result = _db.select(
-      'SELECT * FROM nodes WHERE content_hash = ? AND is_trashed = 0 LIMIT 1',
-      [contentHash],
-    );
+    final ResultSet result;
+    if (_idxKey != null) {
+      result = _db.select(
+        'SELECT * FROM nodes WHERE content_hash_idx = ? AND is_trashed = 0 LIMIT 1',
+        [_hashIndex(contentHash)],
+      );
+    } else {
+      result = _db.select(
+        'SELECT * FROM nodes WHERE content_hash = ? AND is_trashed = 0 LIMIT 1',
+        [contentHash],
+      );
+    }
     if (result.isEmpty) return null;
     return _rowToNode(result.first);
   }
@@ -454,6 +720,44 @@ class FiloDatabase {
       }
     }
 
+    if (_dbKey != null) {
+      final whereClause =
+          conditions.isNotEmpty ? 'WHERE ${conditions.join(' AND ')}' : '';
+      final ResultSet result = _db.select('SELECT * FROM nodes $whereClause', params);
+      var nodes = result.map(_rowToNode).toList();
+
+      if (tag != null && tag.isNotEmpty) {
+        final lowerTag = tag.toLowerCase();
+        nodes = nodes
+            .where((n) => n.tags.join(',').toLowerCase().contains(lowerTag))
+            .toList();
+      }
+
+      if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+        final lowerQuery = searchQuery.toLowerCase();
+        nodes = nodes
+            .where((n) => n.name.toLowerCase().contains(lowerQuery))
+            .toList();
+      }
+
+      if (mimePrefix != null) {
+        final lowerPrefix = mimePrefix.toLowerCase();
+        nodes = nodes
+            .where((n) =>
+                n.mimeType != null &&
+                n.mimeType!.toLowerCase().startsWith(lowerPrefix))
+            .toList();
+      }
+
+      nodes.sort((a, b) {
+        if (a.type != b.type) {
+          return a.isFolder ? -1 : 1;
+        }
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+      return nodes;
+    }
+
     if (tag != null && tag.isNotEmpty) {
       conditions.add('tags LIKE ?');
       params.add('%$tag%');
@@ -500,28 +804,34 @@ class FiloDatabase {
         size_bytes = ?,
         mime_type = ?,
         content_hash = ?,
+        content_hash_idx = ?,
         created_at = ?,
         modified_at = ?,
         is_favorite = ?,
         is_trashed = ?,
         trashed_at = ?,
         sync_state = ?,
+        tags = ?,
+        workspace_id = ?,
         is_pinned_offline = ?
       WHERE id = ?
     ''');
     stmt.execute([
       node.parentId,
-      node.name,
+      _encryptRequired(node.name),
       node.type.name,
       node.sizeBytes,
-      node.mimeType,
-      node.contentHash,
+      _encryptString(node.mimeType),
+      _encryptString(node.contentHash),
+      _hashIndex(node.contentHash),
       node.createdAt.millisecondsSinceEpoch,
       node.modifiedAt.millisecondsSinceEpoch,
       node.isFavorite ? 1 : 0,
       node.isTrashed ? 1 : 0,
       node.trashedAt?.millisecondsSinceEpoch,
       node.syncState.name,
+      _encryptRequired(node.tags.join(',')),
+      node.workspaceId,
       node.isPinnedOffline ? 1 : 0,
       node.id,
     ]);
@@ -530,8 +840,13 @@ class FiloDatabase {
 
   Future<void> updateNodeHash(String id, String contentHash) async {
     _db.execute(
-      'UPDATE nodes SET content_hash = ?, modified_at = ? WHERE id = ?',
-      [contentHash, DateTime.now().millisecondsSinceEpoch, id],
+      'UPDATE nodes SET content_hash = ?, content_hash_idx = ?, modified_at = ? WHERE id = ?',
+      [
+        _encryptRequired(contentHash),
+        _hashIndex(contentHash),
+        DateTime.now().millisecondsSinceEpoch,
+        id,
+      ],
     );
   }
 
@@ -565,7 +880,7 @@ class FiloDatabase {
   Future<void> renameNode(String id, String newName) async {
     _db.execute(
       'UPDATE nodes SET name = ?, modified_at = ? WHERE id = ?',
-      [newName, DateTime.now().millisecondsSinceEpoch, id],
+      [_encryptRequired(newName), DateTime.now().millisecondsSinceEpoch, id],
     );
   }
 
@@ -793,13 +1108,13 @@ class FiloDatabase {
     stmt.execute([
       task.id,
       task.nodeId,
-      task.fileName,
+      _encryptRequired(task.fileName),
       task.type.name,
       task.status.name,
       task.progress,
       task.bytesTransferred,
       task.totalBytes,
-      task.errorMessage,
+      _encryptString(task.errorMessage),
       task.createdAt.millisecondsSinceEpoch,
       task.updatedAt.millisecondsSinceEpoch,
     ]);
@@ -820,13 +1135,13 @@ class FiloDatabase {
       return TransferTask(
         id: row['id'] as String,
         nodeId: row['node_id'] as String,
-        fileName: row['file_name'] as String,
+        fileName: _decryptRequired(row['file_name'] as String),
         type: TransferType.values.firstWhere((e) => e.name == row['type']),
         status: TransferStatus.values.firstWhere((e) => e.name == row['status']),
         progress: (row['progress'] as num).toDouble(),
         bytesTransferred: row['bytes_transferred'] as int,
         totalBytes: row['total_bytes'] as int,
-        errorMessage: row['error_message'] as String?,
+        errorMessage: _decryptString(row['error_message'] as String?),
         createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
         updatedAt: DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int),
       );
@@ -860,7 +1175,8 @@ class FiloDatabase {
 
     for (final row in files) {
       final size = row['size_bytes'] as int;
-      final mime = (row['mime_type'] as String?)?.toLowerCase() ?? '';
+      final mime =
+          _decryptString(row['mime_type'] as String?)?.toLowerCase() ?? '';
       totalBytes += size;
 
       if (mime.startsWith('image/')) {
@@ -925,8 +1241,8 @@ class FiloDatabase {
     final workspacesList = allWorkspaces.map((r) {
       return {
         'id': r['id'],
-        'name': r['name'],
-        'description': r['description'],
+        'name': _decryptRequired(r['name'] as String),
+        'description': _decryptRequired(r['description'] as String),
         'iconCode': r['icon_code'],
         'createdAt': r['created_at'],
         'isEncrypted': r.containsKey('is_encrypted') && r['is_encrypted'] != null ? r['is_encrypted'] : 1,
@@ -968,8 +1284,8 @@ class FiloDatabase {
             'INSERT OR REPLACE INTO workspaces (id, name, description, icon_code, created_at, is_encrypted, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [
               w['id'] as String,
-              w['name'] as String,
-              w['description'] as String? ?? 'Personal space',
+              _encryptRequired(w['name'] as String),
+              _encryptRequired(w['description'] as String? ?? 'Personal space'),
               (w['iconCode'] as num?)?.toInt() ?? Icons.folder_outlined.codePoint,
               (w['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
               (w['isEncrypted'] as num?)?.toInt() ?? 1,
@@ -1025,21 +1341,32 @@ class FiloDatabase {
     _db.execute('DELETE FROM nodes');
     _db.execute('DELETE FROM workspaces');
     _db.execute('DELETE FROM sync_meta');
+    _db.execute('VACUUM;');
+    _db.execute('PRAGMA wal_checkpoint(TRUNCATE);');
   }
 
   void close() {
+    clearEncryptionKey();
     _db.dispose();
   }
 
   FileNode _rowToNode(Row row) {
+    final rawTags =
+        row.containsKey('tags') && row['tags'] != null && row['tags'] is String
+            ? _decryptString(row['tags'] as String)
+            : null;
+    final tags = rawTags != null
+        ? rawTags.split(',').where((s) => s.isNotEmpty).toList()
+        : const <String>[];
+
     return FileNode(
       id: row['id'] as String,
       parentId: row['parent_id'] as String?,
-      name: row['name'] as String,
+      name: _decryptRequired(row['name'] as String),
       type: NodeType.values.firstWhere((e) => e.name == row['type']),
       sizeBytes: row['size_bytes'] as int,
-      mimeType: row['mime_type'] as String?,
-      contentHash: row['content_hash'] as String?,
+      mimeType: _decryptString(row['mime_type'] as String?),
+      contentHash: _decryptString(row['content_hash'] as String?),
       createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
       modifiedAt: DateTime.fromMillisecondsSinceEpoch(row['modified_at'] as int),
       isFavorite: (row['is_favorite'] as int) == 1,
@@ -1051,9 +1378,7 @@ class FiloDatabase {
         (e) => e.name == row['sync_state'],
         orElse: () => SyncState.synced,
       ),
-      tags: row.containsKey('tags') && row['tags'] != null && row['tags'] is String
-          ? (row['tags'] as String).split(',').where((s) => s.isNotEmpty).toList()
-          : const [],
+      tags: tags,
       workspaceId: row.containsKey('workspace_id') && row['workspace_id'] != null && row['workspace_id'] is String
           ? (row['workspace_id'] as String)
           : 'personal',

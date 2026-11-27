@@ -1,13 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show max;
 import 'dart:typed_data';
+import 'package:flutter/material.dart' show IconData, Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/crypto/crypto_engine.dart';
 import '../../../core/crypto/hash_utils.dart';
+import '../../../core/database/chunk_model.dart';
 import '../../../core/database/filo_database.dart';
+import '../../../core/database/node_model.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/providers/auth_provider.dart';
+import '../../files/domain/workspace.dart';
 import '../../storage/domain/storage_backend.dart';
 
 /// Sync lifecycle states for background automatic cloud backup.
@@ -276,25 +281,77 @@ class IndexSyncService {
   }
 
   /// Backs up the entire local index to the private Telegram channel as a pinned, encrypted document.
+  /// Detects concurrent remote updates, verifies AEAD integrity, and merges non-destructively before pinning.
   Future<String> backupIndexToCloud({
     required Uint8List masterKey,
   }) async {
-    // 1. Export local index JSON
+    // 1. Locate or create vault channel ('filo') and check for concurrent remote changes
+    final channel = await _storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
+    final pinned = await _storageBackend.getPinnedMessage(channelId: channel.channelId);
+    final lastKnownMsgId = await _database.getSyncMeta('last_remote_message_id');
+    final localRev = int.tryParse(await _database.getSyncMeta('remote_revision') ?? '') ?? 0;
+    int remoteRev = 0;
+
+    if (pinned != null &&
+        pinned.remoteFileId != null &&
+        lastKnownMsgId != null &&
+        pinned.messageId != lastKnownMsgId) {
+      try {
+        final downloadedBytes = await _storageBackend.downloadChunk(
+          channelId: channel.channelId,
+          remoteFileId: pinned.remoteFileId!,
+        );
+        final decodedStr = utf8.decode(downloadedBytes, allowMalformed: true);
+        Uint8List? encryptedCatalogBytes;
+        int parsedRemoteRev = 0;
+
+        if (decodedStr.trimLeft().startsWith('{')) {
+          final remoteEnvelope = json.decode(decodedStr) as Map<String, dynamic>;
+          parsedRemoteRev = (remoteEnvelope['revision'] as num?)?.toInt() ?? 0;
+          final hexStr = remoteEnvelope['catalogCiphertextHex'];
+          if (hexStr is String && hexStr.isNotEmpty) {
+            encryptedCatalogBytes = HashUtils.hexToBytes(hexStr);
+          }
+        } else {
+          // Legacy raw encrypted bytes fallback
+          encryptedCatalogBytes = downloadedBytes;
+        }
+
+        if (encryptedCatalogBytes != null) {
+          final decryptedBytes = await CryptoEngine.decryptBytes(
+            combinedBytes: encryptedCatalogBytes,
+            key: masterKey,
+          );
+          final remoteData =
+              json.decode(utf8.decode(decryptedBytes)) as Map<String, dynamic>;
+          await _mergeRemoteSnapshotIntoLocal(remoteData);
+          remoteRev = parsedRemoteRev;
+        }
+      } catch (_) {
+        // Malformed, legacy, wrong format, or MAC verification failure: skip merge gracefully
+      }
+    }
+
+    final newRevision = max(localRev, remoteRev) + 1;
+
+    // 2. Export local index JSON (including any merged remote updates)
     final jsonStr = await _database.exportSnapshotJson();
     final jsonBytes = utf8.encode(jsonStr);
 
-    // 2. Encrypt catalog on-device with Master Key (AES-256-GCM)
+    // 3. Encrypt catalog on-device with Master Key (AES-256-GCM)
     final encryptedCatalog = await CryptoEngine.encryptBytes(
       plaintext: jsonBytes,
       key: masterKey,
     );
 
-    // 3. Export wrapped key bundle from auth repository (zero-knowledge envelope)
+    // 4. Export wrapped key bundle from auth repository (zero-knowledge envelope)
     final keyBundle = await _authRepository?.exportVaultKeyBundle();
 
-    // 4. Construct zero-knowledge snapshot envelope
+    // 5. Construct zero-knowledge snapshot envelope
     final envelope = <String, dynamic>{
       'version': 1,
+      'revision': newRevision,
+      'parentMessageId': lastKnownMsgId,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
       'vaultBundle': keyBundle?['wrappedBundle'],
       'recoveryBundle': keyBundle?['recoveryBundle'],
@@ -302,9 +359,6 @@ class IndexSyncService {
       'catalogCiphertextHex': HashUtils.bytesToHex(encryptedCatalog),
     };
     final envelopeBytes = Uint8List.fromList(utf8.encode(json.encode(envelope)));
-
-    // 5. Locate or create vault channel ('filo')
-    final channel = await _storageBackend.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
 
     // 6. Upload encrypted snapshot document as index.filo
     final remoteChunk = await _storageBackend.uploadChunk(
@@ -320,10 +374,98 @@ class IndexSyncService {
     );
 
     await _database.setSyncMeta('last_remote_message_id', remoteChunk.messageId);
+    await _database.setSyncMeta('remote_revision', newRevision.toString());
     await _database.setSyncMeta('last_synced_at', (envelope['timestamp'] as int).toString());
     await _database.setSyncMeta('sync_dirty', '0');
 
     return remoteChunk.messageId;
+  }
+
+  /// Non-destructively merges remote snapshot workspaces, nodes, and chunks into local DB.
+  Future<void> _mergeRemoteSnapshotIntoLocal(Map<String, dynamic> remoteData) async {
+    final workspacesRaw = remoteData['workspaces'] as List<dynamic>? ?? [];
+    if (workspacesRaw.isNotEmpty) {
+      final existingWorkspaces = await _database.getWorkspaces(includeDeleted: true);
+      final existingWsIds = existingWorkspaces.map((w) => w.id).toSet();
+      for (final item in workspacesRaw) {
+        final w = item as Map<String, dynamic>;
+        final id = w['id'] as String;
+        if (!existingWsIds.contains(id)) {
+          final iconCode =
+              (w['iconCode'] as num?)?.toInt() ?? Icons.folder_outlined.codePoint;
+          await _database.insertWorkspace(
+            Workspace(
+              id: id,
+              name: w['name'] as String,
+              description: w['description'] as String? ?? 'Personal space',
+              icon: _resolveWorkspaceIcon(iconCode),
+              isEncrypted: ((w['isEncrypted'] as num?)?.toInt() ?? 1) == 1,
+              isDeleted: ((w['isDeleted'] as num?)?.toInt() ?? 0) == 1,
+            ),
+          );
+          existingWsIds.add(id);
+        }
+      }
+    }
+
+    final chunksRaw = remoteData['chunks'] as List<dynamic>? ?? [];
+    final chunksByNodeId = <String, List<FileChunk>>{};
+    for (final item in chunksRaw) {
+      final chunk = FileChunk.fromJson(item as Map<String, dynamic>);
+      chunksByNodeId.putIfAbsent(chunk.nodeId, () => []).add(chunk);
+    }
+
+    final nodesRaw = remoteData['nodes'] as List<dynamic>? ?? [];
+    final remoteNodes = nodesRaw
+        .map((item) => FileNode.fromJson(item as Map<String, dynamic>))
+        .toList();
+
+    // Order parents before children so foreign key constraints are satisfied.
+    final byId = <String, FileNode>{for (final n in remoteNodes) n.id: n};
+    final orderedNodes = <FileNode>[];
+    final visited = <String>{};
+
+    void visit(FileNode node, Set<String> stack) {
+      if (visited.contains(node.id)) return;
+      if (!stack.add(node.id)) return;
+      final pid = node.parentId;
+      if (pid != null && byId.containsKey(pid) && !visited.contains(pid)) {
+        visit(byId[pid]!, stack);
+      }
+      stack.remove(node.id);
+      visited.add(node.id);
+      orderedNodes.add(node);
+    }
+
+    for (final node in remoteNodes) {
+      visit(node, <String>{});
+    }
+
+    for (final remoteNode in orderedNodes) {
+      final localNode = await _database.getNode(remoteNode.id);
+      final nodeChunks = chunksByNodeId[remoteNode.id] ?? const <FileChunk>[];
+      if (localNode == null) {
+        await _database.insertNode(remoteNode);
+        if (nodeChunks.isNotEmpty) {
+          await _database.insertChunks(nodeChunks);
+        }
+      } else if (remoteNode.modifiedAt.isAfter(localNode.modifiedAt)) {
+        await _database.updateNode(remoteNode);
+        if (nodeChunks.isNotEmpty) {
+          await _database.insertChunks(nodeChunks);
+        }
+      }
+    }
+  }
+
+  static IconData _resolveWorkspaceIcon(int code) {
+    if (code == Icons.business_center_outlined.codePoint) {
+      return Icons.business_center_outlined;
+    }
+    if (code == Icons.lock_outline_rounded.codePoint) {
+      return Icons.lock_outline_rounded;
+    }
+    return Icons.folder_outlined;
   }
 
   /// Downloads the pinned encrypted index from the vault channel and reconstructs the local database.
@@ -380,7 +522,10 @@ class IndexSyncService {
     // 5. Rebuild local SQLite index
     final jsonStr = utf8.decode(decryptedBytes);
     await _database.restoreFromSnapshotJson(jsonStr);
+    final restoredRevision =
+        (pendingKeyBundleEnvelope?['revision'] as num?)?.toInt() ?? 1;
     await _database.setSyncMeta('last_remote_message_id', pinned.messageId);
+    await _database.setSyncMeta('remote_revision', restoredRevision.toString());
 
     return true;
   }

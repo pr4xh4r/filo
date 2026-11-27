@@ -1,6 +1,11 @@
-import 'dart:typed_data';
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import '../../../../core/cache/session_cache_service.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/database/filo_database.dart';
@@ -40,19 +45,48 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
   final FiloDatabase _database;
   final LocalAuthentication _localAuth;
   final IndexSyncService? _syncService;
+  final bool? _useNativeAndroidBiometricsOverride;
+  StreamSubscription<StorageAuthState>? _storageAuthSubscription;
 
   AuthNotifier({
     required AuthRepository repository,
     required FiloDatabase database,
     LocalAuthentication? localAuth,
     IndexSyncService? syncService,
+    @visibleForTesting bool? useNativeAndroidBiometricsOverride,
   })  : _repository = repository,
         _database = database,
         _localAuth = localAuth ?? LocalAuthentication(),
         _syncService = syncService,
+        _useNativeAndroidBiometricsOverride = useNativeAndroidBiometricsOverride,
         super(const FiloAuthState(isLoading: true)) {
+    _storageAuthSubscription = _repository.storageBackend.authStateStream?.listen((s) {
+      if (s.isAuthenticated) {
+        state = state.copyWith(
+          isTelegramAuthenticated: true,
+          telegramUserId: s.userId ?? state.telegramUserId,
+          telegramUserName: s.userName ?? state.telegramUserName,
+          telegramDisplayName: s.displayName ?? state.telegramDisplayName,
+          telegramProfilePhotoPath: s.profilePhotoPath ?? state.telegramProfilePhotoPath,
+        );
+      }
+    });
     initialize();
   }
+
+  @override
+  void dispose() {
+    _storageAuthSubscription?.cancel();
+    super.dispose();
+  }
+
+  bool get _isFlutterTest =>
+      const bool.fromEnvironment('FLUTTER_TEST') ||
+      (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST'));
+
+  bool get _useNativeAndroidBiometrics =>
+      _useNativeAndroidBiometricsOverride ??
+      (!kIsWeb && Platform.isAndroid && !_isFlutterTest);
 
   IndexSyncService get _effectiveSyncService =>
       _syncService ??
@@ -99,6 +133,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         isTelegramAuthenticated: authState.isAuthenticated,
         telegramUserId: authState.userId,
         telegramUserName: authState.userName,
+        telegramDisplayName: authState.displayName,
+        telegramProfilePhotoPath: authState.profilePhotoPath,
         activeCloudProvider: activeProvider ?? 'telegram',
         vaultStatus: vaultStatus,
         lockStatus: hasVault ? AppLockStatus.locked : AppLockStatus.unlocked,
@@ -156,6 +192,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
           isTelegramAuthenticated: true,
           telegramUserId: res.userId,
           telegramUserName: res.userName,
+          telegramDisplayName: res.displayName,
+          telegramProfilePhotoPath: res.profilePhotoPath,
           vaultStatus: hasVault ? VaultSetupStatus.passphraseNeeded : VaultSetupStatus.unconfigured,
           isLoading: false,
         );
@@ -196,6 +234,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
           isTelegramAuthenticated: true,
           telegramUserId: res.userId,
           telegramUserName: res.userName,
+          telegramDisplayName: res.displayName,
+          telegramProfilePhotoPath: res.profilePhotoPath,
           vaultStatus: hasVault ? VaultSetupStatus.passphraseNeeded : VaultSetupStatus.unconfigured,
           isLoading: false,
         );
@@ -217,9 +257,7 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     try {
       await _repository.storageBackend.signOut();
       state = state.copyWith(
-        isTelegramAuthenticated: false,
-        telegramUserId: null,
-        telegramUserName: null,
+        clearTelegramAuth: true,
         isLoading: false,
       );
     } catch (e) {
@@ -229,16 +267,33 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
 
   Future<String> setupNewVault(String passphrase) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
+    Uint8List? masterKey;
     try {
       final recoveryKey = await _repository.setupNewVault(passphrase: passphrase);
-      final masterKey = await _repository.unlockWithPassphrase(passphrase);
+      masterKey = await _repository.unlockWithPassphrase(passphrase);
+
+      _database.setEncryptionKey(Uint8List.fromList(masterKey));
 
       // Create storage channels in Telegram ('filo enc' and 'filo view')
       await _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle);
       await _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle);
 
+      bool? updatedBioEnabled;
       if (state.isBiometricEnabled) {
-        await _repository.storeBiometricMasterKey(masterKey);
+        if (_useNativeAndroidBiometrics) {
+          try {
+            final enrolled = await _repository.enrollHardwareBiometricKey(masterKey);
+            if (!enrolled) {
+              await _repository.setBiometricEnabled(false);
+              updatedBioEnabled = false;
+            }
+          } catch (_) {
+            await _repository.setBiometricEnabled(false);
+            updatedBioEnabled = false;
+          }
+        } else {
+          await _repository.storeBiometricMasterKey(masterKey);
+        }
       }
 
       // Check for existing backup BEFORE publishing initial empty snapshot
@@ -254,10 +309,12 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
         } catch (_) {}
       }
 
+      final stateKey = Uint8List.fromList(masterKey);
       state = state.copyWith(
         vaultStatus: VaultSetupStatus.ready,
         lockStatus: AppLockStatus.unlocked,
-        masterKey: masterKey,
+        masterKey: stateKey,
+        isBiometricEnabled: updatedBioEnabled,
         isLoading: false,
       );
 
@@ -265,6 +322,8 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
       rethrow;
+    } finally {
+      masterKey?.fillRange(0, masterKey.length, 0);
     }
   }
 
@@ -292,82 +351,105 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     }
   }
 
+  /// Shared unlock transition: configures DB encryption before auto-restore,
+  /// checks legacy biometric entries on Android, and stores an isolated copy of
+  /// [masterKey] in state.
+  Future<void> _completeUnlockWithMasterKey(
+    Uint8List masterKey, {
+    bool checkBiometricBinding = false,
+  }) async {
+    _database.setEncryptionKey(Uint8List.fromList(masterKey));
+
+    bool? updatedBioEnabled;
+    if (checkBiometricBinding && state.isBiometricEnabled) {
+      if (_useNativeAndroidBiometrics) {
+        final clearedLegacy = await _repository.clearLegacyBiometricKeyIfUnbound();
+        if (clearedLegacy) {
+          updatedBioEnabled = false;
+        }
+      } else if (!await _repository.hasBiometricMasterKey()) {
+        await _repository.storeBiometricMasterKey(masterKey);
+      }
+    }
+
+    await _maybeAutoRestore(masterKey);
+    _repository.storageBackend
+        .getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle)
+        .catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
+    _repository.storageBackend
+        .getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle)
+        .catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
+
+    final stateKey = Uint8List.fromList(masterKey);
+    state = state.copyWith(
+      vaultStatus: VaultSetupStatus.ready,
+      lockStatus: AppLockStatus.unlocked,
+      masterKey: stateKey,
+      isBiometricEnabled: updatedBioEnabled,
+      isLoading: false,
+      errorMessage: null,
+    );
+  }
+
   Future<void> resetPassphraseWithRecoveryKey({
     required String recoveryKey,
     required String newPassphrase,
   }) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
+    Uint8List? masterKey;
     try {
       await _repository.resetPassphraseWithRecoveryKey(
         recoveryKey: recoveryKey,
         newPassphrase: newPassphrase,
       );
-      final masterKey = await _repository.unlockWithPassphrase(newPassphrase);
-      state = state.copyWith(
-        vaultStatus: VaultSetupStatus.ready,
-        lockStatus: AppLockStatus.unlocked,
-        masterKey: masterKey,
-        isLoading: false,
-      );
+      masterKey = await _repository.unlockWithPassphrase(newPassphrase);
+      await _completeUnlockWithMasterKey(masterKey, checkBiometricBinding: true);
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
       rethrow;
+    } finally {
+      masterKey?.fillRange(0, masterKey.length, 0);
     }
   }
 
   Future<void> unlockWithPassphrase(String passphrase) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
+    Uint8List? masterKey;
     try {
-      final masterKey = await _repository.unlockWithPassphrase(passphrase);
-      if (state.isBiometricEnabled) {
-        await _repository.storeBiometricMasterKey(masterKey);
-      }
-      await _maybeAutoRestore(masterKey);
-      _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
-      _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
-      state = state.copyWith(
-        vaultStatus: VaultSetupStatus.ready,
-        lockStatus: AppLockStatus.unlocked,
-        masterKey: masterKey,
-        isLoading: false,
-      );
+      masterKey = await _repository.unlockWithPassphrase(passphrase);
+      await _completeUnlockWithMasterKey(masterKey, checkBiometricBinding: true);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Invalid passphrase. Please verify and try again.',
       );
       rethrow;
+    } finally {
+      masterKey?.fillRange(0, masterKey.length, 0);
     }
   }
 
   /// BUG 5 FIX: Emergency recovery path for when passphrase is lost
   Future<void> unlockWithRecoveryKey(String recoveryKey) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
+    Uint8List? masterKey;
     try {
-      final masterKey = await _repository.unlockWithRecoveryKey(recoveryKey);
-      if (state.isBiometricEnabled) {
-        await _repository.storeBiometricMasterKey(masterKey);
-      }
-      await _maybeAutoRestore(masterKey);
-      _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
-      _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
-      state = state.copyWith(
-        vaultStatus: VaultSetupStatus.ready,
-        lockStatus: AppLockStatus.unlocked,
-        masterKey: masterKey,
-        isLoading: false,
-      );
+      masterKey = await _repository.unlockWithRecoveryKey(recoveryKey);
+      await _completeUnlockWithMasterKey(masterKey, checkBiometricBinding: true);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Invalid recovery key. Please check formatting and try again.',
       );
       rethrow;
+    } finally {
+      masterKey?.fillRange(0, masterKey.length, 0);
     }
   }
 
   Future<bool> unlockWithBiometrics() async {
     if (!state.isBiometricEnabled) return false;
+    Uint8List? masterKey;
     try {
       final hasKey = await _repository.hasBiometricMasterKey();
       if (!hasKey) {
@@ -375,6 +457,31 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
           errorMessage: 'Biometric key not enrolled. Please unlock with passphrase.',
         );
         return false;
+      }
+
+      if (_useNativeAndroidBiometrics) {
+        try {
+          masterKey = await _repository.unlockWithHardwareBiometricKey(
+            reason: 'Scan fingerprint to unlock Filo vault',
+          );
+        } on StateError catch (e) {
+          if (e.message == 'BIOMETRIC_REENROLL_REQUIRED') {
+            await _repository.setBiometricEnabled(false);
+            state = state.copyWith(
+              isBiometricEnabled: false,
+              errorMessage:
+                  'Biometric credential upgraded or invalidated. Please unlock with passphrase and re-enable biometric unlock.',
+            );
+            return false;
+          }
+          rethrow;
+        }
+        if (masterKey == null) {
+          return false;
+        }
+        state = state.copyWith(isLoading: true, errorMessage: null);
+        await _completeUnlockWithMasterKey(masterKey);
+        return true;
       }
 
       final authenticated = await _localAuth.authenticate(
@@ -387,19 +494,10 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       );
 
       if (authenticated) {
-        final masterKey = await _repository.getBiometricMasterKey();
+        masterKey = await _repository.getBiometricMasterKey();
         if (masterKey != null) {
           state = state.copyWith(isLoading: true, errorMessage: null);
-          await _maybeAutoRestore(masterKey);
-          _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultEncryptedChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
-          _repository.storageBackend.getOrCreateVaultChannel(AppConfig.vaultNativeChannelTitle).catchError((_) => const VaultChannelInfo(channelId: '', title: ''));
-          state = state.copyWith(
-            vaultStatus: VaultSetupStatus.ready,
-            lockStatus: AppLockStatus.unlocked,
-            masterKey: masterKey,
-            isLoading: false,
-            errorMessage: null,
-          );
+          await _completeUnlockWithMasterKey(masterKey);
           return true;
         } else {
           state = state.copyWith(
@@ -410,8 +508,13 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       }
       return false;
     } catch (e) {
-      state = state.copyWith(errorMessage: 'Biometric authentication error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Biometric authentication error: $e',
+      );
       return false;
+    } finally {
+      masterKey?.fillRange(0, masterKey.length, 0);
     }
   }
 
@@ -424,8 +527,16 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
       if (count == 0) {
         return await _effectiveSyncService.checkAndAutoRestore(masterKey: masterKey);
       }
-      // Non-blocking remote check & dirty push for existing local databases
-      Future<void>.microtask(() => _effectiveSyncService.checkRemoteUpdates(masterKey: masterKey));
+      // Non-blocking remote check & dirty push for existing local databases.
+      // Copy key for async microtask and zero it upon completion.
+      final microtaskKey = Uint8List.fromList(masterKey);
+      Future<void>.microtask(() async {
+        try {
+          await _effectiveSyncService.checkRemoteUpdates(masterKey: microtaskKey);
+        } finally {
+          microtaskKey.fillRange(0, microtaskKey.length, 0);
+        }
+      });
       return false;
     } catch (_) {
       // Non-fatal if offline or no remote index exists yet
@@ -464,11 +575,16 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
   void lockVault() {
     // Zero out master key in memory for security
     _syncService?.clearSessionKey();
+    _database.clearEncryptionKey();
+    final currentKey = state.masterKey;
+    if (currentKey != null) {
+      currentKey.fillRange(0, currentKey.length, 0);
+    }
     // Zero-knowledge security rule: purge all decrypted session files immediately
     SessionCacheService.instance.purge();
     state = state.copyWith(
       lockStatus: AppLockStatus.locked,
-      masterKey: null,
+      clearMasterKey: true,
     );
   }
 
@@ -476,9 +592,39 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     state = state.copyWith(errorMessage: null);
     if (enabled) {
       try {
+        if (_useNativeAndroidBiometrics) {
+          final currentKey = state.masterKey;
+          if (currentKey == null) {
+            state = state.copyWith(
+              errorMessage: 'Please unlock the vault before enabling biometric unlock.',
+            );
+            return false;
+          }
+
+          final hwAvailable = await _repository.canUseHardwareBiometric();
+          if (!hwAvailable) {
+            state = state.copyWith(
+              errorMessage: 'Biometric authentication is not supported or enrolled on this device.',
+            );
+            return false;
+          }
+
+          final enrolled = await _repository.enrollHardwareBiometricKey(
+            currentKey,
+            reason: 'Authenticate to enable biometric unlock for Filo',
+          );
+          if (!enrolled) {
+            return false;
+          }
+
+          await _repository.setBiometricEnabled(true);
+          state = state.copyWith(isBiometricEnabled: true);
+          return true;
+        }
+
         final canCheck = await _localAuth.canCheckBiometrics;
         final isSupported = await _localAuth.isDeviceSupported();
-      // BUG 20 FIX: Use || (not &&) — block if EITHER check fails
+        // BUG 20 FIX: Use || (not &&) — block if EITHER check fails
         if (!canCheck || !isSupported) {
           state = state.copyWith(
             errorMessage: 'Biometric authentication is not supported or enrolled on this device.',
@@ -526,7 +672,26 @@ class AuthNotifier extends StateNotifier<FiloAuthState> {
     state = state.copyWith(isLoading: true);
     try {
       _syncService?.clearSessionKey();
+      _database.clearEncryptionKey();
+      if (!identical(database, _database)) {
+        database.clearEncryptionKey();
+      }
+      final currentKey = state.masterKey;
+      if (currentKey != null) {
+        currentKey.fillRange(0, currentKey.length, 0);
+      }
       await SessionCacheService.instance.purge();
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        for (final dirName in const ['offline_vault', 'filo_tdlib', 'filo_tdlib_files', 'filo_exports']) {
+          final dir = Directory(p.join(appDir.path, dirName));
+          if (await dir.exists()) {
+            await SessionCacheService.secureDeleteDirectory(dir);
+          }
+        }
+      } on MissingPluginException {
+        // Non-fatal in unit tests where path_provider isn't mocked
+      } catch (_) {}
       await _repository.wipeLocalSecurity();
       await database.wipeAllLocalData();
       state = const FiloAuthState(

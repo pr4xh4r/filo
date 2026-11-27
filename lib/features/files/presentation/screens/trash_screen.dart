@@ -546,23 +546,10 @@ class _TrashScreenState extends ConsumerState<TrashScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Colors.black.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            ws.isEncrypted ? 'Encrypted' : 'Viewable',
-                            style: TextStyle(
-                              fontFamily: FiloTypography.fontFamily,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white70 : Colors.black87,
-                            ),
-                          ),
+                        Icon(
+                          ws.isEncrypted ? Icons.lock_outline_rounded : Icons.visibility_outlined,
+                          size: 14,
+                          color: isDark ? Colors.white60 : FiloColors.lightTextSecondary,
                         ),
                       ],
                     ),

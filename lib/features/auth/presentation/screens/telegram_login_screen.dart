@@ -386,7 +386,12 @@ class _TelegramLoginScreenState extends ConsumerState<TelegramLoginScreen> {
                         ),
                       ),
                       Text(
-                        'Account: @${ref.watch(authNotifierProvider).telegramUserName ?? "telegram_user"}',
+                        ref.watch(authNotifierProvider).telegramUserName != null &&
+                                ref.watch(authNotifierProvider).telegramUserName!.isNotEmpty
+                            ? 'Account: @${ref.watch(authNotifierProvider).telegramUserName}'
+                            : (ref.watch(authNotifierProvider).telegramDisplayName != null
+                                ? 'Account: ${ref.watch(authNotifierProvider).telegramDisplayName}'
+                                : 'Account: Telegram User'),
                         style: TextStyle(
                           fontSize: 12,
                           color: isDark ? FiloColors.darkTextSecondary : FiloColors.lightTextSecondary,

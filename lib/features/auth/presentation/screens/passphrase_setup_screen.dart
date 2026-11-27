@@ -28,6 +28,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
   final _confirmController = TextEditingController();
 
   bool _obscurePassphrase = true;
+  bool _obscureConfirmPassphrase = true;
   bool _confirmedLossRisk = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -458,6 +459,7 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                   child: TextField(
                     controller: _passphraseController,
                     obscureText: _obscurePassphrase,
+                    textAlignVertical: TextAlignVertical.center,
                     onChanged: (_) {
                       setState(() {
                         if (_errorMessage != null) _errorMessage = null;
@@ -481,7 +483,10 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                           _obscurePassphrase ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                           color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                         ),
-                        onPressed: () => setState(() => _obscurePassphrase = !_obscurePassphrase),
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _obscurePassphrase = !_obscurePassphrase);
+                        },
                       ),
                     ),
                   ),
@@ -522,7 +527,8 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: TextField(
                     controller: _confirmController,
-                    obscureText: _obscurePassphrase,
+                    obscureText: _obscureConfirmPassphrase,
+                    textAlignVertical: TextAlignVertical.center,
                     style: FiloTypography.title3.copyWith(
                       color: isDark ? FiloColors.darkTextPrimary : FiloColors.lightTextPrimary,
                     ),
@@ -539,6 +545,18 @@ class _PassphraseSetupScreenState extends ConsumerState<PassphraseSetupScreen> {
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassphrase
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                        ),
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _obscureConfirmPassphrase = !_obscureConfirmPassphrase);
+                        },
+                      ),
                     ),
                   ),
                 ),

@@ -217,63 +217,14 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                                        decoration: BoxDecoration(
-                                          color: isDark
-                                              ? Colors.white.withValues(alpha: 0.08)
-                                              : Colors.black.withValues(alpha: 0.05),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(
-                                            color: isDark
-                                                ? Colors.white.withValues(alpha: 0.1)
-                                                : Colors.black.withValues(alpha: 0.06),
-                                            width: 0.8,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              workspace.isEncrypted ? Icons.lock_outline_rounded : Icons.visibility_outlined,
-                                              size: 10.5,
-                                              color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
-                                            ),
-                                            const SizedBox(width: 3.5),
-                                            Text(
-                                              workspace.isEncrypted ? 'Encrypted' : 'Viewable',
-                                              style: TextStyle(
-                                                fontFamily: FiloTypography.fontFamily,
-                                                fontSize: 9.5,
-                                                fontWeight: FontWeight.w700,
-                                                letterSpacing: -0.1,
-                                                color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                      const SizedBox(width: 6),
+                                      Icon(
+                                        workspace.isEncrypted
+                                            ? Icons.lock_outline_rounded
+                                            : Icons.visibility_outlined,
+                                        size: 14,
+                                        color: isDark ? Colors.white60 : FiloColors.lightTextSecondary,
                                       ),
-                                      if (isSelected) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: isDark ? Colors.white12 : FiloColors.primary.withValues(alpha: 0.08),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            'ACTIVE',
-                                            style: TextStyle(
-                                              fontFamily: FiloTypography.fontFamily,
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 0.4,
-                                              color: isDark ? Colors.white : FiloColors.primary,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
                                     ],
                                   ),
                                   const SizedBox(height: 3),

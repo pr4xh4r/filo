@@ -9,6 +9,15 @@ import '../../../core/crypto/hash_utils.dart';
 import '../../../core/database/chunk_model.dart';
 import '../../storage/domain/storage_backend.dart';
 
+/// Exception thrown when an active transfer or export is explicitly cancelled.
+class TransferCancelledException implements Exception {
+  final String message;
+  const TransferCancelledException([this.message = 'Transfer cancelled by user']);
+
+  @override
+  String toString() => message;
+}
+
 /// Progress callback for overall file transfer.
 typedef TransferProgressCallback = void Function(
   int bytesTransferred,
@@ -57,20 +66,28 @@ class ChunkingEngine {
   /// Ensures uploads and downloads survive brief network interruptions or backgrounding.
   Future<T> _retryWithBackoff<T>(
     Future<T> Function() action, {
-    int maxRetries = 4,
+    int maxRetries = 5,
     String debugLabel = 'chunk-transfer',
+    bool Function()? isCancelled,
   }) async {
     int attempt = 0;
     while (true) {
+      if (isCancelled?.call() == true) {
+        throw const TransferCancelledException();
+      }
       attempt++;
       try {
         return await action();
       } catch (e) {
+        if (e is TransferCancelledException || isCancelled?.call() == true) {
+          if (e is TransferCancelledException) rethrow;
+          throw const TransferCancelledException();
+        }
         if (attempt >= maxRetries) {
           rethrow;
         }
 
-        int delayMs = 800 * (1 << (attempt - 1)); // 800ms, 1600ms, 3200ms
+        int delayMs = (800 * (1 << (attempt - 1))).clamp(800, 30000);
         final errText = e.toString();
 
         // Respect Telegram Flood Wait if returned
@@ -78,11 +95,20 @@ class ChunkingEngine {
           final match = RegExp(r'FLOOD_WAIT_(\d+)').firstMatch(errText);
           if (match != null) {
             final seconds = int.tryParse(match.group(1)!) ?? 2;
-            delayMs = seconds * 1000;
+            delayMs = (seconds + 1) * 1000;
           }
         }
 
-        await Future<void>.delayed(Duration(milliseconds: delayMs));
+        // Sleep in small increments so cancellation wakes up promptly during backoff
+        int remainingMs = delayMs;
+        while (remainingMs > 0) {
+          if (isCancelled?.call() == true) {
+            throw const TransferCancelledException();
+          }
+          final slice = remainingMs > 250 ? 250 : remainingMs;
+          await Future<void>.delayed(Duration(milliseconds: slice));
+          remainingMs -= slice;
+        }
       }
     }
   }
@@ -245,6 +271,9 @@ class ChunkingEngine {
     required Uint8List masterKey,
     required String channelId,
     TransferProgressCallback? onProgress,
+    bool deleteRemoteCache = false,
+    bool Function()? isCancelled,
+    int maxRetries = 5,
   }) async {
     if (!destinationFile.parent.existsSync()) {
       destinationFile.parent.createSync(recursive: true);
@@ -255,71 +284,158 @@ class ChunkingEngine {
 
     final totalBytes = sortedChunks.fold<int>(0, (sum, c) => sum + c.sizeBytes);
 
-    // Fast path: Single unencrypted file (viewable space) downloads directly at maximum throughput
+    // Fast path: Single unencrypted file (viewable space) streams directly to disk
+    // without loading multi-GB files into RAM.
     if (sortedChunks.length == 1 && sortedChunks.first.ivHex == 'plain') {
       final c = sortedChunks.first;
-      final cipherBytes = await _retryWithBackoff(
-        () => _storageBackend.downloadChunk(
-          channelId: channelId,
-          remoteFileId: c.remoteFileId,
-          onProgress: (chunkBytes, chunkTotal) {
-            if (onProgress != null && totalBytes > 0) {
-              onProgress(chunkBytes, totalBytes, (chunkBytes / totalBytes).clamp(0.0, 1.0));
+      await _retryWithBackoff(
+        () async {
+          if (isCancelled?.call() == true) {
+            throw const TransferCancelledException();
+          }
+          await _storageBackend.downloadChunkToFile(
+            channelId: channelId,
+            remoteFileId: c.remoteFileId,
+            destinationFile: destinationFile,
+            deleteRemoteCache: deleteRemoteCache,
+            onProgress: (chunkBytes, chunkTotal) {
+              if (onProgress != null) {
+                final effectiveTotal = totalBytes > 0 ? totalBytes : chunkTotal;
+                final progress = effectiveTotal > 0
+                    ? (chunkBytes / effectiveTotal).clamp(0.0, 1.0)
+                    : 1.0;
+                onProgress(
+                  effectiveTotal > 0 ? chunkBytes.clamp(0, effectiveTotal) : chunkBytes,
+                  effectiveTotal,
+                  progress,
+                );
+              }
+            },
+          );
+          if (c.sha256Hash.isNotEmpty) {
+            final downloadedHash = await HashUtils.sha256Stream(destinationFile.openRead());
+            if (downloadedHash != c.sha256Hash) {
+              throw Exception(
+                'Chunk integrity verification failed for part ${c.chunkIndex}. '
+                'Expected ${c.sha256Hash}, got $downloadedHash',
+              );
             }
-          },
-        ),
+          }
+        },
+        maxRetries: maxRetries,
         debugLabel: 'download-viewable-direct',
+        isCancelled: isCancelled,
       );
-      await destinationFile.writeAsBytes(cipherBytes, flush: true);
       onProgress?.call(totalBytes, totalBytes, 1.0);
       return;
     }
 
     int bytesDownloaded = 0;
-
+    final tempChunkFile = File('${destinationFile.path}.chunk.tmp');
     final outputSink = destinationFile.openWrite();
+    var sinkClosed = false;
+    var succeeded = false;
 
     try {
       for (final chunk in sortedChunks) {
-        // 1. Download ciphertext chunk with resilient retry
-        final cipherBytes = await _retryWithBackoff(
-          () => _storageBackend.downloadChunk(
-            channelId: channelId,
-            remoteFileId: chunk.remoteFileId,
-          ),
-          debugLabel: 'download-chunk-${chunk.chunkIndex}',
-        );
-
-        // 2. Validate ciphertext integrity hash
-        final downloadedHash = HashUtils.sha256Hex(cipherBytes);
-        if (downloadedHash != chunk.sha256Hash) {
-          throw Exception(
-            'Chunk integrity verification failed for part ${chunk.chunkIndex}. '
-            'Expected ${chunk.sha256Hash}, got $downloadedHash',
-          );
+        if (isCancelled?.call() == true) {
+          throw const TransferCancelledException();
         }
 
-        // 3. Decrypt or write directly
+        // 1. Download chunk to disk with resilient retry and verify integrity
+        await _retryWithBackoff(
+          () async {
+            if (isCancelled?.call() == true) {
+              throw const TransferCancelledException();
+            }
+            await _storageBackend.downloadChunkToFile(
+              channelId: channelId,
+              remoteFileId: chunk.remoteFileId,
+              destinationFile: tempChunkFile,
+              deleteRemoteCache: deleteRemoteCache,
+              onProgress: (chunkBytes, chunkTotal) {
+                if (onProgress != null && totalBytes > 0) {
+                  final effectiveChunk = chunkTotal > 0
+                      ? (chunkBytes * chunk.sizeBytes ~/ chunkTotal)
+                      : chunkBytes;
+                  final overall = (bytesDownloaded + effectiveChunk).clamp(0, totalBytes);
+                  onProgress(
+                    overall,
+                    totalBytes,
+                    (overall / totalBytes).clamp(0.0, 1.0),
+                  );
+                }
+              },
+            );
+
+            final downloadedHash = await HashUtils.sha256Stream(tempChunkFile.openRead());
+            if (downloadedHash != chunk.sha256Hash) {
+              throw Exception(
+                'Chunk integrity verification failed for part ${chunk.chunkIndex}. '
+                'Expected ${chunk.sha256Hash}, got $downloadedHash',
+              );
+            }
+          },
+          maxRetries: maxRetries,
+          debugLabel: 'download-chunk-${chunk.chunkIndex}',
+          isCancelled: isCancelled,
+        );
+
+        if (isCancelled?.call() == true) {
+          throw const TransferCancelledException();
+        }
+
+        // 2. Decrypt or stream plaintext chunk to output file and flush immediately
+        // so IOSink does not buffer multiple chunks in RAM.
         if (chunk.ivHex == 'plain') {
-          outputSink.add(cipherBytes);
+          await outputSink.addStream(tempChunkFile.openRead());
         } else {
+          final cipherBytes = await tempChunkFile.readAsBytes();
           final plaintext = await _decryptBytesInIsolate(cipherBytes, masterKey);
           outputSink.add(plaintext);
         }
+        await outputSink.flush();
+
+        if (tempChunkFile.existsSync()) {
+          try {
+            tempChunkFile.deleteSync();
+          } catch (_) {}
+        }
 
         bytesDownloaded += chunk.sizeBytes;
-
         if (onProgress != null) {
-          onProgress(
-            bytesDownloaded,
-            totalBytes,
-            (bytesDownloaded / totalBytes).clamp(0.0, 1.0),
-          );
+          final progress = totalBytes > 0
+              ? (bytesDownloaded / totalBytes).clamp(0.0, 1.0)
+              : 1.0;
+          onProgress(bytesDownloaded, totalBytes, progress);
         }
       }
-    } finally {
-      await outputSink.flush();
+
       await outputSink.close();
+      sinkClosed = true;
+      succeeded = true;
+    } finally {
+      if (!sinkClosed) {
+        try {
+          await outputSink.close();
+        } catch (_) {
+          // Ignore sink close failure during cleanup
+        }
+      }
+      if (tempChunkFile.existsSync()) {
+        try {
+          tempChunkFile.deleteSync();
+        } catch (_) {
+          // Best-effort temp chunk cleanup
+        }
+      }
+      if (!succeeded && destinationFile.existsSync()) {
+        try {
+          destinationFile.deleteSync();
+        } catch (_) {
+          // Best-effort partial destination cleanup
+        }
+      }
     }
   }
 

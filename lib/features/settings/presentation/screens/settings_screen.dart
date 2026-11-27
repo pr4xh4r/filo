@@ -1,32 +1,32 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui';
-import 'package:archive/archive.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../../../core/config/app_config.dart';
-import '../../../../core/crypto/crypto_engine.dart';
 import '../../../../core/crypto/hash_utils.dart';
-import '../../../../core/database/chunk_model.dart';
-import '../../../../core/database/filo_database.dart';
+import '../../../../core/database/filo_database.dart' show StorageUsageStats;
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_spacing.dart';
 import '../../../../core/theme/filo_typography.dart';
 import '../../../../shared/components/filo_background.dart';
 import '../../../../shared/components/filo_glass.dart';
+import '../../../../shared/components/filo_progress_ring.dart';
 import '../../../../shared/components/filo_qr_card.dart';
 import '../../../../shared/components/filo_qr_scanner_screen.dart';
 import '../../../../shared/components/filo_sheet.dart';
 import '../../../../shared/components/filo_toast.dart';
 import '../../../../shared/components/handwriting_text.dart';
+import '../../../auth/domain/auth_state.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../files/presentation/providers/file_browser_provider.dart';
 import '../../../broadcast/domain/broadcast_service.dart';
 import '../../../sync/domain/index_sync_service.dart';
+import '../../../transfer/domain/vault_export_service.dart';
+import '../../../transfer/presentation/providers/export_provider.dart';
+import '../widgets/export_everything_sheet.dart';
 
 /// Application Settings & Account Details (Pure Light Theme).
 ///
@@ -67,170 +67,200 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _showChangePassphraseDialog() {
     final oldController = TextEditingController();
     final newController = TextEditingController();
+    bool obscureOld = true;
+    bool obscureNew = true;
 
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: isDark ? Colors.white12 : Colors.black12,
-                ),
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.85,
-                  maxWidth: 480,
-                ),
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text(
-                    'Change Passphrase',
-                    style: FiloTypography.title3.copyWith(
-                      color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                child: Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isDark ? Colors.white12 : Colors.black12,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Your encryption key will be safely updated without re-uploading files.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+                      maxWidth: 480,
                     ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Current Passphrase Input (Circular stadium pill)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
-                      ),
-                    ),
-                    child: TextField(
-                      controller: oldController,
-                      obscureText: true,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      decoration: InputDecoration(
-                        hintText: 'Current Passphrase',
-                        hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // New Passphrase Input (Circular stadium pill)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
-                      ),
-                    ),
-                    child: TextField(
-                      controller: newController,
-                      obscureText: true,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      decoration: InputDecoration(
-                        hintText: 'New Passphrase (min 8 chars)',
-                        hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(
+                        'Change Passphrase',
+                        style: FiloTypography.title3.copyWith(
+                          color: isDark ? Colors.white : FiloColors.lightTextPrimary,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: FiloColors.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Your encryption key will be safely updated without re-uploading files.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
                         ),
-                        onPressed: () async {
-                          final oldPwd = oldController.text;
-                          final newPwd = newController.text;
-                          if (newPwd.length < 8) {
-                            FiloToast.show(
-                              context,
-                              message: 'New passphrase must be at least 8 characters',
-                              type: FiloToastType.error,
-                            );
-                            return;
-                          }
+                      ),
+                      const SizedBox(height: 18),
 
-                          try {
-                            final repo = ref.read(authRepositoryProvider);
-                            await repo.changePassphrase(currentPassphrase: oldPwd, newPassphrase: newPwd);
-                            final masterKey = ref.read(authNotifierProvider).masterKey;
-                            if (masterKey != null) {
-                              ref.read(indexSyncServiceProvider).triggerAutoSync(
-                                    masterKey: masterKey,
-                                    delay: const Duration(milliseconds: 200),
+                      // Current Passphrase Input (Circular stadium pill)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: oldController,
+                          obscureText: obscureOld,
+                          textAlignVertical: TextAlignVertical.center,
+                          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                          decoration: InputDecoration(
+                            hintText: 'Current Passphrase',
+                            hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureOld ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                size: 20,
+                                color: isDark ? Colors.white54 : Colors.black45,
+                              ),
+                              onPressed: () {
+                                HapticFeedback.selectionClick();
+                                setDialogState(() => obscureOld = !obscureOld);
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // New Passphrase Input (Circular stadium pill)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: TextField(
+                          controller: newController,
+                          obscureText: obscureNew,
+                          textAlignVertical: TextAlignVertical.center,
+                          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                          decoration: InputDecoration(
+                            hintText: 'New Passphrase (min 8 chars)',
+                            hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureNew ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                size: 20,
+                                color: isDark ? Colors.white54 : Colors.black45,
+                              ),
+                              onPressed: () {
+                                HapticFeedback.selectionClick();
+                                setDialogState(() => obscureNew = !obscureNew);
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: FiloColors.primary,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
+                            ),
+                            onPressed: () async {
+                              final oldPwd = oldController.text;
+                              final newPwd = newController.text;
+                              if (newPwd.length < 8) {
+                                FiloToast.show(
+                                  context,
+                                  message: 'New passphrase must be at least 8 characters',
+                                  type: FiloToastType.error,
+                                );
+                                return;
+                              }
+
+                              try {
+                                final repo = ref.read(authRepositoryProvider);
+                                await repo.changePassphrase(currentPassphrase: oldPwd, newPassphrase: newPwd);
+                                final masterKey = ref.read(authNotifierProvider).masterKey;
+                                if (masterKey != null) {
+                                  ref.read(indexSyncServiceProvider).triggerAutoSync(
+                                        masterKey: masterKey,
+                                        delay: const Duration(milliseconds: 200),
+                                      );
+                                }
+                                if (ctx.mounted) {
+                                  Navigator.of(ctx).pop();
+                                  FiloToast.show(
+                                    context,
+                                    message: 'Passphrase successfully updated',
+                                    type: FiloToastType.success,
                                   );
-                            }
-                            if (ctx.mounted) {
-                              Navigator.of(ctx).pop();
-                              FiloToast.show(
-                                context,
-                                message: 'Passphrase successfully updated',
-                                type: FiloToastType.success,
-                              );
-                            }
-                          } catch (e) {
-                            if (ctx.mounted) {
-                              FiloToast.show(
-                                context,
-                                message: 'Failed to verify current passphrase',
-                                type: FiloToastType.error,
-                              );
-                            }
-                          }
-                        },
-                        child: const Text('Update', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                }
+                              } catch (e) {
+                                if (ctx.mounted) {
+                                  FiloToast.show(
+                                    context,
+                                    message: 'Failed to verify current passphrase',
+                                    type: FiloToastType.error,
+                                  );
+                                }
+                              }
+                            },
+                            child: const Text('Update', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   },
 );
@@ -429,8 +459,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _handleExportEverything() async {
     final authState = ref.read(authNotifierProvider);
-    final masterKey = authState.masterKey;
-    if (masterKey == null) {
+    if (authState.masterKey == null) {
       FiloToast.show(
         context,
         message: 'Vault is locked. Unlock before exporting.',
@@ -439,100 +468,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
 
-    FiloToast.show(
-      context,
-      message: 'Decrypting files & generating ZIP archive...',
-      type: FiloToastType.info,
-    );
-    try {
-      final tempDir = await getTemporaryDirectory();
-      final archive = Archive();
-
-      final repo = ref.read(fileRepositoryProvider);
-      final storage = ref.read(storageBackendProvider);
-      final channel = await storage.getOrCreateVaultChannel(AppConfig.vaultChannelTitle);
-      final nodes = await repo.getNodes();
-      final fileNodes = nodes.where((n) => n.isFile).toList();
-
-      if (fileNodes.isEmpty) {
-        if (mounted) {
-          FiloToast.show(
-            context,
-            message: 'No files to export in vault',
-            type: FiloToastType.warning,
-          );
-        }
-        return;
-      }
-
-      int exportedCount = 0;
-      for (final n in fileNodes) {
-        try {
-          final chunks = await repo.getChunksForNode(n.id);
-          Uint8List fileBytes;
-          if (chunks.isNotEmpty) {
-            final sortedChunks = List<FileChunk>.from(chunks)
-              ..sort((a, b) => a.chunkIndex.compareTo(b.chunkIndex));
-            final bytesBuilder = BytesBuilder();
-            for (final c in sortedChunks) {
-              final cipherBytes = await storage.downloadChunk(
-                channelId: channel.channelId,
-                remoteFileId: c.remoteFileId,
-              );
-              final decrypted = await CryptoEngine.decryptBytes(
-                combinedBytes: cipherBytes,
-                key: masterKey,
-              );
-              bytesBuilder.add(decrypted);
-            }
-            fileBytes = bytesBuilder.toBytes();
-          } else {
-            fileBytes = Uint8List(0);
-          }
-
-          String zipEntryName = n.name;
-          if (n.parentId != null) {
-            final crumbs = await repo.getBreadcrumbs(n.id);
-            if (crumbs.length > 1) {
-              final folderPath = crumbs.take(crumbs.length - 1).map((c) => c.name).join('/');
-              zipEntryName = '$folderPath/${n.name}';
-            }
-          }
-
-          archive.addFile(ArchiveFile(zipEntryName, fileBytes.length, fileBytes));
-          exportedCount++;
-        } catch (e) {
-          debugPrint('Error decrypting file ${n.name}: $e');
-        }
-      }
-
-      final zipData = ZipEncoder().encode(archive);
-      if (zipData != null && zipData.isNotEmpty) {
-        final zipFile = File(
-          '${tempDir.path}/filo_backup_export_${DateTime.now().millisecondsSinceEpoch}.zip',
-        );
-        await zipFile.writeAsBytes(zipData, flush: true);
-
-        await Share.shareXFiles(
-          [XFile(zipFile.path, mimeType: 'application/zip', name: 'filo_backup_export.zip')],
-          text: '${AppConfig.appName} Complete Archive Backup ($exportedCount files)',
-        );
-
-        if (mounted) {
-          FiloToast.show(
-            context,
-            message: 'Exported $exportedCount files to ZIP',
-            type: FiloToastType.success,
-          );
-        }
-      } else {
-        throw Exception('ZIP compression failed');
-      }
-    } catch (e) {
-      if (mounted) {
-        FiloToast.show(context, message: 'Export failed: $e', type: FiloToastType.error);
-      }
-    }
+    await ExportEverythingSheet.show(context);
   }
 
   Future<void> _handleDeleteAllData() async {
@@ -1013,6 +949,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
+    final exportState = ref.watch(vaultExportProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -1104,26 +1041,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: const BoxDecoration(
-                    color: FiloColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      (authState.telegramUserName != null && authState.telegramUserName!.isNotEmpty)
-                          ? authState.telegramUserName!.replaceFirst('@', '')[0].toUpperCase()
-                          : 'T',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
+                _buildTelegramAvatar(authState, isDark),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -1133,11 +1051,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              (authState.telegramUserName != null && authState.telegramUserName!.isNotEmpty)
-                                  ? (authState.telegramUserName!.startsWith('@')
-                                      ? authState.telegramUserName!
-                                      : '@${authState.telegramUserName!}')
-                                  : 'Telegram Account',
+                              _getTelegramPrimaryName(authState),
                               style: FiloTypography.bodyMedium.copyWith(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15,
@@ -1147,6 +1061,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
@@ -1178,6 +1093,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                         ],
                       ),
+                      if (authState.telegramDisplayName != null &&
+                          authState.telegramDisplayName!.isNotEmpty &&
+                          authState.telegramUserName != null &&
+                          authState.telegramUserName!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '@${authState.telegramUserName!}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2AABEE),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                       const SizedBox(height: 3),
                       Text(
                         authState.telegramUserId != null
@@ -1320,8 +1251,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _buildSettingsTile(
             icon: Icons.download_rounded,
             title: 'Export Everything',
-            subtitle: 'Download decrypted ZIP archive of all files',
-            trailing: const Icon(Icons.chevron_right_rounded),
+            subtitle: _exportTileSubtitle(exportState),
+            trailing: exportState.isActive
+                ? FiloProgressRing(
+                    value: exportState.progress > 0 ? exportState.progress : null,
+                    size: 20,
+                    strokeWidth: 2.2,
+                  )
+                : const Icon(Icons.chevron_right_rounded),
             onTap: _handleExportEverything,
           ),
 
@@ -1387,6 +1324,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 );
   }
 
+  String _exportTileSubtitle(VaultExportState exportState) {
+    if (exportState.isActive) {
+      final pct = (exportState.progress * 100).clamp(0, 100).toInt();
+      return 'Exporting ${exportState.completedFiles}/${exportState.totalFiles} files • $pct%';
+    }
+    if (exportState.status == VaultExportStatus.paused ||
+        exportState.status == VaultExportStatus.partialNeedsAction) {
+      return 'Resumable export: ${exportState.completedFiles}/${exportState.totalFiles} files ready';
+    }
+    return 'Stream decrypted Zip64 archive of all files';
+  }
+
   Widget _buildSettingsTile({
     required IconData icon,
     required String title,
@@ -1439,6 +1388,95 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           trailing: trailing,
+        ),
+      ),
+    );
+  }
+
+  String _getTelegramPrimaryName(FiloAuthState authState) {
+    if (authState.telegramDisplayName != null && authState.telegramDisplayName!.isNotEmpty) {
+      return authState.telegramDisplayName!;
+    }
+    if (authState.telegramUserName != null && authState.telegramUserName!.isNotEmpty) {
+      return authState.telegramUserName!.startsWith('@')
+          ? authState.telegramUserName!
+          : '@${authState.telegramUserName!}';
+    }
+    return 'Telegram Account';
+  }
+
+  Widget _buildTelegramAvatar(FiloAuthState authState, bool isDark) {
+    final photoPath = authState.telegramProfilePhotoPath;
+    final hasValidFile = photoPath != null && photoPath.isNotEmpty && File(photoPath).existsSync();
+
+    if (hasValidFile) {
+      final isFlutterTest = const bool.fromEnvironment('FLUTTER_TEST') ||
+          (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST'));
+
+      return Container(
+        key: const ValueKey('telegram_avatar_image'),
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isDark ? FiloColors.darkBorder : FiloColors.lightBorder,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: isFlutterTest
+              ? Container(
+                  color: const Color(0xFF2AABEE),
+                  child: const Center(
+                    child: Icon(Icons.person, color: Colors.white, size: 24),
+                  ),
+                )
+              : Image.file(
+                  File(photoPath),
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildFallbackAvatar(authState, isDark),
+                ),
+        ),
+      );
+    }
+
+    return _buildFallbackAvatar(authState, isDark);
+  }
+
+  Widget _buildFallbackAvatar(FiloAuthState authState, bool isDark) {
+    String initial = 'T';
+    if (authState.telegramDisplayName != null && authState.telegramDisplayName!.isNotEmpty) {
+      initial = authState.telegramDisplayName![0].toUpperCase();
+    } else if (authState.telegramUserName != null && authState.telegramUserName!.isNotEmpty) {
+      initial = authState.telegramUserName!.replaceFirst('@', '')[0].toUpperCase();
+    }
+
+    return Container(
+      key: const ValueKey('telegram_avatar_fallback'),
+      width: 48,
+      height: 48,
+      decoration: const BoxDecoration(
+        color: FiloColors.primary,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );

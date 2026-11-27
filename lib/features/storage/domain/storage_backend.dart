@@ -30,6 +30,9 @@ abstract class StorageBackend {
   /// Locates or creates the user's private storage channel (e.g. "[APP_NAME] Vault").
   Future<VaultChannelInfo> getOrCreateVaultChannel(String channelTitle);
 
+  /// Stream of authentication / user profile updates emitted by the storage backend.
+  Stream<StorageAuthState>? get authStateStream => null;
+
   /// Stream of QR code login links emitted during QR authentication (e.g. tg://login?token=...).
   Stream<String>? get qrLinkStream => null;
 
@@ -50,6 +53,19 @@ abstract class StorageBackend {
     required String channelId,
     required String remoteFileId,
     ProgressCallback? onProgress,
+  });
+
+  /// Streams a remote chunk or file directly to [destinationFile] on disk without
+  /// buffering the full payload in RAM.
+  ///
+  /// When [deleteRemoteCache] is true, backends that keep local transfer caches
+  /// (such as TDLib) may purge their cached copy once streamed to [destinationFile].
+  Future<void> downloadChunkToFile({
+    required String channelId,
+    required String remoteFileId,
+    required File destinationFile,
+    ProgressCallback? onProgress,
+    bool deleteRemoteCache = false,
   });
 
   /// Deletes a specific message in the vault channel.

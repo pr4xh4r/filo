@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:handy_tdlib_next/handy_tdlib_next.dart' as td;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -90,8 +92,11 @@ void _tdlibWorkerEntry(_TdlibWorkerArgs args) async {
 /// - Real QR code device linking via `requestQrCodeAuthentication`.
 /// - Graceful fallback to hermetic FakeStorageBackend in test environments or when native FFI is absent.
 class TdlibStorageBackend implements StorageBackend {
+  static const _keyTdlibDbKey = 'filo_tdlib_db_key';
+
   final int apiId;
   final String apiHash;
+  final FlutterSecureStorage _secureStorage;
 
   bool _isNativeAvailable = false;
   int? _clientId;
@@ -99,8 +104,15 @@ class TdlibStorageBackend implements StorageBackend {
   SendPort? _workerSendPort;
   ReceivePort? _mainReceivePort;
 
+  String? _tdlibEncryptionKey;
+  bool _needsLegacyKeyMigration = false;
+  bool _legacyMigrationInProgress = false;
+  Future<String>? _pendingKeyResolution;
+
   final StreamController<String> _qrLinkController =
       StreamController<String>.broadcast();
+  final StreamController<StorageAuthState> _authStreamController =
+      StreamController<StorageAuthState>.broadcast();
 
   String _currentAuthStateType = 'unknown';
   bool _parametersSent = false;
@@ -108,6 +120,9 @@ class TdlibStorageBackend implements StorageBackend {
   String? _phoneNumber;
   String? _userId;
   String? _userName;
+  String? _displayName;
+  String? _profilePhotoPath;
+  int? _profilePhotoFileId;
 
   Completer<StorageAuthState>? _authCompleter;
 
@@ -129,9 +144,24 @@ class TdlibStorageBackend implements StorageBackend {
   TdlibStorageBackend({
     required this.apiId,
     required this.apiHash,
-  });
+    FlutterSecureStorage? secureStorage,
+  }) : _secureStorage = secureStorage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(
+                encryptedSharedPreferences: true,
+              ),
+            ) {
+    _fallbackBackend.authStateStream?.listen((s) {
+      if (!_isNativeAvailable && !_authStreamController.isClosed) {
+        _authStreamController.add(s);
+      }
+    });
+  }
 
   bool get isNativeAvailable => _isNativeAvailable;
+
+  @override
+  Stream<StorageAuthState> get authStateStream => _authStreamController.stream;
 
   @override
   Stream<String> get qrLinkStream => _qrLinkController.stream;
@@ -237,11 +267,7 @@ class TdlibStorageBackend implements StorageBackend {
         if (user is Map<String, dynamic>) {
           final id = user['id']?.toString();
           if (_userId == null || _userId == id) {
-            _userId = id;
-            final firstName = user['first_name'] as String? ?? '';
-            final lastName = user['last_name'] as String? ?? '';
-            final fullName = '$firstName $lastName'.trim();
-            _userName = fullName.isNotEmpty ? fullName : 'Telegram User';
+            _parseAndStoreUser(user);
           }
         }
         return;
@@ -276,6 +302,14 @@ class TdlibStorageBackend implements StorageBackend {
             final local = file['local'] as Map<String, dynamic>?;
             final remote = file['remote'] as Map<String, dynamic>?;
 
+            if (fileId == _profilePhotoFileId && local?['is_downloading_completed'] == true) {
+              final path = local?['path'] as String?;
+              if (path != null && path.isNotEmpty && File(path).existsSync()) {
+                _profilePhotoPath = path;
+                _notifyAuthStateChanged();
+              }
+            }
+
             final isUploading = remote?['is_uploading_active'] as bool? ?? false;
             final isDownloading = local?['is_downloading_active'] as bool? ?? false;
             final totalSize = (file['size'] as int?) ?? (file['expected_size'] as int?) ?? 0;
@@ -307,6 +341,93 @@ class TdlibStorageBackend implements StorageBackend {
     }
   }
 
+  void _parseAndStoreUser(Map<String, dynamic> user) {
+    final id = user['id']?.toString();
+    if (id != null) {
+      _userId = id;
+    }
+    final firstName = (user['first_name'] as String? ?? '').trim();
+    final lastName = (user['last_name'] as String? ?? '').trim();
+    final fullName = '$firstName $lastName'.trim();
+    _displayName = fullName.isNotEmpty ? fullName : null;
+
+    // Extract Telegram @username
+    String? username = (user['username'] as String?)?.trim();
+    if (username == null || username.isEmpty) {
+      final usernames = user['usernames'] as Map<String, dynamic>?;
+      if (usernames != null) {
+        final editable = (usernames['editable_username'] as String?)?.trim();
+        if (editable != null && editable.isNotEmpty) {
+          username = editable;
+        } else {
+          final activeList = usernames['active_usernames'] as List?;
+          if (activeList != null && activeList.isNotEmpty) {
+            username = (activeList.first as String?)?.trim();
+          }
+        }
+      }
+    }
+    if (username != null && username.isNotEmpty) {
+      _userName = username.replaceAll('@', '');
+    } else {
+      _userName = null;
+    }
+
+    // Parse profile photo
+    final photo = user['profile_photo'] as Map<String, dynamic>?;
+    if (photo != null) {
+      final small = photo['small'] as Map<String, dynamic>? ?? photo['big'] as Map<String, dynamic>?;
+      if (small != null) {
+        final fileId = small['id'] as int?;
+        _profilePhotoFileId = fileId;
+        final local = small['local'] as Map<String, dynamic>?;
+        final path = local?['path'] as String?;
+        final isDownloaded = local?['is_downloading_completed'] as bool? ?? false;
+        if (isDownloaded && path != null && path.isNotEmpty && File(path).existsSync()) {
+          _profilePhotoPath = path;
+        } else if (fileId != null) {
+          _sendJson({
+            '@type': 'downloadFile',
+            'file_id': fileId,
+            'priority': 32,
+            'offset': 0,
+            'limit': 0,
+            'synchronous': false,
+          });
+        }
+      }
+    } else {
+      _profilePhotoPath = null;
+      _profilePhotoFileId = null;
+    }
+
+    _notifyAuthStateChanged();
+  }
+
+  void _notifyAuthStateChanged() {
+    if (_authStreamController.isClosed) return;
+    _authStreamController.add(StorageAuthState(
+      step: _currentStep,
+      phoneNumber: _phoneNumber,
+      userId: _userId,
+      userName: _userName,
+      displayName: _displayName,
+      profilePhotoPath: _profilePhotoPath,
+    ));
+  }
+
+  Future<void> _fetchMe() async {
+    if (!_isNativeAvailable || _clientId == null || _workerSendPort == null) return;
+    try {
+      final res = await _call({'@type': 'getMe'});
+      if (res['@type'] == 'user') {
+        _parseAndStoreUser(res);
+      }
+    } catch (e) {
+      debugPrint('[TdlibStorageBackend] _fetchMe error: $e');
+    }
+  }
+
   void _onAuthorizationStateChanged(Map<String, dynamic> stateMap) {
     final stateType = stateMap['@type'] as String? ?? '';
     _currentAuthStateType = stateType;
@@ -317,7 +438,7 @@ class TdlibStorageBackend implements StorageBackend {
         _sendTdlibParameters(force: true);
         break;
       case 'authorizationStateWaitEncryptionKey':
-        _sendJson({'@type': 'checkDatabaseEncryptionKey', 'encryption_key': ''});
+        unawaited(_handleWaitEncryptionKey());
         break;
       case 'authorizationStateWaitPhoneNumber':
         _currentStep = StorageAuthStep.unauthenticated;
@@ -350,13 +471,20 @@ class TdlibStorageBackend implements StorageBackend {
         break;
       case 'authorizationStateReady':
         _currentStep = StorageAuthStep.authenticated;
+        unawaited(_fetchMe());
         if (_authCompleter != null && !_authCompleter!.isCompleted) {
           _authCompleter!.complete(StorageAuthState(
             step: StorageAuthStep.authenticated,
             userId: _userId ?? 'me',
-            userName: _userName ?? 'Telegram User',
+            userName: _userName,
+            displayName: _displayName,
+            profilePhotoPath: _profilePhotoPath,
           ));
           _authCompleter = null;
+        }
+        _notifyAuthStateChanged();
+        if (_needsLegacyKeyMigration && !_legacyMigrationInProgress) {
+          unawaited(_migrateLegacyDatabaseEncryptionKey());
         }
         break;
       case 'authorizationStateLoggingOut':
@@ -364,6 +492,96 @@ class TdlibStorageBackend implements StorageBackend {
       case 'authorizationStateClosed':
         _currentStep = StorageAuthStep.unauthenticated;
         break;
+    }
+  }
+
+  String _generateRandomKeyBase64() {
+    final random = Random.secure();
+    final keyBytes = Uint8List(32);
+    for (int i = 0; i < 32; i++) {
+      keyBytes[i] = random.nextInt(256);
+    }
+    try {
+      return base64Encode(keyBytes);
+    } finally {
+      keyBytes.fillRange(0, keyBytes.length, 0);
+    }
+  }
+
+  Future<String> _resolveOrCreateDatabaseKey(String tdDir) {
+    final inFlight = _pendingKeyResolution;
+    if (inFlight != null) return inFlight;
+
+    final future = _resolveOrCreateDatabaseKeyImpl(tdDir).whenComplete(() {
+      _pendingKeyResolution = null;
+    });
+    _pendingKeyResolution = future;
+    return future;
+  }
+
+  Future<String> _resolveOrCreateDatabaseKeyImpl(String tdDir) async {
+    final cached = _tdlibEncryptionKey;
+    if (cached != null && cached.isNotEmpty) {
+      _needsLegacyKeyMigration = false;
+      return cached;
+    }
+
+    final existingKey = await _secureStorage.read(key: _keyTdlibDbKey);
+    if (existingKey != null && existingKey.isNotEmpty) {
+      _tdlibEncryptionKey = existingKey;
+      _needsLegacyKeyMigration = false;
+      return existingKey;
+    }
+
+    final legacyDbExists = File(p.join(tdDir, 'td.binlog')).existsSync();
+    if (legacyDbExists) {
+      // Legacy unencrypted database: open once with empty key, then migrate on ready.
+      _tdlibEncryptionKey = '';
+      _needsLegacyKeyMigration = true;
+      return '';
+    }
+
+    // Fresh install: generate and persist a 32-byte CSPRNG encryption key.
+    final freshKeyB64 = _generateRandomKeyBase64();
+    await _secureStorage.write(key: _keyTdlibDbKey, value: freshKeyB64);
+    _tdlibEncryptionKey = freshKeyB64;
+    _needsLegacyKeyMigration = false;
+    return freshKeyB64;
+  }
+
+  @visibleForTesting
+  Future<String> resolveDatabaseEncryptionKeyForTest(String tdDir) =>
+      _resolveOrCreateDatabaseKey(tdDir);
+
+  @visibleForTesting
+  bool get needsLegacyKeyMigrationForTest => _needsLegacyKeyMigration;
+
+  Future<void> _handleWaitEncryptionKey() async {
+    var key = _tdlibEncryptionKey;
+    if (key == null) {
+      key = await _secureStorage.read(key: _keyTdlibDbKey) ?? '';
+      _tdlibEncryptionKey = key;
+    }
+    _sendJson({'@type': 'checkDatabaseEncryptionKey', 'encryption_key': key});
+  }
+
+  Future<void> _migrateLegacyDatabaseEncryptionKey() async {
+    if (_legacyMigrationInProgress) return;
+    _legacyMigrationInProgress = true;
+    try {
+      final newKeyB64 = _generateRandomKeyBase64();
+      await _call({
+        '@type': 'setDatabaseEncryptionKey',
+        'new_encryption_key': newKeyB64,
+      });
+      await _secureStorage.write(key: _keyTdlibDbKey, value: newKeyB64);
+      _tdlibEncryptionKey = newKeyB64;
+      _needsLegacyKeyMigration = false;
+      debugPrint('[TdlibStorageBackend] Migrated legacy TDLib database to encrypted key');
+    } catch (e) {
+      debugPrint('[TdlibStorageBackend] Legacy TDLib key migration deferred: $e');
+    } finally {
+      _legacyMigrationInProgress = false;
     }
   }
 
@@ -377,12 +595,14 @@ class TdlibStorageBackend implements StorageBackend {
       await Directory(tdDir).create(recursive: true);
       await Directory(filesDir).create(recursive: true);
 
+      final dbEncryptionKey = await _resolveOrCreateDatabaseKey(tdDir);
+
       final paramsJson = <String, dynamic>{
         '@type': 'setTdlibParameters',
         'use_test_dc': false,
         'database_directory': tdDir,
         'files_directory': filesDir,
-        'database_encryption_key': '',
+        'database_encryption_key': dbEncryptionKey,
         'use_file_database': true,
         'use_chat_info_database': true,
         'use_message_database': true,
@@ -485,11 +705,27 @@ class TdlibStorageBackend implements StorageBackend {
       return _fallbackBackend.checkAuth();
     }
 
+    var waits = 0;
+    while ((_currentAuthStateType == 'unknown' ||
+            _currentAuthStateType == 'authorizationStateWaitTdlibParameters' ||
+            _currentAuthStateType == 'authorizationStateWaitEncryptionKey') &&
+           waits < 30) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      waits++;
+    }
+
+    if (_currentAuthStateType == 'authorizationStateReady' &&
+        (_displayName == null && _userName == null)) {
+      await _fetchMe();
+    }
+
     return StorageAuthState(
       step: _currentStep,
       phoneNumber: _phoneNumber,
       userId: _userId,
       userName: _userName,
+      displayName: _displayName,
+      profilePhotoPath: _profilePhotoPath,
     );
   }
 
@@ -628,6 +864,22 @@ class TdlibStorageBackend implements StorageBackend {
     _phoneNumber = null;
     _userId = null;
     _userName = null;
+    _displayName = null;
+    _profilePhotoPath = null;
+    _profilePhotoFileId = null;
+    _notifyAuthStateChanged();
+    _tdlibEncryptionKey = null;
+    _needsLegacyKeyMigration = false;
+    _legacyMigrationInProgress = false;
+    _pendingKeyResolution = null;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final tdDir = Directory(p.join(appDir.path, 'filo_tdlib'));
+      final binlog = File(p.join(tdDir.path, 'td.binlog'));
+      if (!tdDir.existsSync() || !binlog.existsSync()) {
+        await _secureStorage.delete(key: _keyTdlibDbKey);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -895,20 +1147,12 @@ class TdlibStorageBackend implements StorageBackend {
     }
   }
 
-  @override
-  Future<Uint8List> downloadChunk({
+  Future<({int fileId, String localPath})> _downloadTdlibFileToLocalPath({
     required String channelId,
     required String remoteFileId,
     ProgressCallback? onProgress,
+    Duration stallTimeout = const Duration(seconds: 120),
   }) async {
-    if (!_isNativeAvailable || _clientId == null) {
-      return _fallbackBackend.downloadChunk(
-        channelId: channelId,
-        remoteFileId: remoteFileId,
-        onProgress: onProgress,
-      );
-    }
-
     Map<String, dynamic>? fileObj;
 
     // Try getRemoteFile
@@ -961,19 +1205,48 @@ class TdlibStorageBackend implements StorageBackend {
       if (path != null && path.isNotEmpty) {
         final f = File(path);
         if (await f.exists()) {
-          final bytes = await f.readAsBytes();
-          onProgress?.call(bytes.length, bytes.length);
-          return bytes;
+          final len = await f.length();
+          onProgress?.call(len, len);
+          return (fileId: fileId, localPath: path);
         }
       }
     }
 
-    // Initiate download
+    // Initiate download with stall-aware inactivity timer so large files on
+    // slower connections never time out while actively making forward progress.
     final downloadCompleter = Completer<String>();
     _fileDownloadCompleters[fileId] = downloadCompleter;
-    if (onProgress != null) {
-      _fileProgressListeners.putIfAbsent(fileId, () => []).add(onProgress);
+
+    Timer? stallTimer;
+    int lastBytes = -1;
+
+    void resetStallTimer() {
+      stallTimer?.cancel();
+      stallTimer = Timer(stallTimeout, () {
+        final pending = _fileDownloadCompleters.remove(fileId);
+        if (pending != null && !pending.isCompleted) {
+          _sendJson({
+            '@type': 'cancelDownloadFile',
+            'file_id': fileId,
+            'only_if_pending': false,
+          });
+          pending.completeError(
+            TimeoutException('Stalled downloading file from Telegram: $remoteFileId'),
+          );
+        }
+      });
     }
+
+    void progressProxy(int transferred, int total) {
+      if (transferred > lastBytes) {
+        lastBytes = transferred;
+        resetStallTimer();
+      }
+      onProgress?.call(transferred, total);
+    }
+
+    _fileProgressListeners.putIfAbsent(fileId, () => []).add(progressProxy);
+    resetStallTimer();
 
     try {
       _sendJson({
@@ -985,22 +1258,103 @@ class TdlibStorageBackend implements StorageBackend {
         'synchronous': false,
       });
 
-      final localPath = await downloadCompleter.future.timeout(
-        const Duration(seconds: 120),
-        onTimeout: () {
-          throw TimeoutException('Timed out downloading chunk from Telegram: $remoteFileId');
-        },
-      );
-
+      final localPath = await downloadCompleter.future;
       final f = File(localPath);
-      final bytes = await f.readAsBytes();
-      onProgress?.call(bytes.length, bytes.length);
-      return bytes;
+      final len = await f.exists() ? await f.length() : 0;
+      onProgress?.call(len, len);
+      return (fileId: fileId, localPath: localPath);
     } finally {
-      if (onProgress != null) {
-        _fileProgressListeners[fileId]?.remove(onProgress);
+      stallTimer?.cancel();
+      _fileProgressListeners[fileId]?.remove(progressProxy);
+      if (_fileProgressListeners[fileId]?.isEmpty ?? false) {
+        _fileProgressListeners.remove(fileId);
       }
       _fileDownloadCompleters.remove(fileId);
+    }
+  }
+
+  @override
+  Future<Uint8List> downloadChunk({
+    required String channelId,
+    required String remoteFileId,
+    ProgressCallback? onProgress,
+  }) async {
+    if (!_isNativeAvailable || _clientId == null) {
+      return _fallbackBackend.downloadChunk(
+        channelId: channelId,
+        remoteFileId: remoteFileId,
+        onProgress: onProgress,
+      );
+    }
+
+    final downloaded = await _downloadTdlibFileToLocalPath(
+      channelId: channelId,
+      remoteFileId: remoteFileId,
+      onProgress: onProgress,
+    );
+    final f = File(downloaded.localPath);
+    return f.readAsBytes();
+  }
+
+  @override
+  Future<void> downloadChunkToFile({
+    required String channelId,
+    required String remoteFileId,
+    required File destinationFile,
+    ProgressCallback? onProgress,
+    bool deleteRemoteCache = false,
+  }) async {
+    if (!_isNativeAvailable || _clientId == null) {
+      return _fallbackBackend.downloadChunkToFile(
+        channelId: channelId,
+        remoteFileId: remoteFileId,
+        destinationFile: destinationFile,
+        onProgress: onProgress,
+        deleteRemoteCache: deleteRemoteCache,
+      );
+    }
+
+    final downloaded = await _downloadTdlibFileToLocalPath(
+      channelId: channelId,
+      remoteFileId: remoteFileId,
+      onProgress: onProgress,
+    );
+
+    if (!destinationFile.parent.existsSync()) {
+      destinationFile.parent.createSync(recursive: true);
+    }
+
+    final srcFile = File(downloaded.localPath);
+    if (p.canonicalize(srcFile.path) != p.canonicalize(destinationFile.path)) {
+      final sink = destinationFile.openWrite();
+      var sinkClosed = false;
+      try {
+        await sink.addStream(srcFile.openRead());
+        await sink.flush();
+        await sink.close();
+        sinkClosed = true;
+      } catch (_) {
+        if (!sinkClosed) {
+          try {
+            await sink.close();
+          } catch (_) {}
+        }
+        if (await destinationFile.exists()) {
+          try {
+            await destinationFile.delete();
+          } catch (_) {}
+        }
+        rethrow;
+      }
+    }
+
+    if (deleteRemoteCache) {
+      try {
+        _sendJson({
+          '@type': 'deleteFile',
+          'file_id': downloaded.fileId,
+        });
+      } catch (_) {}
     }
   }
 
@@ -1170,6 +1524,10 @@ class TdlibStorageBackend implements StorageBackend {
 
   @override
   Future<void> dispose() async {
+    _tdlibEncryptionKey = null;
+    _needsLegacyKeyMigration = false;
+    _legacyMigrationInProgress = false;
+    _pendingKeyResolution = null;
     _channelCache.clear();
     for (final completer in _pendingRequests.values) {
       if (!completer.isCompleted) {
@@ -1198,6 +1556,9 @@ class TdlibStorageBackend implements StorageBackend {
     _workerSendPort = null;
     _mainReceivePort = null;
     await _qrLinkController.close();
+    if (!_authStreamController.isClosed) {
+      await _authStreamController.close();
+    }
     await _fallbackBackend.dispose();
   }
 }

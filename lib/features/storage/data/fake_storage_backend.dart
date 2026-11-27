@@ -32,6 +32,16 @@ class FakeStorageBackend implements StorageBackend {
   // remoteFileId -> file bytes
   final Map<String, Uint8List> _fileStore = {};
 
+  final StreamController<StorageAuthState> _authStateController =
+      StreamController<StorageAuthState>.broadcast();
+
+  String? profilePhotoPath;
+  String? displayName = 'Test User';
+  String? testUsername = 'testuser';
+
+  @override
+  Stream<StorageAuthState>? get authStateStream => _authStateController.stream;
+
   @override
   Future<void> initialize() async {
     await _applyLatency();
@@ -44,7 +54,9 @@ class FakeStorageBackend implements StorageBackend {
       step: _currentStep,
       phoneNumber: _phoneNumber,
       userId: _currentStep == StorageAuthStep.authenticated ? '123456789' : null,
-      userName: _currentStep == StorageAuthStep.authenticated ? 'Test User' : null,
+      userName: _currentStep == StorageAuthStep.authenticated ? (testUsername ?? 'testuser') : null,
+      displayName: _currentStep == StorageAuthStep.authenticated ? displayName : null,
+      profilePhotoPath: _currentStep == StorageAuthStep.authenticated ? profilePhotoPath : null,
     );
   }
 
@@ -79,12 +91,16 @@ class FakeStorageBackend implements StorageBackend {
       _currentStep = StorageAuthStep.authenticated;
     }
 
-    return StorageAuthState(
+    final result = StorageAuthState(
       step: _currentStep,
       phoneNumber: _phoneNumber,
       userId: _currentStep == StorageAuthStep.authenticated ? '123456789' : null,
-      userName: _currentStep == StorageAuthStep.authenticated ? 'Test User' : null,
+      userName: _currentStep == StorageAuthStep.authenticated ? (testUsername ?? 'testuser') : null,
+      displayName: _currentStep == StorageAuthStep.authenticated ? displayName : null,
+      profilePhotoPath: _currentStep == StorageAuthStep.authenticated ? profilePhotoPath : null,
     );
+    _authStateController.add(result);
+    return result;
   }
 
   @override
@@ -101,12 +117,16 @@ class FakeStorageBackend implements StorageBackend {
     }
 
     _currentStep = StorageAuthStep.authenticated;
-    return StorageAuthState(
+    final result = StorageAuthState(
       step: _currentStep,
       phoneNumber: _phoneNumber,
       userId: '123456789',
-      userName: 'Test User',
+      userName: testUsername ?? 'testuser',
+      displayName: displayName,
+      profilePhotoPath: profilePhotoPath,
     );
+    _authStateController.add(result);
+    return result;
   }
 
   @override
@@ -114,6 +134,7 @@ class FakeStorageBackend implements StorageBackend {
     await _applyLatency();
     _currentStep = StorageAuthStep.unauthenticated;
     _phoneNumber = null;
+    _authStateController.add(const StorageAuthState(step: StorageAuthStep.unauthenticated));
   }
 
   @override
@@ -224,6 +245,64 @@ class FakeStorageBackend implements StorageBackend {
   }
 
   @override
+  Future<void> downloadChunkToFile({
+    required String channelId,
+    required String remoteFileId,
+    required File destinationFile,
+    ProgressCallback? onProgress,
+    bool deleteRemoteCache = false,
+  }) async {
+    await _applyLatency();
+    _checkFloodWait();
+
+    if (shouldFailDownload) {
+      throw Exception('Simulated network interruption during chunk download');
+    }
+
+    final data = _fileStore[remoteFileId];
+    if (data == null) {
+      throw Exception('Remote chunk not found: fileId=$remoteFileId');
+    }
+
+    if (!destinationFile.parent.existsSync()) {
+      destinationFile.parent.createSync(recursive: true);
+    }
+
+    final total = data.length;
+    const sliceSize = 64 * 1024;
+    final sink = destinationFile.openWrite();
+    var sinkClosed = false;
+    try {
+      if (total == 0) {
+        onProgress?.call(0, 0);
+      } else {
+        int offset = 0;
+        while (offset < total) {
+          final end = (offset + sliceSize < total) ? offset + sliceSize : total;
+          sink.add(Uint8List.sublistView(data, offset, end));
+          offset = end;
+          onProgress?.call(offset, total);
+        }
+      }
+      await sink.flush();
+      await sink.close();
+      sinkClosed = true;
+    } catch (_) {
+      if (!sinkClosed) {
+        try {
+          await sink.close();
+        } catch (_) {}
+      }
+      if (destinationFile.existsSync()) {
+        try {
+          destinationFile.deleteSync();
+        } catch (_) {}
+      }
+      rethrow;
+    }
+  }
+
+  @override
   Future<void> deleteMessage({
     required String channelId,
     required String messageId,
@@ -288,7 +367,11 @@ class FakeStorageBackend implements StorageBackend {
   }
 
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async {
+    if (!_authStateController.isClosed) {
+      await _authStateController.close();
+    }
+  }
 
   Future<void> _applyLatency() async {
     if (simulatedLatency != null) {

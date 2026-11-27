@@ -22,12 +22,123 @@ class SessionCacheService {
   static const String sessionDirName = 'filo_session';
   static const int maxCacheSizeBytes = 250 * 1024 * 1024; // 250 MB
   static const int maxCacheFiles = 20;
+  static const int _zeroChunkSize = 64 * 1024; // 64 KB chunk buffer to avoid OOM on large files
+  static final Uint8List _zeroBuffer = Uint8List(_zeroChunkSize);
+  static const List<String> _staleTempPrefixes = [
+    'filo_vid_',
+    'filo_preview_',
+    'filo_stream_',
+    'filo_share_',
+    'filo_backup_export_',
+  ];
 
   Directory? _cachedSessionDir;
+  bool _isOverrideDir = false;
 
   @visibleForTesting
   void setOverrideDirectory(Directory? dir) {
     _cachedSessionDir = dir;
+    _isOverrideDir = dir != null;
+  }
+
+  /// Overwrites [file] in-place with zeros using a 64 KB chunk buffer, truncates
+  /// its length to 0, and deletes it from disk.
+  ///
+  /// Uses [FileMode.writeOnlyAppend] with [RandomAccessFile.setPosition] at 0
+  /// so existing logical blocks are overwritten in-place without truncating
+  /// first or doubling allocated disk space. Note that on flash storage
+  /// (eMMC/UFS/SSD), FTL wear-leveling may remap physical writes until TRIM/GC.
+  static Future<void> secureDeleteFile(File file) async {
+    if (!await file.exists()) return;
+    RandomAccessFile? raf;
+    try {
+      final length = await file.length();
+      if (length > 0) {
+        raf = await file.open(mode: FileMode.writeOnlyAppend);
+        await raf.setPosition(0);
+        int remaining = length;
+        while (remaining > 0) {
+          final chunkLen = remaining < _zeroChunkSize ? remaining : _zeroChunkSize;
+          await raf.writeFrom(_zeroBuffer, 0, chunkLen);
+          remaining -= chunkLen;
+        }
+        await raf.flush();
+        await raf.truncate(0);
+      }
+    } catch (e) {
+      debugPrint('[SessionCacheService] Error zeroing file ${file.path}: $e');
+    } finally {
+      try {
+        await raf?.close();
+      } catch (e) {
+        debugPrint('[SessionCacheService] Error closing file handle ${file.path}: $e');
+      }
+    }
+    try {
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      debugPrint('[SessionCacheService] Error deleting file ${file.path}: $e');
+    }
+  }
+
+  /// Synchronous counterpart to [secureDeleteFile] for synchronous cleanup paths.
+  static void secureDeleteFileSync(File file) {
+    if (!file.existsSync()) return;
+    RandomAccessFile? raf;
+    try {
+      final length = file.lengthSync();
+      if (length > 0) {
+        raf = file.openSync(mode: FileMode.writeOnlyAppend);
+        raf.setPositionSync(0);
+        int remaining = length;
+        while (remaining > 0) {
+          final chunkLen = remaining < _zeroChunkSize ? remaining : _zeroChunkSize;
+          raf.writeFromSync(_zeroBuffer, 0, chunkLen);
+          remaining -= chunkLen;
+        }
+        raf.flushSync();
+        raf.truncateSync(0);
+      }
+    } catch (e) {
+      debugPrint('[SessionCacheService] Error zeroing file ${file.path}: $e');
+    } finally {
+      try {
+        raf?.closeSync();
+      } catch (e) {
+        debugPrint('[SessionCacheService] Error closing file handle ${file.path}: $e');
+      }
+    }
+    try {
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    } catch (e) {
+      debugPrint('[SessionCacheService] Error deleting file ${file.path}: $e');
+    }
+  }
+
+  /// Recursively overwrites and deletes all files inside [dir], then removes [dir].
+  static Future<void> secureDeleteDirectory(Directory dir) async {
+    if (!await dir.exists()) return;
+    try {
+      final entities = await dir.list(recursive: true, followLinks: false).toList();
+      for (final entity in entities) {
+        if (entity is File) {
+          await secureDeleteFile(entity);
+        }
+      }
+    } catch (e) {
+      debugPrint('[SessionCacheService] Error traversing directory ${dir.path}: $e');
+    }
+    try {
+      if (await dir.exists()) {
+        await dir.delete(recursive: true);
+      }
+    } catch (e) {
+      debugPrint('[SessionCacheService] Error deleting directory ${dir.path}: $e');
+    }
   }
 
   /// Retrieves or creates the isolated session cache directory.
@@ -49,22 +160,24 @@ class SessionCacheService {
   Future<File?> getCachedFile(String nodeId, {int? expectedSize}) async {
     try {
       final dir = await getSessionDirectory();
-      final entities = dir.listSync();
+      final entities = dir.listSync(followLinks: false);
       for (final entity in entities) {
         if (entity is File) {
           final base = p.basename(entity.path);
           if (base.startsWith('session_$nodeId.') || base == 'session_$nodeId') {
             if (expectedSize != null && expectedSize > 0) {
               if (entity.lengthSync() != expectedSize) {
-                // Incomplete or corrupted stream, remove it
-                await entity.delete();
+                // Incomplete or corrupted stream, securely remove it
+                await secureDeleteFile(entity);
                 return null;
               }
             }
             // Touch last modified time for LRU tracking
             try {
               entity.setLastModifiedSync(DateTime.now());
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('[SessionCacheService] Failed to update mtime for ${entity.path}: $e');
+            }
             return entity;
           }
         }
@@ -87,7 +200,7 @@ class SessionCacheService {
   Future<void> evictLruIfNeeded() async {
     try {
       final dir = await getSessionDirectory();
-      final files = dir.listSync().whereType<File>().toList();
+      final files = dir.listSync(followLinks: false).whereType<File>().toList();
       if (files.isEmpty) return;
 
       int totalBytes = 0;
@@ -98,7 +211,8 @@ class SessionCacheService {
         totalBytes += len;
       }
 
-      if (totalBytes <= maxCacheSizeBytes && files.length <= maxCacheFiles) {
+      int remainingFiles = files.length;
+      if (totalBytes <= maxCacheSizeBytes && remainingFiles <= maxCacheFiles) {
         return;
       }
 
@@ -112,16 +226,18 @@ class SessionCacheService {
       });
 
       for (final file in files) {
-        if (totalBytes <= maxCacheSizeBytes && files.length <= maxCacheFiles) {
+        if (totalBytes <= maxCacheSizeBytes && remainingFiles <= maxCacheFiles) {
           break;
         }
         final size = fileStats[file] ?? 0;
         try {
-          await file.delete();
+          await secureDeleteFile(file);
           totalBytes -= size;
-          files.remove(file);
+          remainingFiles--;
           debugPrint('[SessionCacheService] Evicted LRU session file: ${file.path}');
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('[SessionCacheService] Failed to evict ${file.path}: $e');
+        }
       }
     } catch (e) {
       debugPrint('[SessionCacheService] LRU eviction error: $e');
@@ -129,20 +245,33 @@ class SessionCacheService {
   }
 
   /// Securely purges all decrypted files from the session cache.
-  /// Called on App Lock, logout, or explicit cache clearance.
+  /// Called on App Lock, logout, startup recovery, or explicit cache clearance.
   Future<void> purge() async {
     try {
       final dir = await getSessionDirectory();
       if (await dir.exists()) {
-        final entities = dir.listSync();
+        final entities = await dir.list(recursive: false, followLinks: false).toList();
         for (final entity in entities) {
           try {
             if (entity is File) {
-              await entity.delete();
+              await secureDeleteFile(entity);
             } else if (entity is Directory) {
-              await entity.delete(recursive: true);
+              await secureDeleteDirectory(entity);
             }
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('[SessionCacheService] Error purging ${entity.path}: $e');
+          }
+        }
+      }
+      if (!_isOverrideDir && await dir.parent.exists()) {
+        final tempEntities = await dir.parent.list(recursive: false, followLinks: false).toList();
+        for (final entity in tempEntities) {
+          if (entity is File) {
+            final name = p.basename(entity.path);
+            if (_staleTempPrefixes.any(name.startsWith)) {
+              await secureDeleteFile(entity);
+            }
+          }
         }
       }
       debugPrint('[SessionCacheService] Successfully purged decrypted session cache');
@@ -157,7 +286,7 @@ class SessionCacheService {
       final dir = await getSessionDirectory();
       if (!await dir.exists()) return 0;
       int total = 0;
-      for (final entity in dir.listSync()) {
+      for (final entity in dir.listSync(followLinks: false)) {
         if (entity is File) {
           total += entity.lengthSync();
         }

@@ -8,6 +8,8 @@ class FiloAuthState {
   final bool isTelegramAuthenticated;
   final String? telegramUserId;
   final String? telegramUserName;
+  final String? telegramDisplayName;
+  final String? telegramProfilePhotoPath;
   final String activeCloudProvider; // 'telegram'
   final VaultSetupStatus vaultStatus;
   final AppLockStatus lockStatus;
@@ -21,6 +23,8 @@ class FiloAuthState {
     this.isTelegramAuthenticated = false,
     this.telegramUserId,
     this.telegramUserName,
+    this.telegramDisplayName,
+    this.telegramProfilePhotoPath,
     this.activeCloudProvider = 'telegram',
     this.vaultStatus = VaultSetupStatus.unconfigured,
     this.lockStatus = AppLockStatus.unlocked,
@@ -43,24 +47,37 @@ class FiloAuthState {
     bool? isTelegramAuthenticated,
     String? telegramUserId,
     String? telegramUserName,
+    String? telegramDisplayName,
+    String? telegramProfilePhotoPath,
+    bool clearTelegramAuth = false,
     String? activeCloudProvider,
     VaultSetupStatus? vaultStatus,
     AppLockStatus? lockStatus,
     Uint8List? masterKey,
+    bool clearMasterKey = false,
     bool? isBiometricEnabled,
     int? autoLockTimeoutMinutes,
     String? errorMessage,
     bool? isLoading,
   }) {
     return FiloAuthState(
-      isTelegramAuthenticated:
-          isTelegramAuthenticated ?? this.isTelegramAuthenticated,
-      telegramUserId: telegramUserId ?? this.telegramUserId,
-      telegramUserName: telegramUserName ?? this.telegramUserName,
+      isTelegramAuthenticated: clearTelegramAuth
+          ? false
+          : (isTelegramAuthenticated ?? this.isTelegramAuthenticated),
+      telegramUserId:
+          clearTelegramAuth ? null : (telegramUserId ?? this.telegramUserId),
+      telegramUserName:
+          clearTelegramAuth ? null : (telegramUserName ?? this.telegramUserName),
+      telegramDisplayName: clearTelegramAuth
+          ? null
+          : (telegramDisplayName ?? this.telegramDisplayName),
+      telegramProfilePhotoPath: clearTelegramAuth
+          ? null
+          : (telegramProfilePhotoPath ?? this.telegramProfilePhotoPath),
       activeCloudProvider: activeCloudProvider ?? this.activeCloudProvider,
       vaultStatus: vaultStatus ?? this.vaultStatus,
       lockStatus: lockStatus ?? this.lockStatus,
-      masterKey: masterKey ?? this.masterKey,
+      masterKey: clearMasterKey ? null : (masterKey ?? this.masterKey),
       isBiometricEnabled: isBiometricEnabled ?? this.isBiometricEnabled,
       autoLockTimeoutMinutes:
           autoLockTimeoutMinutes ?? this.autoLockTimeoutMinutes,

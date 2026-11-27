@@ -16,6 +16,8 @@ class StorageAuthState {
   final String? error;
   final String? userId;
   final String? userName;
+  final String? displayName;
+  final String? profilePhotoPath;
 
   const StorageAuthState({
     required this.step,
@@ -23,6 +25,8 @@ class StorageAuthState {
     this.error,
     this.userId,
     this.userName,
+    this.displayName,
+    this.profilePhotoPath,
   });
 
   bool get isAuthenticated => step == StorageAuthStep.authenticated;
