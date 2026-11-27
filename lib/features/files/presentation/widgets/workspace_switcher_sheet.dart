@@ -204,19 +204,53 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                                 children: [
                                   Row(
                                     children: [
-                                      Text(
-                                        workspace.name,
-                                        style: TextStyle(
-                                          fontFamily: FiloTypography.fontFamily,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                      Flexible(
+                                        child: Text(
+                                          workspace.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontFamily: FiloTypography.fontFamily,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: isDark ? Colors.white : FiloColors.lightTextPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: workspace.isEncrypted
+                                              ? (isDark ? Colors.purple.withValues(alpha: 0.2) : const Color(0xFFF3E8FF))
+                                              : (isDark ? Colors.blue.withValues(alpha: 0.2) : const Color(0xFFE0F2FE)),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              workspace.isEncrypted ? Icons.lock_outline_rounded : Icons.visibility_outlined,
+                                              size: 10,
+                                              color: workspace.isEncrypted ? const Color(0xFF9333EA) : const Color(0xFF0284C7),
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              workspace.isEncrypted ? 'Encrypted' : 'Viewable',
+                                              style: TextStyle(
+                                                fontFamily: FiloTypography.fontFamily,
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: workspace.isEncrypted ? const Color(0xFF9333EA) : const Color(0xFF0284C7),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                       if (isSelected) ...[
-                                        const SizedBox(width: 8),
+                                        const SizedBox(width: 6),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: isDark ? Colors.white12 : FiloColors.primary.withValues(alpha: 0.08),
                                             borderRadius: BorderRadius.circular(6),
@@ -225,7 +259,7 @@ class WorkspaceSwitcherSheet extends StatelessWidget {
                                             'ACTIVE',
                                             style: TextStyle(
                                               fontFamily: FiloTypography.fontFamily,
-                                              fontSize: 9.5,
+                                              fontSize: 9,
                                               fontWeight: FontWeight.w800,
                                               letterSpacing: 0.4,
                                               color: isDark ? Colors.white : FiloColors.primary,

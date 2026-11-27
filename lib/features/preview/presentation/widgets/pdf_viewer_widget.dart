@@ -1,11 +1,13 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pdfx/pdfx.dart';
 import '../../../../core/theme/filo_colors.dart';
 import '../../../../core/theme/filo_typography.dart';
+import '../../../../shared/components/filo_glass.dart';
 
-/// Lightweight, native hardware-accelerated PDF viewer.
+/// Lightweight, native hardware-accelerated PDF viewer with smooth page swiping,
+/// interactive pinch zoom, direct page jumping, and orientation modes.
 class PdfViewerWidget extends StatefulWidget {
   final Uint8List? bytes;
   final File? file;
@@ -23,43 +25,62 @@ class PdfViewerWidget extends StatefulWidget {
 }
 
 class _PdfViewerWidgetState extends State<PdfViewerWidget> {
-  late PdfControllerPinch _pdfController;
+  PdfControllerPinch? _pdfController;
   int _actualPageNumber = 1;
   int _allPagesCount = 0;
   bool _isReady = false;
+  bool _isVertical = false; // Horizontal page flip by default for natural book-like swiping
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _initPdf();
+    _initPdf(initialPage: 1);
   }
 
-  Future<void> _initPdf() async {
+  Future<void> _initPdf({int initialPage = 1}) async {
     try {
+      final oldController = _pdfController;
       if (widget.file != null && await widget.file!.exists()) {
         _pdfController = PdfControllerPinch(
           document: PdfDocument.openFile(widget.file!.path),
+          initialPage: initialPage,
         );
       } else if (widget.bytes != null) {
         _pdfController = PdfControllerPinch(
           document: PdfDocument.openData(widget.bytes!),
+          initialPage: initialPage,
         );
       } else {
         throw Exception('No PDF data provided');
       }
-      setState(() => _isReady = true);
+      if (oldController != null) {
+        oldController.dispose();
+      }
+      if (mounted) {
+        setState(() => _isReady = true);
+      }
     } catch (e) {
-      setState(() => _error = 'Failed to load PDF: $e');
+      if (mounted) {
+        setState(() => _error = 'Failed to load PDF: $e');
+      }
     }
   }
 
   @override
   void dispose() {
-    if (_isReady) {
-      _pdfController.dispose();
-    }
+    _pdfController?.dispose();
     super.dispose();
+  }
+
+  void _goToPage(int page) {
+    if (_pdfController == null || page < 1 || page > _allPagesCount) return;
+    HapticFeedback.selectionClick();
+    _pdfController!.animateToPage(
+      pageNumber: page,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -96,7 +117,7 @@ class _PdfViewerWidgetState extends State<PdfViewerWidget> {
       );
     }
 
-    if (!_isReady) {
+    if (!_isReady || _pdfController == null) {
       return const Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(FiloColors.primary),
@@ -106,17 +127,27 @@ class _PdfViewerWidgetState extends State<PdfViewerWidget> {
 
     return Stack(
       children: [
+        // Native pinch-zoom & smooth page swipe view
         PdfViewPinch(
-          controller: _pdfController,
+          key: ValueKey('pdf_view_${_isVertical ? 'v' : 'h'}'),
+          controller: _pdfController!,
+          scrollDirection: _isVertical ? Axis.vertical : Axis.horizontal,
+          padding: 10,
+          minScale: 1.0,
+          maxScale: 4.0,
           onDocumentLoaded: (doc) {
-            setState(() {
-              _allPagesCount = doc.pagesCount;
-            });
+            if (mounted) {
+              setState(() {
+                _allPagesCount = doc.pagesCount;
+              });
+            }
           },
           onPageChanged: (page) {
-            setState(() {
-              _actualPageNumber = page;
-            });
+            if (mounted) {
+              setState(() {
+                _actualPageNumber = page;
+              });
+            }
           },
           builders: PdfViewPinchBuilders<DefaultBuilderOptions>(
             options: const DefaultBuilderOptions(),
@@ -132,29 +163,94 @@ class _PdfViewerWidgetState extends State<PdfViewerWidget> {
             ),
           ),
         ),
-        // Floating Page Counter Pill
+
+        // Floating Liquid Glass Page Navigation Bar
         if (_allPagesCount > 0)
           Positioned(
-            top: 16,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.75),
+            bottom: 24,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: FiloGlass(
                 borderRadius: BorderRadius.circular(100),
+                blur: 24.0,
+                color: Colors.black.withValues(alpha: 0.78),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  width: 1,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 8,
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
                 ],
-              ),
-              child: Text(
-                '$_actualPageNumber / $_allPagesCount',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Previous Page Button
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left_rounded, color: Colors.white, size: 22),
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(),
+                      onPressed: _actualPageNumber > 1
+                          ? () => _goToPage(_actualPageNumber - 1)
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Page Counter indicator
+                    Text(
+                      '$_actualPageNumber / $_allPagesCount',
+                      style: const TextStyle(
+                        fontFamily: FiloTypography.fontFamily,
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Next Page Button
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 22),
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(),
+                      onPressed: _actualPageNumber < _allPagesCount
+                          ? () => _goToPage(_actualPageNumber + 1)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+
+                    Container(
+                      width: 1,
+                      height: 16,
+                      color: Colors.white.withValues(alpha: 0.25),
+                    ),
+                    const SizedBox(width: 6),
+
+                    // Orientation Switcher (Horizontal Swipe vs Vertical Scroll)
+                    IconButton(
+                      tooltip: _isVertical ? 'Switch to Horizontal Flip' : 'Switch to Vertical Scroll',
+                      icon: Icon(
+                        _isVertical ? Icons.swap_horiz_rounded : Icons.swap_vert_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _isVertical = !_isVertical;
+                          _initPdf(initialPage: _actualPageNumber);
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),

@@ -87,123 +87,126 @@ class FileActionSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Star / Favorite
-        _buildActionTile(
-          context: context,
-          icon: node.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-          iconColor: node.isFavorite ? FiloColors.accentCoral : FiloColors.primary,
-          title: node.isFavorite ? 'Remove from Starred' : 'Add to Starred',
-          onTap: () {
-            Navigator.of(context).pop();
-            onToggleFavorite();
-          },
-        ),
-
-        // Rename
-        _buildActionTile(
-          context: context,
-          icon: Icons.edit_outlined,
-          iconColor: FiloColors.primary,
-          title: node.isFolder ? 'Rename Folder' : 'Rename File',
-          onTap: () {
-            Navigator.of(context).pop();
-            onRename();
-          },
-        ),
-
-        // Move to Folder
-        _buildActionTile(
-          context: context,
-          icon: Icons.drive_file_move_outlined,
-          iconColor: FiloColors.primary,
-          title: 'Move to Folder',
-          onTap: () {
-            Navigator.of(context).pop();
-            onMove();
-          },
-        ),
-
-        // Manage Smart Tags
-        if (onManageTags != null)
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Star / Favorite
           _buildActionTile(
             context: context,
-            icon: Icons.label_outline_rounded,
+            icon: node.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+            iconColor: node.isFavorite ? FiloColors.accentCoral : FiloColors.primary,
+            title: node.isFavorite ? 'Remove from Starred' : 'Add to Starred',
+            onTap: () {
+              Navigator.of(context).pop();
+              onToggleFavorite();
+            },
+          ),
+
+          // Rename
+          _buildActionTile(
+            context: context,
+            icon: Icons.edit_outlined,
             iconColor: FiloColors.primary,
-            title: 'Smart Tags',
+            title: node.isFolder ? 'Rename Folder' : 'Rename File',
             onTap: () {
               Navigator.of(context).pop();
-              onManageTags!();
+              onRename();
             },
           ),
 
-        // Move to Workspace / Space
-        if (onChangeWorkspace != null)
+          // Move to Folder
           _buildActionTile(
             context: context,
-            icon: Icons.workspaces_outline,
+            icon: Icons.drive_file_move_outlined,
             iconColor: FiloColors.primary,
-            title: 'Move to Space',
+            title: 'Move to Folder',
             onTap: () {
               Navigator.of(context).pop();
-              onChangeWorkspace!();
+              onMove();
             },
           ),
 
-        // Share (Files only)
-        if (node.isFile)
+          // Manage Smart Tags
+          if (onManageTags != null)
+            _buildActionTile(
+              context: context,
+              icon: Icons.label_outline_rounded,
+              iconColor: FiloColors.primary,
+              title: 'Smart Tags',
+              onTap: () {
+                Navigator.of(context).pop();
+                onManageTags!();
+              },
+            ),
+
+          // Move to Workspace / Space
+          if (onChangeWorkspace != null)
+            _buildActionTile(
+              context: context,
+              icon: Icons.workspaces_outline,
+              iconColor: FiloColors.primary,
+              title: 'Move to Space',
+              onTap: () {
+                Navigator.of(context).pop();
+                onChangeWorkspace!();
+              },
+            ),
+
+          // Share (Files only)
+          if (node.isFile)
+            _buildActionTile(
+              context: context,
+              icon: Icons.share_outlined,
+              iconColor: FiloColors.primary,
+              title: 'Share Decrypted Copy',
+              onTap: () {
+                Navigator.of(context).pop();
+                onShare();
+              },
+            ),
+
+          // Keep Offline / Remove Offline (Files only)
+          if (node.isFile && onToggleOffline != null)
+            _buildActionTile(
+              context: context,
+              icon: node.isPinnedOffline ? Icons.arrow_circle_down_rounded : Icons.arrow_circle_down_outlined,
+              iconColor: node.isPinnedOffline ? Colors.black : FiloColors.primary,
+              title: node.isPinnedOffline ? 'Remove from Offline' : 'Keep Offline (Save Pass/Doc)',
+              onTap: () {
+                Navigator.of(context).pop();
+                onToggleOffline!();
+              },
+            ),
+
+          // Download to Device (Files only)
+          if (node.isFile && onDownload != null)
+            _buildActionTile(
+              context: context,
+              icon: Icons.file_download_outlined,
+              iconColor: FiloColors.primary,
+              title: 'Save to Downloads',
+              onTap: () {
+                Navigator.of(context).pop();
+                onDownload!();
+              },
+            ),
+
+          // Delete to Trash
           _buildActionTile(
             context: context,
-            icon: Icons.share_outlined,
-            iconColor: FiloColors.primary,
-            title: 'Share Decrypted Copy',
+            icon: Icons.delete_outline_rounded,
+            iconColor: FiloColors.destructive,
+            title: node.isFolder ? 'Delete Folder' : 'Move to Trash',
+            isDestructive: true,
             onTap: () {
               Navigator.of(context).pop();
-              onShare();
+              onDelete();
             },
           ),
-
-        // Keep Offline / Remove Offline (Files only)
-        if (node.isFile && onToggleOffline != null)
-          _buildActionTile(
-            context: context,
-            icon: node.isPinnedOffline ? Icons.arrow_circle_down_rounded : Icons.arrow_circle_down_outlined,
-            iconColor: node.isPinnedOffline ? Colors.black : FiloColors.primary,
-            title: node.isPinnedOffline ? 'Remove from Offline' : 'Keep Offline (Save Pass/Doc)',
-            onTap: () {
-              Navigator.of(context).pop();
-              onToggleOffline!();
-            },
-          ),
-
-        // Download to Device (Files only)
-        if (node.isFile && onDownload != null)
-          _buildActionTile(
-            context: context,
-            icon: Icons.file_download_outlined,
-            iconColor: FiloColors.primary,
-            title: 'Save to Downloads',
-            onTap: () {
-              Navigator.of(context).pop();
-              onDownload!();
-            },
-          ),
-
-        // Delete to Trash
-        _buildActionTile(
-          context: context,
-          icon: Icons.delete_outline_rounded,
-          iconColor: FiloColors.destructive,
-          title: node.isFolder ? 'Delete Folder' : 'Move to Trash',
-          isDestructive: true,
-          onTap: () {
-            Navigator.of(context).pop();
-            onDelete();
-          },
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -264,6 +267,8 @@ class FileActionSheet extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: FiloTypography.fontFamily,
                       fontSize: 14.5,

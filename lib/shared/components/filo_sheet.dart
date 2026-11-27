@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../core/theme/filo_colors.dart';
-import '../../core/theme/filo_motion.dart';
 import '../../core/theme/filo_spacing.dart';
 import '../../core/theme/filo_typography.dart';
 
@@ -43,10 +42,6 @@ class FiloSheet extends StatelessWidget {
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * (isLandscape ? 0.95 : 0.88),
         maxWidth: isLandscape ? 620 : double.infinity,
-      ),
-      transitionAnimationController: AnimationController(
-        vsync: Navigator.of(context),
-        duration: FiloMotion.durationSheet,
       ),
       builder: (context) => FiloSheet(
         title: title,
