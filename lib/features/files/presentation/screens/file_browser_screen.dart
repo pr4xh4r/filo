@@ -272,7 +272,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Create an isolated space with Encrypted or Viewable cloud storage.',
+                              'Create an isolated space for your files.',
                               style: FiloTypography.caption.copyWith(
                                 fontFamily: FiloTypography.fontFamily,
                                 color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
@@ -321,217 +321,124 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                 },
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Space Storage Mode',
-                              style: TextStyle(
-                                fontFamily: FiloTypography.fontFamily,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-
-                            // Encrypted Space Option
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  HapticFeedback.selectionClick();
-                                  setDialogState(() => isEncrypted = true);
-                                },
-                                borderRadius: BorderRadius.circular(16),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: isEncrypted
-                                        ? (isDark ? Colors.purple.withValues(alpha: 0.2) : const Color(0xFFF3E8FF))
-                                        : (isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.6)),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: isEncrypted
-                                          ? const Color(0xFF9333EA)
-                                          : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)),
-                                      width: isEncrypted ? 1.5 : 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
+                            const SizedBox(height: 14),
+                            // 2 Clean Buttons: Encrypted and Viewable (App Theme)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: () {
+                                        HapticFeedback.selectionClick();
+                                        setDialogState(() => isEncrypted = true);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 150),
+                                        padding: const EdgeInsets.symmetric(vertical: 11),
                                         decoration: BoxDecoration(
                                           color: isEncrypted
-                                              ? const Color(0xFF9333EA).withValues(alpha: 0.15)
-                                              : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05)),
-                                          borderRadius: BorderRadius.circular(10),
+                                              ? (isDark ? Colors.white : Colors.black)
+                                              : (isDark
+                                                  ? Colors.white.withValues(alpha: 0.06)
+                                                  : Colors.black.withValues(alpha: 0.04)),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(
+                                            color: isEncrypted
+                                                ? Colors.transparent
+                                                : (isDark
+                                                    ? Colors.white.withValues(alpha: 0.1)
+                                                    : Colors.black.withValues(alpha: 0.06)),
+                                            width: 1,
+                                          ),
                                         ),
-                                        child: Icon(
-                                          Icons.lock_outline_rounded,
-                                          size: 19,
-                                          color: isEncrypted ? const Color(0xFF9333EA) : (isDark ? Colors.white70 : Colors.black54),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  'Encrypted Space',
-                                                  style: TextStyle(
-                                                    fontFamily: FiloTypography.fontFamily,
-                                                    fontSize: 13.5,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: isDark ? Colors.white : FiloColors.lightTextPrimary,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFF9333EA).withValues(alpha: 0.15),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: const Text(
-                                                    'AES-256',
-                                                    style: TextStyle(
-                                                      fontFamily: FiloTypography.fontFamily,
-                                                      fontSize: 8.5,
-                                                      fontWeight: FontWeight.w800,
-                                                      color: Color(0xFF9333EA),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                                            Icon(
+                                              Icons.lock_outline_rounded,
+                                              size: 16,
+                                              color: isEncrypted
+                                                  ? (isDark ? Colors.black : Colors.white)
+                                                  : (isDark ? Colors.white70 : FiloColors.lightTextSecondary),
                                             ),
-                                            const SizedBox(height: 2),
+                                            const SizedBox(width: 7),
                                             Text(
-                                              'Zero-knowledge encrypted chunks in Telegram filo enc.',
+                                              'Encrypted',
                                               style: TextStyle(
                                                 fontFamily: FiloTypography.fontFamily,
-                                                fontSize: 11,
-                                                color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: isEncrypted
+                                                    ? (isDark ? Colors.black : Colors.white)
+                                                    : (isDark ? Colors.white70 : FiloColors.lightTextSecondary),
                                               ),
                                             ),
                                           ],
                                         ),
                                       ),
-                                      if (isEncrypted)
-                                        const Icon(
-                                          Icons.check_circle_rounded,
-                                          color: Color(0xFF9333EA),
-                                          size: 18,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-
-                            // Viewable Space Option
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: () {
-                                  HapticFeedback.selectionClick();
-                                  setDialogState(() => isEncrypted = false);
-                                },
-                                borderRadius: BorderRadius.circular(16),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 180),
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: !isEncrypted
-                                        ? (isDark ? Colors.blue.withValues(alpha: 0.2) : const Color(0xFFE0F2FE))
-                                        : (isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.6)),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: !isEncrypted
-                                          ? const Color(0xFF0284C7)
-                                          : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)),
-                                      width: !isEncrypted ? 1.5 : 1,
                                     ),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: () {
+                                        HapticFeedback.selectionClick();
+                                        setDialogState(() => isEncrypted = false);
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 150),
+                                        padding: const EdgeInsets.symmetric(vertical: 11),
                                         decoration: BoxDecoration(
                                           color: !isEncrypted
-                                              ? const Color(0xFF0284C7).withValues(alpha: 0.15)
-                                              : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05)),
-                                          borderRadius: BorderRadius.circular(10),
+                                              ? (isDark ? Colors.white : Colors.black)
+                                              : (isDark
+                                                  ? Colors.white.withValues(alpha: 0.06)
+                                                  : Colors.black.withValues(alpha: 0.04)),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(
+                                            color: !isEncrypted
+                                                ? Colors.transparent
+                                                : (isDark
+                                                    ? Colors.white.withValues(alpha: 0.1)
+                                                    : Colors.black.withValues(alpha: 0.06)),
+                                            width: 1,
+                                          ),
                                         ),
-                                        child: Icon(
-                                          Icons.visibility_outlined,
-                                          size: 19,
-                                          color: !isEncrypted ? const Color(0xFF0284C7) : (isDark ? Colors.white70 : Colors.black54),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  'Viewable Space',
-                                                  style: TextStyle(
-                                                    fontFamily: FiloTypography.fontFamily,
-                                                    fontSize: 13.5,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: isDark ? Colors.white : FiloColors.lightTextPrimary,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFF0284C7).withValues(alpha: 0.15),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: const Text(
-                                                    'MEDIA',
-                                                    style: TextStyle(
-                                                      fontFamily: FiloTypography.fontFamily,
-                                                      fontSize: 8.5,
-                                                      fontWeight: FontWeight.w800,
-                                                      color: Color(0xFF0284C7),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                                            Icon(
+                                              Icons.visibility_outlined,
+                                              size: 16,
+                                              color: !isEncrypted
+                                                  ? (isDark ? Colors.black : Colors.white)
+                                                  : (isDark ? Colors.white70 : FiloColors.lightTextSecondary),
                                             ),
-                                            const SizedBox(height: 2),
+                                            const SizedBox(width: 7),
                                             Text(
-                                              'Direct media in Telegram filo view for quick streaming.',
+                                              'Viewable',
                                               style: TextStyle(
                                                 fontFamily: FiloTypography.fontFamily,
-                                                fontSize: 11,
-                                                color: isDark ? FiloColors.darkTextTertiary : FiloColors.lightTextTertiary,
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: !isEncrypted
+                                                    ? (isDark ? Colors.black : Colors.white)
+                                                    : (isDark ? Colors.white70 : FiloColors.lightTextSecondary),
                                               ),
                                             ),
                                           ],
                                         ),
                                       ),
-                                      if (!isEncrypted)
-                                        const Icon(
-                                          Icons.check_circle_rounded,
-                                          color: Color(0xFF0284C7),
-                                          size: 18,
-                                        ),
-                                    ],
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
 
                             const SizedBox(height: 20),
@@ -865,10 +772,16 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                         decoration: BoxDecoration(
-                                          color: ws.isEncrypted
-                                              ? (isDark ? const Color(0xFF581C87).withValues(alpha: 0.5) : const Color(0xFFF3E8FF))
-                                              : (isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.5) : const Color(0xFFEFF6FF)),
+                                          color: isDark
+                                              ? Colors.white.withValues(alpha: 0.08)
+                                              : Colors.black.withValues(alpha: 0.05),
                                           borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: isDark
+                                                ? Colors.white.withValues(alpha: 0.1)
+                                                : Colors.black.withValues(alpha: 0.06),
+                                            width: 0.8,
+                                          ),
                                         ),
                                         child: Text(
                                           ws.isEncrypted ? '🔒 Encrypted' : '👁️ Viewable',
@@ -876,9 +789,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                             fontFamily: FiloTypography.fontFamily,
                                             fontSize: 10,
                                             fontWeight: FontWeight.w700,
-                                            color: ws.isEncrypted
-                                                ? (isDark ? const Color(0xFFD8B4FE) : const Color(0xFF7C3AED))
-                                                : (isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB)),
+                                            color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
                                           ),
                                         ),
                                       ),
@@ -1549,10 +1460,8 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                     const SizedBox(width: 5),
                                     Icon(
                                       activeWorkspace.isEncrypted ? Icons.lock_outline_rounded : Icons.visibility_outlined,
-                                      size: 13,
-                                      color: activeWorkspace.isEncrypted
-                                          ? (isDark ? const Color(0xFFC084FC) : const Color(0xFF7C3AED))
-                                          : (isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB)),
+                                      size: 12.5,
+                                      color: isDark ? Colors.white60 : FiloColors.lightTextSecondary,
                                     ),
                                     const SizedBox(width: 2),
                                     Icon(
@@ -2751,10 +2660,16 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                                   decoration: BoxDecoration(
-                                    color: ws.isEncrypted
-                                        ? (isDark ? const Color(0xFF581C87).withValues(alpha: 0.5) : const Color(0xFFF3E8FF))
-                                        : (isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.5) : const Color(0xFFEFF6FF)),
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.08)
+                                        : Colors.black.withValues(alpha: 0.05),
                                     borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.1)
+                                          : Colors.black.withValues(alpha: 0.06),
+                                      width: 0.8,
+                                    ),
                                   ),
                                   child: Text(
                                     ws.isEncrypted ? '🔒 Encrypted' : '👁️ Viewable',
@@ -2762,9 +2677,7 @@ class _FileBrowserScreenState extends ConsumerState<FileBrowserScreen> {
                                       fontFamily: FiloTypography.fontFamily,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
-                                      color: ws.isEncrypted
-                                          ? (isDark ? const Color(0xFFD8B4FE) : const Color(0xFF7C3AED))
-                                          : (isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB)),
+                                      color: isDark ? Colors.white70 : FiloColors.lightTextSecondary,
                                     ),
                                   ),
                                 ),
